@@ -17,7 +17,7 @@
 		"@react-three/fiber": "^8.13.4",
 		"@sd/assets": "workspace:*",
 		"@sd/ui": "workspace:*",
-		"@t3-oss/env-nextjs": "^0.3.1",
+		"@t3-oss/env-nextjs": "^0.6.0",
 		"@vercel/edge-config": "^0.1.11",
 		"autoprefixer": "^10.4.14",
 		"clsx": "^1.2.1",
