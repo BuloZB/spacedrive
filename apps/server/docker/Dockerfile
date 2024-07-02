@@ -4,7 +4,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 #--
 
-FROM debian:bookworm as base
+FROM debian:12.6 as base
 
 ARG DEBIAN_FRONTEND
 
