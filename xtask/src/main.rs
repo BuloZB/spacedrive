@@ -421,26 +421,41 @@ fn build_ios() -> Result<()> {
 	std::fs::write(sim_framework_dir.join("Info.plist"), sim_plist)
 		.context("Failed to write simulator Info.plist")?;
 
-	// Update existing XCFramework (which Xcode is already using)
+	// Create or update XCFramework
 	let xcframework_path = ios_core_dir.join(format!("{}.xcframework", framework_name));
 
-	println!("Updating XCFramework at: {}", xcframework_path.display());
+	if xcframework_path.exists() {
+		println!("Updating existing XCFramework at: {}", xcframework_path.display());
+	} else {
+		println!("Creating XCFramework at: {}", xcframework_path.display());
+		std::fs::create_dir_all(&xcframework_path)
+			.context("Failed to create XCFramework directory")?;
 
-	// Update device framework
+		// Create Info.plist for XCFramework
+		let xcframework_plist = create_xcframework_info_plist(framework_name);
+		std::fs::write(xcframework_path.join("Info.plist"), xcframework_plist)
+			.context("Failed to write XCFramework Info.plist")?;
+	}
+
+	// Create/update device framework directory
 	let device_target = xcframework_path.join("ios-arm64");
+	std::fs::create_dir_all(&device_target)
+		.context("Failed to create device target directory")?;
 	std::fs::copy(
 		device_framework_dir.join(framework_name),
 		device_target.join(format!("lib{}.a", framework_name)),
 	)
-	.context("Failed to update device library in XCFramework")?;
+	.context("Failed to copy device library to XCFramework")?;
 
-	// Update simulator framework
+	// Create/update simulator framework directory
 	let sim_target = xcframework_path.join("ios-arm64-simulator");
+	std::fs::create_dir_all(&sim_target)
+		.context("Failed to create simulator target directory")?;
 	std::fs::copy(
 		sim_framework_dir.join(framework_name),
 		sim_target.join(format!("lib{}.a", framework_name)),
 	)
-	.context("Failed to update simulator library in XCFramework")?;
+	.context("Failed to copy simulator library to XCFramework")?;
 
 	// Clean up build directory
 	std::fs::remove_dir_all(&build_dir).context("Failed to clean up build directory")?;
@@ -615,6 +630,55 @@ fn create_framework_info_plist(framework_name: &str, platform: &str) -> String {
 </plist>
 "#,
 		framework_name, framework_name, platform
+	)
+}
+
+/// Generate an Info.plist file for an XCFramework
+///
+/// Creates the top-level metadata for the XCFramework bundle
+fn create_xcframework_info_plist(framework_name: &str) -> String {
+	format!(
+		r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>AvailableLibraries</key>
+    <array>
+        <dict>
+            <key>LibraryIdentifier</key>
+            <string>ios-arm64</string>
+            <key>LibraryPath</key>
+            <string>lib{}.a</string>
+            <key>SupportedArchitectures</key>
+            <array>
+                <string>arm64</string>
+            </array>
+            <key>SupportedPlatform</key>
+            <string>ios</string>
+        </dict>
+        <dict>
+            <key>LibraryIdentifier</key>
+            <string>ios-arm64-simulator</string>
+            <key>LibraryPath</key>
+            <string>lib{}.a</string>
+            <key>SupportedArchitectures</key>
+            <array>
+                <string>arm64</string>
+            </array>
+            <key>SupportedPlatform</key>
+            <string>ios</string>
+            <key>SupportedPlatformVariant</key>
+            <string>simulator</string>
+        </dict>
+    </array>
+    <key>CFBundlePackageType</key>
+    <string>XFWK</string>
+    <key>XCFrameworkFormatVersion</key>
+    <string>1.0</string>
+</dict>
+</plist>
+"#,
+		framework_name, framework_name
 	)
 }
 

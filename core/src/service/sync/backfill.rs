@@ -863,12 +863,28 @@ impl BackfillManager {
 													};
 
 													let db = self.peer_sync.db().clone();
-													if let Err(e) = crate::infra::sync::registry::apply_shared_change(entry, db).await {
+													if let Err(e) = crate::infra::sync::registry::apply_shared_change(entry.clone(), db).await {
+														// Extract diagnostic information for FK errors
+														let fk_mappings = crate::infra::sync::registry::get_fk_mappings(&model_type);
+														let uuid_fields: Vec<String> = if let Some(obj) = data.as_object() {
+															obj.keys()
+																.filter(|k| k.ends_with("_uuid"))
+																.map(|k| {
+																	let value = obj.get(k).and_then(|v| v.as_str()).unwrap_or("null");
+																	format!("{}={}", k, value)
+																})
+																.collect()
+														} else {
+															vec![]
+														};
+
 														warn!(
 															model_type = %model_type,
 															uuid = %record_uuid,
 															error = %e,
-															"Failed to apply current state record"
+															fk_mappings = ?fk_mappings,
+															uuid_fields = ?uuid_fields,
+															"Failed to apply current_state snapshot record - likely missing FK dependency"
 														);
 													} else {
 														// Resolve any state changes waiting for this shared resource
@@ -967,14 +983,37 @@ impl BackfillManager {
 									continue; // Skip to next entry
 								} else {
 									// FK error but can't extract UUID (raw SQLite error)
-									// For models with dependencies, buffer on a placeholder and retry after snapshot completes
-									// This handles the case where peer log entries depend on snapshot data
-									tracing::warn!(
+									// Extract diagnostic information for troubleshooting
+									let fk_mappings = crate::infra::sync::registry::get_fk_mappings(&entry.model_type);
+
+									// Extract UUID fields from entry data to show which FKs are present
+									let uuid_fields: Vec<String> = if let Some(obj) = entry.data.as_object() {
+										obj.keys()
+											.filter(|k| k.ends_with("_uuid"))
+											.map(|k| {
+												let value = obj.get(k).and_then(|v| v.as_str()).unwrap_or("null");
+												format!("{}={}", k, value)
+											})
+											.collect()
+									} else {
+										vec![]
+									};
+
+									// Log comprehensive diagnostic information
+									tracing::info!(
 										error = %e,
 										record_uuid = %entry.record_uuid,
 										model_type = %entry.model_type,
-										"FK constraint failed but couldn't extract UUID - skipping (will retry from snapshot dependencies)"
+										hlc = %entry.hlc,
+										change_type = ?entry.change_type,
+										fk_mappings = ?fk_mappings,
+										uuid_fields = ?uuid_fields,
+										"FK constraint failed during shared resource backfill - cannot extract missing UUID from SQLite error. \
+										This typically means: (1) parent was deleted before backfill started, (2) peer log has orphaned records, \
+										(3) snapshot query failed for a dependency model, or (4) HLC ordering issue. \
+										Record will be skipped and retried in next backfill attempt."
 									);
+
 									// Skip this record - if it's in the snapshot dependencies, it will be resolved
 									// If not, it will be re-requested in next backfill attempt
 									continue;

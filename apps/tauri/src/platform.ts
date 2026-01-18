@@ -241,6 +241,10 @@ export const platform: Platform = {
 		await invoke("open_macos_settings");
 	},
 
+	async applyMacOSStyling() {
+		await invoke("apply_macos_styling");
+	},
+
 	async startDrag(config) {
 		const currentWindow = getCurrentWebviewWindow();
 		const sessionId = await beginDrag(

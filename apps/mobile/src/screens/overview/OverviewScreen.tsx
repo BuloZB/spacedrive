@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, DrawerActions } from "@react-navigation/native";
 import { useNormalizedQuery } from "../../client";
 import type { Library } from "@sd/ts-client";
-import { HeroStats, DevicePanel } from "./components";
+import { HeroStats, DevicePanel, ActionButtons } from "./components";
 import { PairingPanel } from "../../components/PairingPanel";
 import { LibrarySwitcherPanel } from "../../components/LibrarySwitcherPanel";
 
@@ -110,6 +110,15 @@ export function OverviewScreen() {
 					onLocationSelect={(location) =>
 						setSelectedLocationId(location?.id || null)
 					}
+				/>
+			</View>
+
+			{/* Action Buttons */}
+			<View className="px-4">
+				<ActionButtons
+					onPairDevice={() => setShowPairing(true)}
+					onSetupSync={() => {/* TODO: Open sync setup */}}
+					onAddStorage={() => {/* TODO: Open location picker */}}
 				/>
 			</View>
 

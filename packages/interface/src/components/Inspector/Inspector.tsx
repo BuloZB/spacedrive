@@ -78,23 +78,33 @@ interface InspectorViewProps {
 	onPopOut?: () => void;
 	showPopOutButton?: boolean;
 	isPreviewActive?: boolean;
+	hideDragRegion?: boolean;
 }
 
 function InspectorView({
 	variant,
 	onPopOut,
 	showPopOutButton = true,
-	isPreviewActive = false
+	isPreviewActive = false,
+	hideDragRegion = false
 }: InspectorViewProps) {
 	return (
 		<div
 			className={clsx(
-				'flex h-full flex-col overflow-hidden rounded-2xl',
+				'flex h-full flex-col overflow-hidden rounded-2xl relative',
 				isPreviewActive
 					? 'bg-sidebar/80 backdrop-blur-2xl'
 					: 'bg-sidebar/65'
 			)}
 		>
+			{/* Drag region for macOS traffic lights area */}
+			{!hideDragRegion && (
+				<div
+					data-tauri-drag-region
+					className="absolute inset-x-0 top-0 h-[52px] z-[60]"
+				/>
+			)}
+
 			<div className="relative z-[51] flex h-full flex-col p-2.5 pb-2">
 				{/* Variant-specific content */}
 				{!variant || variant.type === 'empty' ? (
@@ -144,6 +154,15 @@ function EmptyState() {
 export function PopoutInspector() {
 	const platform = usePlatform();
 	const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
+
+	// Apply macOS titlebar styling after window is ready
+	useEffect(() => {
+		if (platform.applyMacOSStyling) {
+			platform.applyMacOSStyling().catch((err) => {
+				console.warn('Failed to apply macOS styling:', err);
+			});
+		}
+	}, [platform]);
 
 	// Query selected file IDs from platform on mount
 	useEffect(() => {
@@ -222,5 +241,5 @@ export function PopoutInspector() {
 		);
 	}
 
-	return <InspectorView variant={variant} showPopOutButton={false} />;
+	return <InspectorView variant={variant} showPopOutButton={false} hideDragRegion={true} />;
 }

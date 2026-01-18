@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import clsx from "clsx";
 import {
   GeneralSettings,
@@ -11,6 +11,7 @@ import {
   AboutSettings,
 } from "../../Settings/pages";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { usePlatform } from "../../contexts/PlatformContext";
 
 interface SettingsSidebarProps {
   currentPage: string;
@@ -89,9 +90,15 @@ function SettingsContentWrapper() {
 
   return (
     <div className={clsx(
-      "h-screen flex transition-colors duration-500",
+      "h-screen flex transition-colors duration-500 relative",
       currentPage === "about" ? "bg-black" : "bg-app"
     )}>
+      {/* Drag region for macOS traffic lights area */}
+      <div
+        data-tauri-drag-region
+        className="absolute inset-x-0 top-0 h-[52px] z-50"
+      />
+
       {/* Sidebar */}
       <nav className={clsx(
         "w-48 border-r p-4 pt-[52px] transition-all duration-500",
@@ -124,6 +131,17 @@ function SettingsContentWrapper() {
  * Renders immediately since daemon is already connected in main window.
  */
 export function Settings() {
+  const platform = usePlatform();
+
+  useEffect(() => {
+    // Apply macOS titlebar styling after window is ready
+    if (platform.applyMacOSStyling) {
+      platform.applyMacOSStyling().catch((err) => {
+        console.warn("Failed to apply macOS styling:", err);
+      });
+    }
+  }, [platform]);
+
   return (
     <>
       <SettingsContentWrapper />

@@ -138,6 +138,9 @@ export type Platform = {
 	/** Open macOS system settings (Tauri/macOS only) */
 	openMacOSSettings?(): Promise<void>;
 
+	/** Apply macOS titlebar styling (Tauri/macOS only) */
+	applyMacOSStyling?(): Promise<void>;
+
 	// Drag and Drop API (Tauri only)
 
 	/** Start a native drag operation */

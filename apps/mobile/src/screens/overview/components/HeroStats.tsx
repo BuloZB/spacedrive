@@ -1,8 +1,8 @@
 import React from "react";
 import { View, Text, Image } from "react-native";
-import NodeIcon from "@sd/assets/icons/Node.png";
+import DevicesIcon from "@sd/assets/icons/Devices.png";
 import IndexedIcon from "@sd/assets/icons/Indexed.png";
-import ServerIcon from "@sd/assets/icons/Server.png";
+import MobileIcon from "@sd/assets/icons/Mobile.png";
 import ComputeIcon from "@sd/assets/icons/Compute.png";
 
 interface HeroStatsProps {
@@ -55,7 +55,7 @@ export function HeroStats({
 			<View className="flex-row flex-wrap gap-8">
 				{/* Total Storage */}
 				<StatCard
-					icon={NodeIcon}
+					icon={DevicesIcon}
 					label="Total Storage"
 					value={
 						<>
@@ -91,7 +91,7 @@ export function HeroStats({
 
 				{/* Devices */}
 				<StatCard
-					icon={ServerIcon}
+					icon={MobileIcon}
 					label="Connected Devices"
 					value={deviceCount}
 					subtitle="registered in library"

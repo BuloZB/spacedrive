@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Text, Image, ScrollView, Pressable } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, Image, ScrollView, Pressable, Modal } from "react-native";
 import DatabaseIcon from "@sd/assets/icons/Database.png";
 import DriveAmazonS3Icon from "@sd/assets/icons/Drive-AmazonS3.png";
 import DriveDropboxIcon from "@sd/assets/icons/Drive-Dropbox.png";
@@ -12,10 +12,11 @@ import type {
 	Device,
 	JobListItem,
 	Location,
-	VolumeItem,
+	Volume,
 } from "@sd/ts-client";
 import { getDeviceIcon } from "@sd/ts-client";
-import { useNormalizedQuery, useCoreQuery, useLibraryAction } from "../../../client";
+import { useNormalizedQuery, useCoreQuery, useLibraryAction, useSpacedriveClient } from "../../../client";
+import { useVolumeIndexingStore } from "../../../stores";
 
 // Temporary type extension
 type DeviceWithConnection = Device & {
@@ -122,7 +123,7 @@ export function DevicePanel({ onLocationSelect }: DevicePanelProps = {}) {
 		}
 		acc[deviceId].push(volume);
 		return acc;
-	}, {} as Record<string, VolumeItem[]>);
+	}, {} as Record<string, Volume[]>);
 
 	// Group locations by device slug
 	const locationsByDeviceSlug = locations.reduce((acc: any, location: Location) => {
@@ -212,7 +213,7 @@ function ConnectionBadge({ method }: ConnectionBadgeProps) {
 
 interface DeviceCardProps {
 	device?: DeviceWithConnection;
-	volumes: VolumeItem[];
+	volumes: Volume[];
 	jobs: JobListItem[];
 	locations: Location[];
 	selectedLocationId: string | null;
@@ -401,30 +402,41 @@ function LocationsScroller({
 	);
 }
 
-interface VolumeBarProps {
-	volume: VolumeItem;
-	index: number;
+interface VolumeMenuProps {
+	volume: Volume;
+	visible: boolean;
+	onClose: () => void;
 }
 
-function VolumeBar({ volume, index }: VolumeBarProps) {
+function VolumeMenu({ volume, visible, onClose }: VolumeMenuProps) {
 	const trackVolume = useLibraryAction("volumes.track");
+	const untrackVolume = useLibraryAction("volumes.untrack");
 	const indexVolume = useLibraryAction("volumes.index");
+	const speedTestVolume = useLibraryAction("volumes.speed_test");
+	const ejectVolume = useLibraryAction("volumes.eject");
 
-	const devicesQuery = useNormalizedQuery<any, Device[]>({
-		wireMethod: "query:devices.list",
-		input: { include_offline: true, include_details: false },
-		resourceType: "device",
-	});
-
-	const currentDevice = devicesQuery.data?.find(d => d.is_current);
+	const isRemovable = volume.mount_type === "External";
 
 	const handleTrack = async () => {
 		try {
 			await trackVolume.mutateAsync({
 				fingerprint: volume.fingerprint,
+				display_name: null,
 			});
+			onClose();
 		} catch (error) {
 			console.error("Failed to track volume:", error);
+		}
+	};
+
+	const handleUntrack = async () => {
+		try {
+			await untrackVolume.mutateAsync({
+				volume_id: volume.id,
+			});
+			onClose();
+		} catch (error) {
+			console.error("Failed to untrack volume:", error);
 		}
 	};
 
@@ -435,120 +447,405 @@ function VolumeBar({ volume, index }: VolumeBarProps) {
 				scope: "Recursive",
 			});
 			console.log("Volume indexed:", result.message);
+			onClose();
 		} catch (error) {
 			console.error("Failed to index volume:", error);
 		}
 	};
 
-	const totalCapacity = volume.total_capacity || 0;
-	const availableBytes = volume.available_capacity || 0;
-	const usedBytes = totalCapacity > 0 ? totalCapacity - availableBytes : 0;
+	const handleSpeedTest = async () => {
+		try {
+			const result = await speedTestVolume.mutateAsync({
+				fingerprint: volume.fingerprint,
+			});
+			console.log(
+				"Speed test complete:",
+				result.read_speed_mbps,
+				"MB/s read,",
+				result.write_speed_mbps,
+				"MB/s write"
+			);
+			onClose();
+		} catch (error) {
+			console.error("Failed to run speed test:", error);
+		}
+	};
 
-	const uniqueBytes = volume.unique_bytes ?? Math.floor(usedBytes * 0.7);
-	const duplicateBytes = usedBytes - uniqueBytes;
-
-	const uniquePercent = totalCapacity > 0 ? (uniqueBytes / totalCapacity) * 100 : 0;
-	const duplicatePercent = totalCapacity > 0 ? (duplicateBytes / totalCapacity) * 100 : 0;
-
-	const fileSystem = volume.file_system
-		? typeof volume.file_system === "string"
-			? volume.file_system
-			: (volume.file_system as any)?.Other ||
-				JSON.stringify(volume.file_system)
-		: "Unknown";
-	const diskType = volume.disk_type
-		? typeof volume.disk_type === "string"
-			? volume.disk_type
-			: (volume.disk_type as any)?.Other ||
-				JSON.stringify(volume.disk_type)
-		: "Unknown";
-
-	const iconSrc = getVolumeIcon(volume.volume_type, volume.name);
-	const volumeTypeStr =
-		typeof volume.volume_type === "string"
-			? volume.volume_type
-			: (volume.volume_type as any)?.Other ||
-				JSON.stringify(volume.volume_type);
+	const handleEject = async () => {
+		try {
+			const result = await ejectVolume.mutateAsync({
+				fingerprint: volume.fingerprint,
+			});
+			if (result.success) {
+				console.log("Volume ejected successfully");
+			} else {
+				console.error("Eject failed:", result.message);
+			}
+			onClose();
+		} catch (error) {
+			console.error("Failed to eject volume:", error);
+		}
+	};
 
 	return (
-		<View className="bg-app-box border border-app-line/50 rounded-lg overflow-hidden">
-			{/* Top row: Info */}
-			<View className="flex-row items-center gap-3 px-3 py-2">
-				<Image
-					source={iconSrc}
-					className="w-6 h-6 opacity-80"
-					style={{ resizeMode: "contain" }}
-				/>
-
-				<View className="flex-1">
-					<View className="flex-row items-center gap-2 mb-1">
-						<Text className="text-ink text-sm font-semibold flex-shrink">
+		<Modal
+			visible={visible}
+			transparent
+			animationType="fade"
+			onRequestClose={onClose}
+		>
+			<Pressable
+				className="flex-1 bg-black/50 justify-end"
+				onPress={onClose}
+			>
+				<Pressable
+					className="bg-app-darkBox rounded-t-2xl"
+					onPress={(e) => e.stopPropagation()}
+				>
+					<View className="px-4 py-6 gap-2">
+						<Text className="text-ink text-lg font-semibold mb-2">
 							{volume.display_name || volume.name}
 						</Text>
-						{!volume.is_online && (
-							<View className="px-1.5 py-0.5 bg-app-box border border-app-line rounded">
-								<Text className="text-ink-faint text-[10px]">Offline</Text>
-							</View>
-						)}
+
 						{!volume.is_tracked && (
 							<Pressable
 								onPress={handleTrack}
 								disabled={trackVolume.isPending}
-								className="flex-row items-center gap-1 px-1.5 py-0.5 bg-accent/10 border border-accent/20 rounded active:bg-accent/20"
+								className="flex-row items-center gap-3 px-4 py-3 rounded-lg active:bg-app-box"
 							>
-								<Text className="text-accent text-[10px]">
-									{trackVolume.isPending ? "Tracking..." : "+ Track"}
+								<Text className="text-2xl">👁️</Text>
+								<Text className="text-ink text-base flex-1">
+									Track Volume
 								</Text>
+								{trackVolume.isPending && (
+									<Text className="text-ink-dull text-sm">Loading...</Text>
+								)}
 							</Pressable>
 						)}
-						{currentDevice && volume.device_id === currentDevice.id && (
+
+						{volume.is_tracked && (
+							<Pressable
+								onPress={handleUntrack}
+								disabled={untrackVolume.isPending}
+								className="flex-row items-center gap-3 px-4 py-3 rounded-lg active:bg-app-box"
+							>
+								<Text className="text-2xl">🚫</Text>
+								<Text className="text-red-500 text-base flex-1">
+									Untrack Volume
+								</Text>
+								{untrackVolume.isPending && (
+									<Text className="text-ink-dull text-sm">Loading...</Text>
+								)}
+							</Pressable>
+						)}
+
+						<View className="border-t border-app-line my-1" />
+
+						{volume.is_mounted && (
 							<Pressable
 								onPress={handleIndex}
 								disabled={indexVolume.isPending}
-								className="flex-row items-center gap-1 px-1.5 py-0.5 bg-sidebar-box border border-sidebar-line rounded active:opacity-70"
+								className="flex-row items-center gap-3 px-4 py-3 rounded-lg active:bg-app-box"
 							>
-								<Text className="text-sidebar-ink text-[10px]">
-									{indexVolume.isPending ? "Indexing..." : "🔍 Index"}
+								<Text className="text-2xl">🗄️</Text>
+								<Text className="text-ink text-base flex-1">
+									Index Volume
 								</Text>
+								{indexVolume.isPending && (
+									<Text className="text-ink-dull text-sm">Loading...</Text>
+								)}
 							</Pressable>
 						)}
-					</View>
 
-					<View className="flex-row flex-wrap items-center gap-1.5">
-						<View className="px-1.5 py-0.5 bg-app-box border border-app-line rounded">
-							<Text className="text-ink-dull text-[10px]">{fileSystem}</Text>
-						</View>
-						<View className="px-1.5 py-0.5 bg-app-box border border-app-line rounded">
-							<Text className="text-ink-dull text-[10px]">
-								{getDiskTypeLabel(diskType)}
+						{volume.is_mounted && (
+							<Pressable
+								onPress={handleSpeedTest}
+								disabled={speedTestVolume.isPending}
+								className="flex-row items-center gap-3 px-4 py-3 rounded-lg active:bg-app-box"
+							>
+								<Text className="text-2xl">⚡</Text>
+								<Text className="text-ink text-base flex-1">
+									Speed Test
+								</Text>
+								{speedTestVolume.isPending && (
+									<Text className="text-ink-dull text-sm">Testing...</Text>
+								)}
+							</Pressable>
+						)}
+
+						{isRemovable && volume.is_mounted && (
+							<Pressable
+								onPress={handleEject}
+								disabled={ejectVolume.isPending}
+								className="flex-row items-center gap-3 px-4 py-3 rounded-lg active:bg-app-box"
+							>
+								<Text className="text-2xl">⏏️</Text>
+								<Text className="text-ink text-base flex-1">
+									Eject
+								</Text>
+								{ejectVolume.isPending && (
+									<Text className="text-ink-dull text-sm">Ejecting...</Text>
+								)}
+							</Pressable>
+						)}
+
+						<View className="border-t border-app-line my-1" />
+
+						<Pressable
+							onPress={onClose}
+							className="px-4 py-3 rounded-lg bg-app-box active:bg-app-hover"
+						>
+							<Text className="text-ink text-base text-center">Cancel</Text>
+						</Pressable>
+					</View>
+				</Pressable>
+			</Pressable>
+		</Modal>
+	);
+}
+
+interface VolumeBarProps {
+	volume: Volume;
+	index: number;
+}
+
+interface IndexingProgress {
+	filesIndexed: number;
+	bytesIndexed: number;
+	percentage: number;
+	rate: number;
+}
+
+function VolumeBar({ volume, index }: VolumeBarProps) {
+	const [indexingProgress, setIndexingProgress] = useState<IndexingProgress | null>(null);
+	const [menuVisible, setMenuVisible] = useState(false);
+	const client = useSpacedriveClient();
+
+	const jobId = useVolumeIndexingStore((state) =>
+		state.getJobId(volume.fingerprint)
+	);
+
+	// Subscribe to job events for this volume
+	useEffect(() => {
+		if (!client) return;
+
+		let unsubscribe: (() => void) | undefined;
+		let isCancelled = false;
+
+		const handleEvent = (event: any) => {
+			const eventType = Object.keys(event)[0];
+
+			// Client-side filter: only handle job events
+			if (
+				![
+					'JobProgress',
+					'JobCompleted',
+					'JobFailed',
+					'JobCancelled'
+				].includes(eventType)
+			) {
+				return;
+			}
+
+			if ('JobProgress' in event) {
+				const progressData = event.JobProgress;
+				if (!progressData) return;
+
+				// Read the current job ID from store (avoids stale closure)
+				const currentJobId = useVolumeIndexingStore
+					.getState()
+					.getJobId(volume.fingerprint);
+
+				// Only handle progress for this volume's job
+				if (progressData.job_id !== currentJobId) return;
+
+				const generic = progressData.generic_progress;
+				if (!generic) return;
+
+				setIndexingProgress({
+					filesIndexed: generic.completion?.completed || 0,
+					bytesIndexed: generic.completion?.bytes_completed || 0,
+					percentage: generic.percentage || 0,
+					rate: generic.performance?.rate || 0
+				});
+			} else if (
+				'JobCompleted' in event ||
+				'JobFailed' in event ||
+				'JobCancelled' in event
+			) {
+				const eventJobId =
+					event.JobCompleted?.job_id ||
+					event.JobFailed?.job_id ||
+					event.JobCancelled?.job_id;
+
+				const currentJobId = useVolumeIndexingStore
+					.getState()
+					.getJobId(volume.fingerprint);
+
+				if (eventJobId === currentJobId) {
+					setIndexingProgress(null);
+				}
+			}
+		};
+
+		const filter = {
+			event_types: [
+				'JobProgress',
+				'JobCompleted',
+				'JobFailed',
+				'JobCancelled'
+			],
+			resource_type: undefined,
+			path_scope: undefined,
+			library_id: undefined
+		};
+
+		client.subscribeFiltered(filter, handleEvent).then((unsub) => {
+			if (isCancelled) {
+				unsub();
+			} else {
+				unsubscribe = unsub;
+			}
+		});
+
+		return () => {
+			isCancelled = true;
+			unsubscribe?.();
+		};
+	}, [client, volume.fingerprint]);
+
+	if (!volume.total_capacity) {
+		return null;
+	}
+
+	const totalCapacity = volume.total_capacity;
+	const availableBytes = volume.available_space || 0;
+	const usedBytes = totalCapacity - availableBytes;
+
+	const uniqueBytes = volume.unique_bytes ?? Math.floor(usedBytes * 0.7);
+	const duplicateBytes = usedBytes - uniqueBytes;
+
+	const uniquePercent = (uniqueBytes / totalCapacity) * 100;
+	const duplicatePercent = (duplicateBytes / totalCapacity) * 100;
+
+	// Helper to filter out unknown values
+	const filterUnknown = (value: string | null): string | null => {
+		if (!value || value.toLowerCase() === 'unknown') return null;
+		return value;
+	};
+
+	// Convert enum values to strings for safe rendering
+	const fileSystem = filterUnknown(
+		volume.file_system
+			? typeof volume.file_system === "string"
+				? volume.file_system
+				: (volume.file_system as any)?.Other ||
+					JSON.stringify(volume.file_system)
+			: null
+	);
+	const diskType = filterUnknown(
+		volume.disk_type
+			? typeof volume.disk_type === "string"
+				? volume.disk_type
+				: (volume.disk_type as any)?.Other ||
+					JSON.stringify(volume.disk_type)
+			: null
+	);
+
+	const iconSrc = getVolumeIcon(volume.volume_type, volume.name);
+	const volumeTypeStr = filterUnknown(
+		typeof volume.volume_type === "string"
+			? volume.volume_type
+			: (volume.volume_type as any)?.Other ||
+					JSON.stringify(volume.volume_type)
+	);
+
+	return (
+		<>
+			<VolumeMenu
+				volume={volume}
+				visible={menuVisible}
+				onClose={() => setMenuVisible(false)}
+			/>
+
+			<View className="bg-app-box border border-app-line/50 rounded-lg overflow-hidden">
+				{/* Top row: Info */}
+				<View className="flex-row items-center gap-3 px-3 py-2">
+					<Image
+						source={iconSrc}
+						className="w-6 h-6 opacity-80"
+						style={{ resizeMode: "contain" }}
+					/>
+
+					<View className="flex-1">
+						<View className="flex-row items-center gap-2 mb-1">
+							<Text className="text-ink text-sm font-semibold flex-shrink">
+								{volume.display_name || volume.name}
 							</Text>
 						</View>
-						<View className="px-1.5 py-0.5 bg-app-box border border-app-line rounded">
-							<Text className="text-ink-dull text-[10px]">{volumeTypeStr}</Text>
-						</View>
-						{volume.total_file_count != null && (
-							<View className="px-1.5 py-0.5 bg-accent/10 border border-accent/20 rounded">
-								<Text className="text-accent text-[10px]">
-									{volume.total_file_count.toLocaleString()} files
-								</Text>
-							</View>
-						)}
-					</View>
-				</View>
 
-				<View className="items-end">
-					<Text className="text-ink text-sm font-medium">
-						{formatBytes(totalCapacity)}
-					</Text>
-					<Text className="text-ink-dull text-[10px]">
-						{formatBytes(availableBytes)} free
-					</Text>
+						<View className="flex-row flex-wrap items-center gap-1.5">
+							{fileSystem && (
+								<View className="px-1.5 py-0.5 bg-app-box border border-app-line rounded">
+									<Text className="text-ink-dull text-[10px]">{fileSystem}</Text>
+								</View>
+							)}
+							{diskType && (
+								<View className="px-1.5 py-0.5 bg-app-box border border-app-line rounded">
+									<Text className="text-ink-dull text-[10px]">
+										{getDiskTypeLabel(diskType)}
+									</Text>
+								</View>
+							)}
+							{volumeTypeStr && (
+								<View className="px-1.5 py-0.5 bg-app-box border border-app-line rounded">
+									<Text className="text-ink-dull text-[10px]">{volumeTypeStr}</Text>
+								</View>
+							)}
+							{indexingProgress ? (
+								<View className="px-1.5 py-0.5 bg-accent/20 border border-accent/30 rounded">
+									<Text className="text-accent text-[10px] font-medium">
+										{indexingProgress.filesIndexed.toLocaleString()} files
+										{indexingProgress.rate > 0 && (
+											<Text className="text-accent/70 ml-1">
+												{" "}({Math.round(indexingProgress.rate)}/s)
+											</Text>
+										)}
+									</Text>
+								</View>
+							) : (
+								volume.total_files != null && (
+									<View className="px-1.5 py-0.5 bg-accent/10 border border-accent/20 rounded">
+										<Text className="text-accent text-[10px]">
+											{volume.total_files.toLocaleString()} files
+										</Text>
+									</View>
+								)
+							)}
+						</View>
+					</View>
+
+					<View className="items-end">
+						<Text className="text-ink text-sm font-medium">
+							{formatBytes(totalCapacity)}
+						</Text>
+						<Text className="text-ink-dull text-[10px]">
+							{formatBytes(availableBytes)} free
+						</Text>
+					</View>
+
+					<Pressable
+						onPress={() => setMenuVisible(true)}
+						className="px-1.5 py-1 active:bg-app-hover rounded self-start"
+					>
+						<Text className="text-ink-dull text-xl leading-none">⋮</Text>
+					</Pressable>
 				</View>
-			</View>
 
 			{/* Bottom: Capacity bar */}
 			<View className="px-3 pb-3 pt-2">
-				<View className="bg-app border border-app-line h-8 rounded-md overflow-hidden">
+				<View className="bg-app border border-app-line h-8 rounded-md overflow-hidden relative">
+					{/* Base capacity visualization */}
 					<View className="flex-row h-full">
 						<View
 							className="bg-accent border-r border-accent-deep"
@@ -556,13 +853,32 @@ function VolumeBar({ volume, index }: VolumeBarProps) {
 						/>
 						<View
 							className="bg-accent/60"
-							style={{
-								width: `${duplicatePercent}%`,
-							}}
+							style={{ width: `${duplicatePercent}%` }}
 						/>
 					</View>
+
+					{/* Indexing progress overlay */}
+					{indexingProgress && (
+						<View
+							className="bg-accent-deep border-r-2 border-accent-deep absolute inset-y-0 left-0"
+							style={{ width: `${(indexingProgress.bytesIndexed / totalCapacity) * 100}%` }}
+						/>
+					)}
+
+					{/* Center label showing indexing status */}
+					{indexingProgress && (
+						<View className="absolute inset-0 flex items-center justify-center">
+							<Text className="text-ink text-xs font-medium">
+								Indexing: {(indexingProgress.percentage * 100).toFixed(1)}%
+								<Text className="text-ink-dull ml-2">
+									{" "}{formatBytes(indexingProgress.bytesIndexed)} / {formatBytes(totalCapacity)}
+								</Text>
+							</Text>
+						</View>
+					)}
 				</View>
 			</View>
 		</View>
+		</>
 	);
 }
