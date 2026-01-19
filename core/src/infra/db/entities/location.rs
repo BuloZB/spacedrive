@@ -99,11 +99,11 @@ impl Syncable for Model {
 	}
 
 	fn sync_depends_on() -> &'static [&'static str] {
-		// Location belongs to a device
+		// Location belongs to a device and references a volume
 		// Note: entry_id references the root entry of this location's tree, but this creates
 		// a circular dependency (location → entry, entry → location). We handle this by making
 		// entry_id nullable during sync and fixing it up after both are synced.
-		&["device"]
+		&["device", "volume"]
 	}
 
 	fn foreign_key_mappings() -> Vec<crate::infra::sync::FKMapping> {
@@ -168,7 +168,7 @@ impl Syncable for Model {
 	///
 	/// Note: This method handles FK to UUID conversion internally before returning.
 	async fn query_for_sync(
-		_device_id: Option<Uuid>,
+		device_id: Option<Uuid>,
 		since: Option<chrono::DateTime<chrono::Utc>>,
 		cursor: Option<(chrono::DateTime<chrono::Utc>, Uuid)>,
 		batch_size: usize,
@@ -178,6 +178,15 @@ impl Syncable for Model {
 		use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 		let mut query = Entity::find();
+
+		// Filter by device ownership - need to join through devices table
+		// since location.device_id is an integer FK to devices.id
+		if let Some(device_uuid) = device_id {
+			use super::device;
+			query = query
+				.inner_join(device::Entity)
+				.filter(device::Column::Uuid.eq(device_uuid));
+		}
 
 		// Filter by watermark timestamp if specified
 		if let Some(since_time) = since {

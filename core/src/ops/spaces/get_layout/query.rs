@@ -94,14 +94,9 @@ impl LibraryQuery for SpaceLayoutQuery {
 					.one(db)
 					.await
 				{
-					tracing::debug!("Found entry: name={}", entry_model.name);
 					let file = build_file_from_entry(entry_model, &item_type, db)
 						.await
 						.map(Box::new);
-					tracing::info!(
-						"Built file for space item: {:?}",
-						file.as_ref().map(|f| &f.name)
-					);
 					file
 				} else {
 					tracing::warn!("Entry {} not found for space item", entry_uuid);
