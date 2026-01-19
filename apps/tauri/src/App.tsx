@@ -4,7 +4,6 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
 	Shell,
 	FloatingControls,
-	LocationCacheDemo,
 	PopoutInspector,
 	QuickPreview,
 	JobsScreen,
@@ -85,8 +84,6 @@ function App() {
 			setRoute("/inspector");
 		} else if (label.startsWith("quick-preview")) {
 			setRoute("/quick-preview");
-		} else if (label.startsWith("cache-demo")) {
-			setRoute("/cache-demo");
 		} else if (label.startsWith("job-manager")) {
 			setRoute("/job-manager");
 		}
@@ -267,10 +264,6 @@ function App() {
 				</SpacedriveProvider>
 			</PlatformProvider>
 		);
-	}
-
-	if (route === "/cache-demo") {
-		return <LocationCacheDemo />;
 	}
 
 	if (route === "/quick-preview") {

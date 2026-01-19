@@ -54,38 +54,46 @@ export function SpacedriveProvider({
         // });
         // console.log("[SpacedriveProvider] Log listener subscribed");
 
-        // Load persisted library ID from storage
+        // Load persisted library ID from storage and validate it exists
         const storedData = await AsyncStorage.getItem("spacedrive-sidebar");
-        let libraryIdSet = false;
+        let storedLibraryId: string | null = null;
 
         if (storedData) {
           const parsed = JSON.parse(storedData);
-          if (parsed.state?.currentLibraryId) {
-            console.log(
-              "[SpacedriveProvider] Restoring library ID:",
-              parsed.state.currentLibraryId,
-            );
-            client.setCurrentLibrary(parsed.state.currentLibraryId);
-            libraryIdSet = true;
-          }
+          storedLibraryId = parsed.state?.currentLibraryId || null;
         }
 
-        // If no library ID was restored, try to auto-select the first library
-        if (!libraryIdSet) {
-          try {
-            const libraries = await client.coreQuery("libraries.list", {
-              include_stats: false,
-            });
-            if (libraries && Array.isArray(libraries) && libraries.length > 0) {
+        // Fetch available libraries to validate the stored library ID
+        try {
+          const libraries = await client.coreQuery("libraries.list", {
+            include_stats: false,
+          });
+
+          if (libraries && Array.isArray(libraries) && libraries.length > 0) {
+            // Check if stored library ID exists in the list
+            const storedLibraryExists =
+              storedLibraryId &&
+              libraries.some((lib) => lib.id === storedLibraryId);
+
+            if (storedLibraryExists) {
+              console.log(
+                "[SpacedriveProvider] Restoring library ID:",
+                storedLibraryId,
+              );
+              client.setCurrentLibrary(storedLibraryId);
+            } else {
+              // Stored library doesn't exist, auto-select first library
               const firstLibrary = libraries[0];
               console.log(
-                "[SpacedriveProvider] Auto-selecting first library:",
+                storedLibraryId
+                  ? "[SpacedriveProvider] Stored library no longer exists, auto-selecting first library:"
+                  : "[SpacedriveProvider] Auto-selecting first library:",
                 firstLibrary.name,
                 firstLibrary.id,
               );
               client.setCurrentLibrary(firstLibrary.id);
 
-              // Also save to AsyncStorage for next time
+              // Save to AsyncStorage for next time
               await AsyncStorage.setItem(
                 "spacedrive-sidebar",
                 JSON.stringify({
@@ -95,17 +103,17 @@ export function SpacedriveProvider({
                   },
                 }),
               );
-            } else {
-              console.warn(
-                "[SpacedriveProvider] No libraries available to auto-select",
-              );
             }
-          } catch (error) {
-            console.error(
-              "[SpacedriveProvider] Failed to auto-select library:",
-              error,
+          } else {
+            console.warn(
+              "[SpacedriveProvider] No libraries available to auto-select",
             );
           }
+        } catch (error) {
+          console.error(
+            "[SpacedriveProvider] Failed to fetch/validate libraries:",
+            error,
+          );
         }
 
         // Subscribe to core events for auto-switching on synced library creation

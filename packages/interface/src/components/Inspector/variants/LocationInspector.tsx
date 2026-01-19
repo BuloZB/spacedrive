@@ -17,10 +17,12 @@ import {
 	Play,
 	FilmStrip,
 	VideoCamera,
+	FolderOpen,
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
 	InfoRow,
 	Section,
@@ -30,7 +32,7 @@ import {
 } from "../Inspector";
 import clsx from "clsx";
 import type { Location } from "@sd/ts-client";
-import { Button, Dialog, dialogManager, useDialog, type UseDialogProps } from "@sd/ui";
+import { Button, Dialog, dialogManager, useDialog, TopBarButton, type UseDialogProps } from "@sd/ui";
 import { useLibraryMutation } from "../../../contexts/SpacedriveContext";
 import LocationIcon from "@sd/assets/icons/Location.png";
 
@@ -85,8 +87,11 @@ export function LocationInspector({ location }: LocationInspectorProps) {
 	);
 }
 
-function OverviewTab({ location }: { location: LocationInfo }) {
+function OverviewTab({ location }: { location: Location }) {
 	const rescanLocation = useLibraryMutation("locations.rescan");
+	const routeLocation = useLocation();
+	const navigate = useNavigate();
+	const isOverview = routeLocation.pathname === '/';
 
 	const formatBytes = (bytes: number | null | undefined) => {
 		if (!bytes || bytes === 0) return "0 B";
@@ -134,6 +139,24 @@ function OverviewTab({ location }: { location: LocationInfo }) {
 			</div>
 
 			<Divider />
+
+			{/* Open Location Button - Only show on overview route */}
+			{isOverview && (
+				<div className="px-2 mb-5">
+					<TopBarButton
+						icon={FolderOpen}
+						onClick={() => {
+							const encodedPath = encodeURIComponent(JSON.stringify(location.sd_path));
+							navigate(`/explorer?path=${encodedPath}`);
+						}}
+						className="w-full"
+						active
+						activeAccent
+					>
+						Open Location
+					</TopBarButton>
+				</div>
+			)}
 
 			{/* Details */}
 			<Section title="Details" icon={Info}>
@@ -211,7 +234,7 @@ function OverviewTab({ location }: { location: LocationInfo }) {
 	);
 }
 
-function IndexingTab({ location }: { location: LocationInfo }) {
+function IndexingTab({ location }: { location: Location }) {
 	const [indexMode, setIndexMode] = useState<"shallow" | "content" | "deep">(
 		location.index_mode as "shallow" | "content" | "deep",
 	);
@@ -281,7 +304,7 @@ function IndexingTab({ location }: { location: LocationInfo }) {
 	);
 }
 
-function JobsTab({ location }: { location: LocationInfo }) {
+function JobsTab({ location }: { location: Location }) {
 	const updateLocation = useLibraryMutation("locations.update");
 	const triggerJob = useLibraryMutation("locations.triggerJob");
 
@@ -427,7 +450,7 @@ function JobsTab({ location }: { location: LocationInfo }) {
 	);
 }
 
-function ActivityTab({ location }: { location: LocationInfo }) {
+function ActivityTab({ location }: { location: Location }) {
 	const activity = [
 		{ action: "Full Scan Completed", time: "10 min ago", files: 12456 },
 		{ action: "Thumbnails Generated", time: "1 hour ago", files: 234 },
@@ -469,7 +492,7 @@ function ActivityTab({ location }: { location: LocationInfo }) {
 	);
 }
 
-function DevicesTab({ location }: { location: LocationInfo }) {
+function DevicesTab({ location }: { location: Location }) {
 	const devices = [
 		{
 			name: "MacBook Pro",
@@ -593,7 +616,7 @@ function DeleteLocationDialog({ locationId, locationName, ...props }: DeleteLoca
 	);
 }
 
-function MoreTab({ location }: { location: LocationInfo }) {
+function MoreTab({ location }: { location: Location }) {
 	const openDeleteDialog = useDeleteLocationDialog();
 
 	const formatDate = (dateStr: string) => {
