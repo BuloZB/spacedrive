@@ -6,6 +6,7 @@ import { JobsScreen } from "./components/JobManager";
 import { DaemonManager } from "./routes/daemon";
 import { TagView } from "./routes/tag";
 import { FileKindsView } from "./routes/file-kinds";
+import { RecentsView } from "./routes/explorer/views/RecentsView";
 
 /**
  * Router routes configuration (without router instance)
@@ -33,11 +34,7 @@ export const explorerRoutes = [
 			},
 			{
 				path: "recents",
-				element: (
-					<div className="flex items-center justify-center h-full text-ink">
-						Recents (coming soon)
-					</div>
-				),
+				element: <RecentsView />,
 			},
 			{
 				path: "file-kinds",

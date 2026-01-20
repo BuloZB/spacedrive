@@ -667,6 +667,9 @@ impl BackfillManager {
 
 					// Apply updates via registry with FKs already resolved
 					// The idempotent map_sync_json_to_local in apply_state_change will skip already-resolved FKs
+					// Collect successfully applied UUIDs for batch event emission
+					let mut applied_uuids = Vec::new();
+
 					for data in processed_data {
 						// Extract UUID before moving data
 						let record_uuid = data
@@ -681,6 +684,11 @@ impl BackfillManager {
 						)
 						.await
 						.map_err(|e| anyhow::anyhow!("{}", e))?;
+
+						// Track successfully applied UUID for batch event emission
+						if let Some(uuid) = record_uuid {
+							applied_uuids.push(uuid);
+						}
 
 						// After successfully applying, resolve any records waiting for this one
 						// (e.g., child entries waiting for their parent entry)
@@ -716,6 +724,25 @@ impl BackfillManager {
 									}
 								}
 							}
+						}
+					}
+
+					// Emit resource events in batch for UI reactivity
+					if !applied_uuids.is_empty() {
+						let resource_manager = crate::domain::ResourceManager::new(
+							db.clone(),
+							self.peer_sync.event_bus().clone(),
+						);
+
+						if let Err(e) = resource_manager
+							.emit_batch_resource_events(&model_type, applied_uuids)
+							.await
+						{
+							warn!(
+								model_type = %model_type,
+								error = %e,
+								"Failed to emit batch resource events after backfill"
+							);
 						}
 					}
 
@@ -836,6 +863,9 @@ impl BackfillManager {
 									"Applying current state snapshot for pre-sync data"
 								);
 
+								// Collect successfully applied UUIDs for batch event emission
+								let mut applied_snapshot_uuids: Vec<Uuid> = Vec::new();
+
 								for record_value in records_array {
 									if let Some(record_obj) = record_value.as_object() {
 										if let (Some(uuid_value), Some(data)) =
@@ -863,79 +893,147 @@ impl BackfillManager {
 													};
 
 													let db = self.peer_sync.db().clone();
-													if let Err(e) = crate::infra::sync::registry::apply_shared_change(entry.clone(), db).await {
-														// Extract diagnostic information for FK errors
-														let fk_mappings = crate::infra::sync::registry::get_fk_mappings(&model_type);
-														let uuid_fields: Vec<String> = if let Some(obj) = data.as_object() {
-															obj.keys()
-																.filter(|k| k.ends_with("_uuid"))
-																.map(|k| {
-																	let value = obj.get(k).and_then(|v| v.as_str()).unwrap_or("null");
-																	format!("{}={}", k, value)
-																})
-																.collect()
-														} else {
-															vec![]
-														};
+													match crate::infra::sync::registry::apply_shared_change(entry.clone(), db.clone()).await {
+														Ok(()) => {
+															// Track successfully applied UUID for batch event emission
+															applied_snapshot_uuids.push(record_uuid);
 
-														warn!(
-															model_type = %model_type,
-															uuid = %record_uuid,
-															error = %e,
-															fk_mappings = ?fk_mappings,
-															uuid_fields = ?uuid_fields,
-															"Failed to apply current_state snapshot record - likely missing FK dependency"
-														);
-													} else {
-														// Resolve any state changes waiting for this shared resource
-														let waiting_updates = self
-															.peer_sync
-															.dependency_tracker()
-															.resolve(record_uuid)
-															.await;
+															// Resolve any state changes waiting for this shared resource
+															let waiting_updates = self
+																.peer_sync
+																.dependency_tracker()
+																.resolve(record_uuid)
+																.await;
 
-														if !waiting_updates.is_empty() {
-															tracing::debug!(
-																resolved_uuid = %record_uuid,
-																model_type = %model_type,
-																waiting_count = waiting_updates.len(),
-																"Resolving dependencies after current_state snapshot"
-															);
+															if !waiting_updates.is_empty() {
+																tracing::debug!(
+																	resolved_uuid = %record_uuid,
+																	model_type = %model_type,
+																	waiting_count = waiting_updates.len(),
+																	"Resolving dependencies after current_state snapshot"
+																);
 
-															for update in waiting_updates {
-																match update {
-																	super::state::BufferedUpdate::StateChange(dependent_change) => {
-																		if let Err(e) = self
-																			.peer_sync
-																			.apply_state_change(dependent_change.clone())
-																			.await
-																		{
-																			tracing::warn!(
-																				error = %e,
-																				record_uuid = %dependent_change.record_uuid,
-																				"Failed to apply dependent state change after current_state snapshot"
-																			);
+																for update in waiting_updates {
+																	match update {
+																		super::state::BufferedUpdate::StateChange(dependent_change) => {
+																			if let Err(e) = self
+																				.peer_sync
+																				.apply_state_change(dependent_change.clone())
+																				.await
+																			{
+																				tracing::warn!(
+																					error = %e,
+																					record_uuid = %dependent_change.record_uuid,
+																					"Failed to apply dependent state change after current_state snapshot"
+																				);
+																			}
 																		}
-																	}
-																	super::state::BufferedUpdate::SharedChange(dependent_entry) => {
-																		// Retry the shared change now that its dependency exists
-																		let entry_clone = dependent_entry.clone();
-																		let db = self.peer_sync.db().clone();
-																		if let Err(e) = crate::infra::sync::registry::apply_shared_change(entry_clone, db).await {
-																			tracing::warn!(
-																				error = %e,
-																				record_uuid = %dependent_entry.record_uuid,
-																				"Failed to apply dependent shared change after current_state snapshot"
-																			);
+																		super::state::BufferedUpdate::SharedChange(dependent_entry) => {
+																			// Retry the shared change now that its dependency exists
+																			let entry_clone = dependent_entry.clone();
+																			let db = self.peer_sync.db().clone();
+																			if let Err(e) = crate::infra::sync::registry::apply_shared_change(entry_clone, db).await {
+																				tracing::warn!(
+																					error = %e,
+																					record_uuid = %dependent_entry.record_uuid,
+																					"Failed to apply dependent shared change after current_state snapshot"
+																				);
+																			}
 																		}
 																	}
 																}
 															}
 														}
+														Err(e) => {
+															let error_str = e.to_string();
+
+															// Check if this is a FK dependency error
+															if error_str.contains("Sync dependency missing")
+																|| error_str.contains("FOREIGN KEY constraint failed")
+															{
+																// Try to extract the missing UUID from the error message
+																if let Some(missing_uuid) =
+																	super::dependency::extract_missing_dependency_uuid(&error_str)
+																{
+																	tracing::debug!(
+																		record_uuid = %record_uuid,
+																		model_type = %model_type,
+																		missing_uuid = %missing_uuid,
+																		"Snapshot record has missing FK dependency, buffering for retry"
+																	);
+
+																	// Buffer this shared change for retry when dependency arrives
+																	self.peer_sync
+																		.dependency_tracker()
+																		.add_dependency(
+																			missing_uuid,
+																			super::state::BufferedUpdate::SharedChange(
+																				entry.clone(),
+																			),
+																		)
+																		.await;
+
+																	continue; // Skip to next record
+																} else {
+																	// FK error but can't extract UUID
+																	let fk_mappings = crate::infra::sync::registry::get_fk_mappings(&model_type);
+																	let uuid_fields: Vec<String> = if let Some(obj) = data.as_object() {
+																		obj.keys()
+																			.filter(|k| k.ends_with("_uuid"))
+																			.map(|k| {
+																				let value = obj.get(k).and_then(|v| v.as_str()).unwrap_or("null");
+																				format!("{}={}", k, value)
+																			})
+																			.collect()
+																	} else {
+																		vec![]
+																	};
+
+																	warn!(
+																		model_type = %model_type,
+																		uuid = %record_uuid,
+																		error = %e,
+																		fk_mappings = ?fk_mappings,
+																		uuid_fields = ?uuid_fields,
+																		"Failed to apply current_state snapshot record - FK constraint failed but cannot extract missing UUID"
+																	);
+
+																	continue; // Skip this record
+																}
+															}
+
+															// Non-dependency error - this is unexpected, log but continue
+															warn!(
+																model_type = %model_type,
+																uuid = %record_uuid,
+																error = %e,
+																"Failed to apply current_state snapshot record - unexpected error"
+															);
+														}
 													}
 												}
 											}
 										}
+									}
+								}
+
+								// Emit batch resource events for all successfully applied snapshot records
+								if !applied_snapshot_uuids.is_empty() {
+									let db = self.peer_sync.db().clone();
+									let resource_manager = crate::domain::ResourceManager::new(
+										db.clone(),
+										self.peer_sync.event_bus().clone(),
+									);
+
+									if let Err(e) = resource_manager
+										.emit_batch_resource_events(&model_type, applied_snapshot_uuids)
+										.await
+									{
+										warn!(
+											model_type = %model_type,
+											error = %e,
+											"Failed to emit batch resource events after snapshot application"
+										);
 									}
 								}
 							}

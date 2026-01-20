@@ -12,6 +12,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SDMobileCore } from "sd-mobile-core";
 import { usePreferencesStore } from "../../stores/preferences";
 import { useSidebarStore } from "../../stores/sidebar";
+import { useReactQueryDevTools } from "@dev-plugins/react-query";
 
 // Re-export the shared hook
 export { useSpacedriveClient };
@@ -32,6 +33,9 @@ export function SpacedriveProvider({
   const [client] = useState(() => new SpacedriveClient());
   const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Initialize React Query DevTools (Expo plugin) - must be at top before any returns
+  useReactQueryDevTools(queryClient);
 
   useEffect(() => {
     let mounted = true;

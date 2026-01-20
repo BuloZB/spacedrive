@@ -1088,9 +1088,6 @@ const ui = React.lazy(async () => ({
 const unocss = React.lazy(async () => ({
 	default: (await import('./unocss.svg')).ReactComponent
 }));
-const urls = React.lazy(async () => ({
-	default: (await import('./urls.ts')).ReactComponent
-}));
 const user = React.lazy(async () => ({
 	default: (await import('./user.svg')).ReactComponent
 }));
@@ -1550,7 +1547,6 @@ export {
 	typescriptdef,
 	ui,
 	unocss,
-	urls,
 	user,
 	v,
 	vanillaextract,

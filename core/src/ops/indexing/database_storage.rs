@@ -133,6 +133,8 @@ pub struct ContentLinkResult {
 	pub content_identity: entities::content_identity::Model,
 	pub entry: entities::entry::Model,
 	pub is_new_content: bool,
+	pub mime_type: Option<entities::mime_type::Model>,
+	pub is_new_mime_type: bool,
 }
 
 impl DatabaseStorage {
@@ -828,7 +830,7 @@ impl DatabaseStorage {
 			.await
 			.map_err(|e| JobError::execution(format!("Failed to query content identity: {}", e)))?;
 
-		let (content_model, is_new_content) = if let Some(existing) = existing {
+		let (content_model, is_new_content, mime_type_model, is_new_mime_type) = if let Some(existing) = existing {
 			let mut existing_active: entities::content_identity::ActiveModel = existing.into();
 			existing_active.entry_count = Set(existing_active.entry_count.unwrap() + 1);
 			existing_active.last_verified_at = Set(chrono::Utc::now());
@@ -837,7 +839,8 @@ impl DatabaseStorage {
 				JobError::execution(format!("Failed to update content identity: {}", e))
 			})?;
 
-			(updated, false)
+			// Content already exists, no new mime_type was created
+			(updated, false, None, false)
 		} else {
 			let file_size = tokio::fs::symlink_metadata(path)
 				.await
@@ -852,11 +855,11 @@ impl DatabaseStorage {
 
 			let file_type_result = registry.identify(path).await;
 
-			let (kind_id, mime_type_id) = match file_type_result {
+			let (kind_id, mime_type_id, mime_type_model, is_new_mime_type) = match file_type_result {
 				Ok(result) => {
 					let kind_id = result.file_type.category as i32;
 
-					let mime_type_id = if let Some(mime_str) = result.file_type.primary_mime_type()
+					let (mime_type_id, mime_type_model, is_new_mime_type) = if let Some(mime_str) = result.file_type.primary_mime_type()
 					{
 						let existing = entities::mime_type::Entity::find()
 							.filter(entities::mime_type::Column::MimeType.eq(mime_str))
@@ -867,7 +870,7 @@ impl DatabaseStorage {
 							})?;
 
 						match existing {
-							Some(mime_record) => Some(mime_record.id),
+							Some(mime_record) => (Some(mime_record.id), Some(mime_record), false),
 							None => {
 								let new_mime = entities::mime_type::ActiveModel {
 									uuid: Set(Uuid::new_v4()),
@@ -883,16 +886,16 @@ impl DatabaseStorage {
 									))
 								})?;
 
-								Some(mime_result.id)
+								(Some(mime_result.id), Some(mime_result), true)
 							}
 						}
 					} else {
-						None
+						(None, None, false)
 					};
 
-					(kind_id, mime_type_id)
+					(kind_id, mime_type_id, mime_type_model, is_new_mime_type)
 				}
-				Err(_) => (0, None),
+				Err(_) => (0, None, None, false),
 			};
 
 			let new_content = entities::content_identity::ActiveModel {
@@ -913,7 +916,7 @@ impl DatabaseStorage {
 			// content identity between our check and insert. Catch UNIQUE constraint violations
 			// and use the existing record instead of failing.
 			let result = match new_content.insert(db).await {
-				Ok(model) => (model, true),
+				Ok(model) => (model, true, mime_type_model, is_new_mime_type),
 				Err(e) => {
 					if e.to_string().contains("UNIQUE constraint failed") {
 						let existing = entities::content_identity::Entity::find()
@@ -932,7 +935,8 @@ impl DatabaseStorage {
 							JobError::execution(format!("Failed to update content identity: {}", e))
 						})?;
 
-						(updated, false)
+						// Content already existed (race condition), but mime_type may still be new
+						(updated, false, mime_type_model, is_new_mime_type)
 					} else {
 						return Err(JobError::execution(format!(
 							"Failed to create content identity: {}",
@@ -962,6 +966,8 @@ impl DatabaseStorage {
 			content_identity: content_model,
 			entry: updated_entry,
 			is_new_content,
+			mime_type: mime_type_model,
+			is_new_mime_type,
 		})
 	}
 

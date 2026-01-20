@@ -172,12 +172,14 @@ pub async fn create_test_volume(
 	device_id: Uuid,
 	fingerprint: &str,
 	display_name: &str,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Uuid> {
 	use chrono::Utc;
+
+	let volume_uuid = Uuid::new_v4();
 
 	let volume_model = entities::volume::ActiveModel {
 		id: sea_orm::ActiveValue::NotSet,
-		uuid: Set(Uuid::new_v4()),
+		uuid: Set(volume_uuid),
 		device_id: Set(device_id),
 		fingerprint: Set(fingerprint.to_string()),
 		display_name: Set(Some(display_name.to_string())),
@@ -206,7 +208,7 @@ pub async fn create_test_volume(
 	};
 
 	volume_model.insert(library.db().conn()).await?;
-	Ok(())
+	Ok(volume_uuid)
 }
 
 /// Set all devices in a library to "synced" state (prevents auto-backfill)
@@ -307,9 +309,11 @@ pub async fn wait_for_sync(
 	let mut last_alice_entries = 0;
 	let mut last_alice_content = 0;
 	let mut last_bob_entries = 0;
+	let mut last_bob_closure = 0;
 	let mut stable_iterations = 0;
 	let mut no_progress_iterations = 0;
 	let mut alice_stable_iterations = 0;
+	let mut closure_stable_iterations = 0;
 
 	while start.elapsed() < max_duration {
 		let alice_entries = entities::entry::Entity::find()
@@ -347,20 +351,46 @@ pub async fn wait_for_sync(
 			no_progress_iterations = 0;
 		}
 
+		// Check Bob's entry_closure table stability
+		// The rebuild runs in multiple iterations, we need to wait for it to finish
+		let bob_closure_count = entities::entry_closure::Entity::find()
+			.count(library_bob.db().conn())
+			.await?;
+
+		if bob_closure_count == last_bob_closure {
+			closure_stable_iterations += 1;
+		} else {
+			closure_stable_iterations = 0;
+		}
+
 		// Only check sync completion if Alice has stabilized first
 		if alice_stable_iterations >= 5 {
 			if alice_entries == bob_entries && alice_content == bob_content {
-				stable_iterations += 1;
-				if stable_iterations >= 5 {
-					tracing::info!(
-						duration_ms = start.elapsed().as_millis(),
-						alice_entries = alice_entries,
-						bob_entries = bob_entries,
-						alice_content = alice_content,
-						bob_content = bob_content,
-						"Sync completed - Alice stable and Bob caught up"
+				// Also check that Bob's entry_closure table has stabilized
+				// This prevents race condition where we check integrity before rebuild completes
+				// The rebuild runs many iterations, so we need several stable checks
+				if closure_stable_iterations >= 3 {
+					stable_iterations += 1;
+					if stable_iterations >= 5 {
+						tracing::info!(
+							duration_ms = start.elapsed().as_millis(),
+							alice_entries = alice_entries,
+							bob_entries = bob_entries,
+							alice_content = alice_content,
+							bob_content = bob_content,
+							bob_closure_count = bob_closure_count,
+							"Sync completed - Alice stable, Bob caught up, and closure table rebuilt"
+						);
+						return Ok(());
+					}
+				} else {
+					stable_iterations = 0;
+					tracing::debug!(
+						bob_closure_count = bob_closure_count,
+						last_bob_closure = last_bob_closure,
+						closure_stable_iters = closure_stable_iterations,
+						"Waiting for entry_closure rebuild to stabilize"
 					);
-					return Ok(());
 				}
 			} else {
 				stable_iterations = 0;
@@ -408,6 +438,7 @@ pub async fn wait_for_sync(
 		last_alice_entries = alice_entries;
 		last_alice_content = alice_content;
 		last_bob_entries = bob_entries;
+		last_bob_closure = bob_closure_count;
 
 		tokio::time::sleep(Duration::from_millis(100)).await;
 	}

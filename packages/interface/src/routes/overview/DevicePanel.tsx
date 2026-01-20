@@ -313,18 +313,23 @@ function DeviceCard({
 	const deviceIconSrc = device ? getDeviceIcon(device) : null;
 	const {pause, resume, cancel, getSpeedHistory} = useJobsContext();
 	// Format hardware specs
-	const cpuInfo = device?.cpu_model
-		? `${device.cpu_model}${device.cpu_cores_physical ? ` � ${device.cpu_cores_physical}C` : ''}`
-		: null;
-	const ramInfo = device?.memory_total_bytes
-		? formatBytes(device.memory_total_bytes)
-		: null;
 	// Convert form_factor enum to string
 	const formFactor = device?.form_factor
 		? typeof device.form_factor === 'string'
 			? device.form_factor
 			: (device.form_factor as any)?.Other ||
 				JSON.stringify(device.form_factor)
+		: null;
+	// Override CPU model for Apple mobile devices when missing
+	const cpuModel = device?.cpu_model ||
+		(formFactor === 'Mobile' && device?.manufacturer === 'Apple'
+			? 'Apple A16 Bionic'
+			: null);
+	const cpuInfo = cpuModel
+		? `${cpuModel}${device.cpu_cores_physical ? ` � ${device.cpu_cores_physical}C` : ''}`
+		: null;
+	const ramInfo = device?.memory_total_bytes
+		? formatBytes(device.memory_total_bytes)
 		: null;
 	const manufacturer = device?.manufacturer;
 
@@ -380,7 +385,7 @@ function DeviceCard({
 								className="text-ink text-right text-xs font-medium"
 								title={cpuInfo}
 							>
-								{device?.cpu_model || 'CPU'}
+								{cpuModel || 'CPU'}
 							</div>
 						)}
 

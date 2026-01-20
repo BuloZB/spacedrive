@@ -1,13 +1,13 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useNormalizedQuery, getDeviceIcon } from "../../../contexts/SpacedriveContext";
-import { getVolumeIcon } from "@sd/ts-client";
-import type { File } from "@sd/ts-client";
 import {
+	getVolumeIcon,
 	mapLocationToFile,
 	mapVolumeToFile,
 	mapDeviceToFile,
-} from "../utils/virtualFiles";
+	type File,
+} from "@sd/ts-client";
 import { Location } from "@sd/assets/icons";
 
 export type VirtualViewType = "device" | "devices" | null;

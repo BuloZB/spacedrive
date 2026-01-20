@@ -9,7 +9,7 @@ import { TagDot } from "../../../../components/Tags";
 import { useDroppable } from "@dnd-kit/core";
 import { useFileContextMenu } from "../../hooks/useFileContextMenu";
 import { useDraggableFile } from "../../hooks/useDraggableFile";
-import { isVirtualFile } from "../../utils/virtualFiles";
+import { isVirtualFile } from '@sd/ts-client';
 import { VolumeSizeBar } from "../../components/VolumeSizeBar";
 import { InlineNameEdit } from "../../components/InlineNameEdit";
 import { useOpenWith } from "../../../../hooks/useOpenWith";

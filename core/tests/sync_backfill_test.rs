@@ -18,6 +18,7 @@ use sd_core::{
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect};
 use std::sync::Arc;
 use tokio::time::Duration;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
@@ -43,13 +44,16 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 
 	tracing::info!("=== Phase 1: Alice indexes location (Bob not connected yet) ===");
 
+	// Generate a shared library UUID for both devices
+	let library_id = Uuid::new_v4();
+
 	let core_alice = Core::new(temp_dir_alice.clone())
 		.await
 		.map_err(|e| anyhow::anyhow!("Failed to create Alice core: {}", e))?;
 	let device_alice_id = core_alice.device.device_id()?;
 	let library_alice = core_alice
 		.libraries
-		.create_library_no_sync("Backfill Test Library", None, core_alice.context.clone())
+		.create_library_with_id(library_id, "Backfill Test Library", None, core_alice.context.clone())
 		.await?;
 
 	let device_record = entities::device::Entity::find()
@@ -80,7 +84,7 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 
 	// Create volumes BEFORE indexing so entries can reference them
 	tracing::info!("Creating test volumes on Alice");
-	create_test_volume(
+	let _ = create_test_volume(
 		&library_alice,
 		device_alice_id,
 		"test-vol-1",
@@ -141,16 +145,20 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 	let alice_content_after_index = entities::content_identity::Entity::find()
 		.count(library_alice.db().conn())
 		.await?;
+	let alice_mime_types_after_index = entities::mime_type::Entity::find()
+		.count(library_alice.db().conn())
+		.await?;
 
 	tracing::info!(
 		entries = alice_entries_after_index,
 		content_identities = alice_content_after_index,
+		mime_types = alice_mime_types_after_index,
 		"Alice indexing complete"
 	);
 
 	// Create additional volume for testing volume sync
 	tracing::info!("Creating second test volume on Alice");
-	create_test_volume(
+	let _ = create_test_volume(
 		&library_alice,
 		device_alice_id,
 		"test-vol-2",
@@ -171,7 +179,7 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 	let device_bob_id = core_bob.device.device_id()?;
 	let library_bob = core_bob
 		.libraries
-		.create_library_no_sync("Backfill Test Library", None, core_bob.context.clone())
+		.create_library_with_id(library_id, "Backfill Test Library", None, core_bob.context.clone())
 		.await?;
 
 	register_device(&library_alice, device_bob_id, "Bob").await?;
@@ -237,6 +245,9 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 	let bob_content_final = entities::content_identity::Entity::find()
 		.count(library_bob.db().conn())
 		.await?;
+	let bob_mime_types_final = entities::mime_type::Entity::find()
+		.count(library_bob.db().conn())
+		.await?;
 	let alice_volumes_final = entities::volume::Entity::find()
 		.count(library_alice.db().conn())
 		.await?;
@@ -249,6 +260,8 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 		bob_entries = bob_entries_final,
 		alice_content = alice_content_after_index,
 		bob_content = bob_content_final,
+		alice_mime_types = alice_mime_types_after_index,
+		bob_mime_types = bob_mime_types_final,
 		alice_volumes = alice_volumes_final,
 		bob_volumes = bob_volumes_final,
 		"=== Final counts ==="
@@ -256,6 +269,7 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 
 	let entry_diff = (alice_entries_after_index as i64 - bob_entries_final as i64).abs();
 	let content_diff = (alice_content_after_index as i64 - bob_content_final as i64).abs();
+	let mime_type_diff = (alice_mime_types_after_index as i64 - bob_mime_types_final as i64).abs();
 
 	assert!(
 		entry_diff <= 5,
@@ -271,6 +285,41 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 		alice_content_after_index,
 		bob_content_final,
 		content_diff
+	);
+
+	assert!(
+		mime_type_diff == 0,
+		"Mime type count mismatch after backfill: Alice {}, Bob {} (diff: {})",
+		alice_mime_types_after_index,
+		bob_mime_types_final,
+		mime_type_diff
+	);
+
+	// Verify mime types have valid UUIDs (required for sync)
+	let alice_mime_types_with_uuid = entities::mime_type::Entity::find()
+		.filter(entities::mime_type::Column::Uuid.is_not_null())
+		.count(library_alice.db().conn())
+		.await?;
+
+	assert_eq!(
+		alice_mime_types_with_uuid, alice_mime_types_after_index,
+		"All mime types on Alice should have UUIDs for sync"
+	);
+
+	let bob_mime_types_with_uuid = entities::mime_type::Entity::find()
+		.filter(entities::mime_type::Column::Uuid.is_not_null())
+		.count(library_bob.db().conn())
+		.await?;
+
+	assert_eq!(
+		bob_mime_types_with_uuid, bob_mime_types_final,
+		"All mime types on Bob should have UUIDs after sync"
+	);
+
+	tracing::info!(
+		alice_mime_types = alice_mime_types_after_index,
+		bob_mime_types = bob_mime_types_final,
+		"Mime type sync verification passed"
 	);
 
 	// Verify volume sync
@@ -356,13 +405,16 @@ async fn test_bidirectional_volume_sync() -> anyhow::Result<()> {
 	TestConfigBuilder::new(temp_dir_alice.clone()).build()?;
 	TestConfigBuilder::new(temp_dir_bob.clone()).build()?;
 
+	// Generate a shared library UUID for both devices
+	let library_id = Uuid::new_v4();
+
 	let core_alice = Core::new(temp_dir_alice.clone())
 		.await
 		.map_err(|e| anyhow::anyhow!("Failed to create Alice core: {}", e))?;
 	let device_alice_id = core_alice.device.device_id()?;
 	let library_alice = core_alice
 		.libraries
-		.create_library_no_sync("Volume Sync Test", None, core_alice.context.clone())
+		.create_library_with_id(library_id, "Volume Sync Test", None, core_alice.context.clone())
 		.await?;
 
 	let core_bob = Core::new(temp_dir_bob.clone())
@@ -371,7 +423,7 @@ async fn test_bidirectional_volume_sync() -> anyhow::Result<()> {
 	let device_bob_id = core_bob.device.device_id()?;
 	let library_bob = core_bob
 		.libraries
-		.create_library_no_sync("Volume Sync Test", None, core_bob.context.clone())
+		.create_library_with_id(library_id, "Volume Sync Test", None, core_bob.context.clone())
 		.await?;
 
 	register_device(&library_alice, device_bob_id, "Bob").await?;
@@ -380,7 +432,7 @@ async fn test_bidirectional_volume_sync() -> anyhow::Result<()> {
 	tracing::info!("=== Phase 2: Create volumes on both devices ===");
 
 	// Alice creates her Macintosh HD
-	create_test_volume(
+	let _ = create_test_volume(
 		&library_alice,
 		device_alice_id,
 		"alice-macos-hd-fingerprint",
@@ -389,7 +441,7 @@ async fn test_bidirectional_volume_sync() -> anyhow::Result<()> {
 	.await?;
 
 	// Bob creates his Macintosh HD
-	create_test_volume(
+	let _ = create_test_volume(
 		&library_bob,
 		device_bob_id,
 		"bob-macos-hd-fingerprint",
@@ -553,6 +605,215 @@ async fn test_bidirectional_volume_sync() -> anyhow::Result<()> {
 	assert!(bob_has_alices, "Bob should have Alice's volume");
 
 	tracing::info!("✅ Bidirectional volume sync verified successfully");
+
+	Ok(())
+}
+
+/// Test that volume ResourceChanged events are emitted on the receiving device during sync
+#[tokio::test]
+async fn test_volume_resource_events_on_sync() -> anyhow::Result<()> {
+	let snapshot_dir = create_snapshot_dir("volume_resource_events").await?;
+	init_test_tracing("volume_resource_events", &snapshot_dir)?;
+
+	let test_data_alice = TestDataDir::new("volume_events_alice")?;
+	let test_data_bob = TestDataDir::new("volume_events_bob")?;
+
+	let temp_dir_alice = test_data_alice.core_data_path();
+	let temp_dir_bob = test_data_bob.core_data_path();
+
+	tracing::info!("=== Phase 1: Initialize both devices ===");
+
+	TestConfigBuilder::new(temp_dir_alice.clone()).build()?;
+	TestConfigBuilder::new(temp_dir_bob.clone()).build()?;
+
+	let library_id = Uuid::new_v4();
+
+	let core_alice = Core::new(temp_dir_alice.clone())
+		.await
+		.map_err(|e| anyhow::anyhow!("Failed to create Alice core: {}", e))?;
+	let device_alice_id = core_alice.device.device_id()?;
+	let library_alice = core_alice
+		.libraries
+		.create_library_with_id(library_id, "Volume Event Test", None, core_alice.context.clone())
+		.await?;
+
+	let core_bob = Core::new(temp_dir_bob.clone())
+		.await
+		.map_err(|e| anyhow::anyhow!("Failed to create Bob core: {}", e))?;
+	let device_bob_id = core_bob.device.device_id()?;
+	let library_bob = core_bob
+		.libraries
+		.create_library_with_id(library_id, "Volume Event Test", None, core_bob.context.clone())
+		.await?;
+
+	register_device(&library_alice, device_bob_id, "Bob").await?;
+	register_device(&library_bob, device_alice_id, "Alice").await?;
+
+	tracing::info!("=== Phase 2: Create volume on Alice only ===");
+
+	// Alice creates a volume
+	let alice_volume_uuid = create_test_volume(
+		&library_alice,
+		device_alice_id,
+		"alice-test-volume",
+		"Alice's Test Volume",
+	)
+	.await?;
+
+	tracing::info!(
+		volume_uuid = %alice_volume_uuid,
+		"Alice created volume"
+	);
+
+	tracing::info!("=== Phase 3: Set up event listener on Bob BEFORE sync ===");
+
+	// Subscribe to Bob's event bus for volume ResourceChanged events
+	let mut bob_events = library_bob.event_bus().subscribe();
+	let volume_event_received = Arc::new(tokio::sync::Mutex::new(false));
+	let volume_event_received_clone = volume_event_received.clone();
+	let alice_volume_uuid_clone = alice_volume_uuid;
+
+	// Spawn event listener task
+	let event_listener = tokio::spawn(async move {
+		use sd_core::infra::event::Event;
+
+		tracing::info!("Bob's event listener started, waiting for volume ResourceChanged...");
+
+		while let Ok(event) = bob_events.recv().await {
+			tracing::debug!("Bob received event: {:?}", event);
+
+			match event {
+				Event::ResourceChangedBatch { resource_type, resources, .. } => {
+					if resource_type == "volume" {
+						tracing::info!(
+							resource_count = if let serde_json::Value::Array(arr) = &resources { arr.len() } else { 0 },
+							"Bob received ResourceChangedBatch for volumes"
+						);
+
+						// Check if Alice's volume is in the batch
+						if let serde_json::Value::Array(volume_array) = resources {
+							for volume_json in volume_array {
+								if let Some(uuid_str) = volume_json.get("id").and_then(|v| v.as_str()) {
+									if let Ok(volume_id) = Uuid::parse_str(uuid_str) {
+										if volume_id == alice_volume_uuid_clone {
+											tracing::info!(
+												volume_uuid = %volume_id,
+												"✅ Bob received ResourceChanged event for Alice's volume!"
+											);
+											*volume_event_received_clone.lock().await = true;
+											return;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				Event::ResourceChanged { resource_type, resource, .. } => {
+					if resource_type == "volume" {
+						tracing::info!("Bob received single ResourceChanged for volume");
+
+						if let Some(uuid_str) = resource.get("id").and_then(|v| v.as_str()) {
+							if let Ok(volume_id) = Uuid::parse_str(uuid_str) {
+								if volume_id == alice_volume_uuid_clone {
+									tracing::info!(
+										volume_uuid = %volume_id,
+										"✅ Bob received ResourceChanged event for Alice's volume!"
+									);
+									*volume_event_received_clone.lock().await = true;
+									return;
+								}
+							}
+						}
+					}
+				}
+				_ => {
+					// Ignore other events
+				}
+			}
+		}
+	});
+
+	tracing::info!("=== Phase 4: Start sync services ===");
+
+	let (transport_alice, transport_bob) = MockTransport::new_pair(device_alice_id, device_bob_id);
+
+	library_alice
+		.init_sync_service(
+			device_alice_id,
+			transport_alice.clone() as Arc<dyn NetworkTransport>,
+		)
+		.await?;
+
+	library_bob
+		.init_sync_service(
+			device_bob_id,
+			transport_bob.clone() as Arc<dyn NetworkTransport>,
+		)
+		.await?;
+
+	transport_alice
+		.register_sync_service(
+			device_alice_id,
+			Arc::downgrade(library_alice.sync_service().unwrap()),
+		)
+		.await;
+	transport_bob
+		.register_sync_service(
+			device_bob_id,
+			Arc::downgrade(library_bob.sync_service().unwrap()),
+		)
+		.await;
+
+	library_alice.sync_service().unwrap().start().await?;
+	library_bob.sync_service().unwrap().start().await?;
+
+	tracing::info!("Sync services started - backfill should begin");
+
+	tracing::info!("=== Phase 5: Wait for volume to sync and event to be emitted ===");
+
+	// Wait for Bob to receive the volume in the database
+	let start = tokio::time::Instant::now();
+	let max_duration = Duration::from_secs(30);
+
+	loop {
+		if start.elapsed() > max_duration {
+			anyhow::bail!("Timeout waiting for volume to sync to Bob");
+		}
+
+		let bob_volume = entities::volume::Entity::find()
+			.filter(entities::volume::Column::Uuid.eq(alice_volume_uuid))
+			.one(library_bob.db().conn())
+			.await?;
+
+		if bob_volume.is_some() {
+			tracing::info!("Bob received Alice's volume in database");
+			break;
+		}
+
+		tokio::time::sleep(Duration::from_millis(100)).await;
+	}
+
+	// Give the event system a moment to emit the event after DB insert
+	tokio::time::sleep(Duration::from_millis(500)).await;
+
+	// Check if the event was received
+	let event_was_received = *volume_event_received.lock().await;
+
+	// Abort the listener task
+	event_listener.abort();
+
+	tracing::info!(
+		event_received = event_was_received,
+		"=== Test Result ==="
+	);
+
+	assert!(
+		event_was_received,
+		"Bob should have received a ResourceChanged event for Alice's volume during sync, but didn't"
+	);
+
+	tracing::info!("✅ Volume ResourceChanged event was emitted on the receiving device during sync");
 
 	Ok(())
 }
