@@ -408,9 +408,10 @@ impl ChangeHandler for DatabaseAdapter {
 		use crate::ops::media::{ocr::OcrProcessor, proxy::ProxyProcessor};
 		#[cfg(feature = "ffmpeg")]
 		use crate::ops::media::{
-			speech::SpeechToTextProcessor, thumbnail::ThumbnailProcessor,
-			thumbstrip::ThumbstripProcessor,
+			thumbnail::ThumbnailProcessor, thumbstrip::ThumbstripProcessor,
 		};
+		#[cfg(feature = "speech-to-text")]
+		use crate::ops::media::speech::SpeechToTextProcessor;
 
 		if entry.is_directory() {
 			return Ok(());
@@ -584,7 +585,7 @@ impl ChangeHandler for DatabaseAdapter {
 		}
 
 		// Speech-to-text
-		#[cfg(feature = "ffmpeg")]
+		#[cfg(feature = "speech-to-text")]
 		if proc_config
 			.watcher_processors
 			.iter()

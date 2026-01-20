@@ -30,7 +30,7 @@ pub use ocr::{OcrJob, OcrProcessor};
 pub use proxy::{ProxyJob, ProxyProcessor};
 pub use splat::{GaussianSplatJob, GaussianSplatProcessor};
 
-#[cfg(feature = "ffmpeg")]
+#[cfg(feature = "speech-to-text")]
 pub use speech::{SpeechToTextJob, SpeechToTextProcessor};
 #[cfg(feature = "ffmpeg")]
 pub use thumbnail::ThumbnailJob;

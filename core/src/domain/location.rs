@@ -539,7 +539,7 @@ impl Default for SpeechPolicy {
 
 impl SpeechPolicy {
 	/// Convert this policy to a SpeechToTextJobConfig for job dispatch
-	#[cfg(feature = "ffmpeg")]
+	#[cfg(feature = "speech-to-text")]
 	pub fn to_job_config(
 		&self,
 		location_id: Option<Uuid>,

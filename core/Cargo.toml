@@ -6,10 +6,14 @@ autobins = true
 
 [features]
 default = ["wasm"]
-# FFmpeg support for video thumbnails and audio transcription
+# FFmpeg support for video thumbnails and audio extraction
 ffmpeg = ["dep:sd-ffmpeg"]
-# AI models support
-ai = []
+# Whisper speech recognition engine (internal dependency)
+whisper = ["dep:whisper-rs", "dep:hound", "dep:rubato"]
+# Speech-to-text transcription (requires audio extraction + recognition)
+speech-to-text = ["ffmpeg", "whisper"]
+# AI features umbrella (heavy deps, can be disabled for lite builds or mobile)
+ai = ["speech-to-text"]
 # HEIF image support (extends sd-images with HEIF format)
 heif = ["sd-images/heif"]
 # Mobile platform support (excludes wasm which doesn't work on iOS)
@@ -124,10 +128,10 @@ sd-media-metadata = { path = "../crates/media-metadata" }
 tokio-rustls     = "0.26"
 webp             = "0.3"
 
-# Speech-to-text dependencies (always included)
-whisper-rs = "0.15.1"
-hound      = "3.5"  # WAV file reading
-rubato     = "0.16" # Audio resampling to 16kHz
+# Speech-to-text dependencies (optional, behind whisper feature)
+whisper-rs = { version = "0.15.1", optional = true }
+hound      = { version = "3.5", optional = true }   # WAV file reading
+rubato     = { version = "0.16", optional = true }  # Audio resampling to 16kHz
 
 # Networking
 # Iroh P2P networking
@@ -216,7 +220,7 @@ libc = "0.2"
 windows-sys = { version = "0.52", features = ["Win32_Storage_FileSystem", "Win32_Foundation", "Win32_Security"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-whisper-rs = { version = "0.15.1", features = ["metal"] }
+whisper-rs = { version = "0.15.1", features = ["metal"], optional = true }
 
 # iOS-specific dependencies for volume detection via Objective-C FFI
 [target.'cfg(target_os = "ios")'.dependencies]

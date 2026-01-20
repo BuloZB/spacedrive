@@ -7,6 +7,9 @@ version = "2.0.0-pre.1"
 default = []
 heif = ["sd-core/heif"]
 ffmpeg = ["sd-core/ffmpeg"]
+whisper = ["sd-core/whisper"]
+speech-to-text = ["sd-core/speech-to-text"]
+ai = ["sd-core/ai"]
 
 [dependencies]
 anyhow      = "1"
