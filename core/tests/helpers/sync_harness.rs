@@ -172,12 +172,14 @@ pub async fn create_test_volume(
 	device_id: Uuid,
 	fingerprint: &str,
 	display_name: &str,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Uuid> {
 	use chrono::Utc;
+
+	let volume_uuid = Uuid::new_v4();
 
 	let volume_model = entities::volume::ActiveModel {
 		id: sea_orm::ActiveValue::NotSet,
-		uuid: Set(Uuid::new_v4()),
+		uuid: Set(volume_uuid),
 		device_id: Set(device_id),
 		fingerprint: Set(fingerprint.to_string()),
 		display_name: Set(Some(display_name.to_string())),
@@ -206,7 +208,7 @@ pub async fn create_test_volume(
 	};
 
 	volume_model.insert(library.db().conn()).await?;
-	Ok(())
+	Ok(volume_uuid)
 }
 
 /// Set all devices in a library to "synced" state (prevents auto-backfill)

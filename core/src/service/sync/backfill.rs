@@ -667,6 +667,9 @@ impl BackfillManager {
 
 					// Apply updates via registry with FKs already resolved
 					// The idempotent map_sync_json_to_local in apply_state_change will skip already-resolved FKs
+					// Collect successfully applied UUIDs for batch event emission
+					let mut applied_uuids = Vec::new();
+
 					for data in processed_data {
 						// Extract UUID before moving data
 						let record_uuid = data
@@ -681,6 +684,11 @@ impl BackfillManager {
 						)
 						.await
 						.map_err(|e| anyhow::anyhow!("{}", e))?;
+
+						// Track successfully applied UUID for batch event emission
+						if let Some(uuid) = record_uuid {
+							applied_uuids.push(uuid);
+						}
 
 						// After successfully applying, resolve any records waiting for this one
 						// (e.g., child entries waiting for their parent entry)
@@ -716,6 +724,25 @@ impl BackfillManager {
 									}
 								}
 							}
+						}
+					}
+
+					// Emit resource events in batch for UI reactivity
+					if !applied_uuids.is_empty() {
+						let resource_manager = crate::domain::ResourceManager::new(
+							db.clone(),
+							self.peer_sync.event_bus().clone(),
+						);
+
+						if let Err(e) = resource_manager
+							.emit_batch_resource_events(&model_type, applied_uuids)
+							.await
+						{
+							warn!(
+								model_type = %model_type,
+								error = %e,
+								"Failed to emit batch resource events after backfill"
+							);
 						}
 					}
 
@@ -836,6 +863,9 @@ impl BackfillManager {
 									"Applying current state snapshot for pre-sync data"
 								);
 
+								// Collect successfully applied UUIDs for batch event emission
+								let mut applied_snapshot_uuids: Vec<Uuid> = Vec::new();
+
 								for record_value in records_array {
 									if let Some(record_obj) = record_value.as_object() {
 										if let (Some(uuid_value), Some(data)) =
@@ -863,8 +893,11 @@ impl BackfillManager {
 													};
 
 													let db = self.peer_sync.db().clone();
-													match crate::infra::sync::registry::apply_shared_change(entry.clone(), db).await {
+													match crate::infra::sync::registry::apply_shared_change(entry.clone(), db.clone()).await {
 														Ok(()) => {
+															// Track successfully applied UUID for batch event emission
+															applied_snapshot_uuids.push(record_uuid);
+
 															// Resolve any state changes waiting for this shared resource
 															let waiting_updates = self
 																.peer_sync
@@ -981,6 +1014,26 @@ impl BackfillManager {
 												}
 											}
 										}
+									}
+								}
+
+								// Emit batch resource events for all successfully applied snapshot records
+								if !applied_snapshot_uuids.is_empty() {
+									let db = self.peer_sync.db().clone();
+									let resource_manager = crate::domain::ResourceManager::new(
+										db.clone(),
+										self.peer_sync.event_bus().clone(),
+									);
+
+									if let Err(e) = resource_manager
+										.emit_batch_resource_events(&model_type, applied_snapshot_uuids)
+										.await
+									{
+										warn!(
+											model_type = %model_type,
+											error = %e,
+											"Failed to emit batch resource events after snapshot application"
+										);
 									}
 								}
 							}
