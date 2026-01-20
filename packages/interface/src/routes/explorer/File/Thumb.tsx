@@ -4,9 +4,8 @@ import { getIcon, getBeardedIcon } from "@sd/assets/util";
 import { beardedIconUrls } from "@sd/assets/svgs/ext/Extras/urls";
 import type { File } from "@sd/ts-client";
 import { ThumbstripScrubber } from "./ThumbstripScrubber";
-import { getContentKind } from "../utils";
+import { getFileKindForIcon, getVirtualMetadata, getContentKind } from "@sd/ts-client";
 import { useServer } from "../../../contexts/ServerContext";
-import { getVirtualMetadata } from '@sd/ts-client';
 
 interface ThumbProps {
   file: File;
@@ -113,15 +112,9 @@ export const Thumb = memo(function Thumb({
 
   const thumbnailSrc = getThumbnailUrl(size);
 
-  // Get content kind (prefers content_identity.kind, falls back to content_kind)
+  // Get content kind for icon resolution
   const contentKind = getContentKind(file);
-  const fileKind =
-    contentKind && contentKind !== "unknown"
-      ? contentKind
-      : file.kind === "File"
-        ? file.extension || "File"
-        : file.kind || "File";
-  const kindCapitalized = fileKind.charAt(0).toUpperCase() + fileKind.slice(1);
+  const kindCapitalized = getFileKindForIcon(file);
 
   // Use icon override from virtual files (devices, volumes), otherwise use default icon logic
   const icon =
@@ -246,15 +239,8 @@ export function Icon({
   const virtualMetadata = getVirtualMetadata(file);
   const iconOverride = virtualMetadata?.iconUrl;
 
-  // Get content kind (prefers content_identity.kind, falls back to content_kind)
-  const contentKind = getContentKind(file);
-  const fileKind =
-    contentKind && contentKind !== "unknown"
-      ? contentKind
-      : file.kind === "File"
-        ? file.extension || "File"
-        : file.kind || "File";
-  const kindCapitalized = fileKind.charAt(0).toUpperCase() + fileKind.slice(1);
+  // Get content kind for icon resolution
+  const kindCapitalized = getFileKindForIcon(file);
 
   // Use icon override from virtual files (devices, volumes), otherwise use default icon logic
   const icon =

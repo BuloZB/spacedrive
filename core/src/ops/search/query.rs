@@ -192,6 +192,11 @@ impl FileSearchQuery {
 	) -> QueryResult<Vec<crate::ops::search::output::FileSearchResult>> {
 		use sea_orm::Statement;
 
+		// For empty queries (recents view), skip FTS and query entries directly
+		if self.input.query.trim().is_empty() {
+			return self.execute_fast_search_no_fts(db).await;
+		}
+
 		// Use FTS5 for high-performance text search
 		let fts_query = self.build_fts5_query();
 		let fts_results = self.execute_fts5_search(db, &fts_query).await?;
@@ -847,7 +852,121 @@ impl FileSearchQuery {
 		Ok(entries.len() as u64)
 	}
 
-	/// Build FTS5 query string with proper escaping
+	/// Convert an entry model to a FileSearchResult with device and path resolution
+	async fn entry_to_search_result(
+		&self,
+		entry_model: entry::Model,
+		db: &DatabaseConnection,
+		score: f32,
+	) -> QueryResult<Option<crate::ops::search::output::FileSearchResult>> {
+		// Skip entries without volume_id (can't determine device slug)
+		let Some(volume_id) = entry_model.volume_id else {
+			return Ok(None);
+		};
+
+		// Get volume to find device info
+		let Some(volume) = crate::infra::db::entities::volume::Entity::find_by_id(volume_id)
+			.one(db)
+			.await? else {
+			return Ok(None);
+		};
+
+		// Get device to find slug
+		let Some(device) = crate::infra::db::entities::device::Entity::find()
+			.filter(crate::infra::db::entities::device::Column::Uuid.eq(volume.device_id))
+			.one(db)
+			.await? else {
+			return Ok(None);
+		};
+
+		// Construct full path
+		let full_path = self.construct_full_path(&entry_model, db).await?;
+
+		// Build SD path
+		let sd_path = crate::domain::addressing::SdPath::Physical {
+			device_slug: device.slug,
+			path: full_path.into(),
+		};
+
+		// Use File::from_entity_model to properly construct the file
+		let file = crate::domain::File::from_entity_model(entry_model, sd_path);
+
+		Ok(Some(crate::ops::search::output::FileSearchResult {
+			file,
+			score,
+			score_breakdown: crate::ops::search::output::ScoreBreakdown::new(
+				score,
+				None,
+				0.0,
+				0.0,
+				0.0,
+			),
+			highlights: Vec::new(),
+			matched_content: None,
+		}))
+	}
+
+	/// Execute fast search without FTS (for empty queries like recents view)
+	async fn execute_fast_search_no_fts(
+		&self,
+		db: &DatabaseConnection,
+	) -> QueryResult<Vec<crate::ops::search::output::FileSearchResult>> {
+		use crate::ops::search::filters::FilterBuilder;
+		use crate::ops::search::sorting::SortBuilder;
+
+		tracing::info!(
+			"Executing fast search without FTS (empty query), sorting by {:?}",
+			self.input.sort.field
+		);
+
+		// Build query with filters and sorting
+		let mut query = entry::Entity::find();
+
+		// Apply filters
+		let filter_builder = FilterBuilder::new()
+			.file_types(&self.input.filters.file_types)
+			.date_range(&self.input.filters.date_range)
+			.size_range(&self.input.filters.size_range);
+
+		query = query.filter(filter_builder.build());
+
+		// Apply sorting
+		let sort_builder = SortBuilder::new().apply_sort(&self.input.sort);
+		for (column, order) in sort_builder.build() {
+			match column.as_str() {
+				"name" => query = query.order_by(entry::Column::Name, order),
+				"size" => query = query.order_by(entry::Column::Size, order),
+				"modified_at" => query = query.order_by(entry::Column::ModifiedAt, order),
+				"created_at" => query = query.order_by(entry::Column::CreatedAt, order),
+				"indexed_at" => query = query.order_by(entry::Column::IndexedAt, order),
+				_ => {}
+			}
+		}
+
+		// Apply pagination
+		query = query
+			.limit(self.input.pagination.limit as u64)
+			.offset(self.input.pagination.offset as u64);
+
+		// Execute query
+		let entries = query.all(db).await?;
+
+		tracing::info!(
+			"Fast search without FTS returned {} entries",
+			entries.len()
+		);
+
+		// Convert entries to FileSearchResult using helper
+		let mut results = Vec::new();
+		for entry_model in entries {
+			if let Some(result) = self.entry_to_search_result(entry_model, db, 1.0).await? {
+				results.push(result);
+			}
+		}
+
+		Ok(results)
+	}
+
 	pub fn build_fts5_query(&self) -> String {
 		// Escape special FTS5 characters and build query
 		let escaped_query = self

@@ -186,7 +186,11 @@ impl FileSearchInput {
 
 	/// Validate the search input
 	pub fn validate(&self) -> Result<(), String> {
-		if self.query.trim().is_empty() {
+		// Allow empty queries when sorting by IndexedAt (for recents view)
+		let is_recents_query = self.query.trim().is_empty()
+			&& matches!(self.sort.field, SortField::IndexedAt);
+
+		if self.query.trim().is_empty() && !is_recents_query {
 			return Err("Query cannot be empty".to_string());
 		}
 

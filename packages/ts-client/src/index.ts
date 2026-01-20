@@ -69,5 +69,8 @@ export * from "./volumeIcons";
 // Virtual file system utilities
 export * from "./virtualFiles";
 
+// File utilities
+export * from "./fileUtils";
+
 // All auto-generated types
 export * from "./generated/types";

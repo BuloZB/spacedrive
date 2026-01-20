@@ -32,6 +32,7 @@ import {useJobsContext} from '../../../components/JobManager/hooks/JobsContext';
 import {TagSelectorButton} from '../../../components/Tags';
 import {usePlatform} from '../../../contexts/PlatformContext';
 import {useServer} from '../../../contexts/ServerContext';
+import { getContentKind } from "@sd/ts-client";
 import {
 	getDeviceIcon,
 	useLibraryMutation,
@@ -39,7 +40,7 @@ import {
 } from '../../../contexts/SpacedriveContext';
 import {useContextMenu} from '../../../hooks/useContextMenu';
 import {File as FileComponent} from '../../../routes/explorer/File';
-import {formatBytes, getContentKind} from '../../../routes/explorer/utils';
+import { formatBytes } from '../../../routes/explorer/utils';
 import {Divider, InfoRow, Section, TabContent, Tabs, Tag} from '../Inspector';
 
 interface FileInspectorProps {

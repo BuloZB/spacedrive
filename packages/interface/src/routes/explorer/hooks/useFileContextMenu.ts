@@ -26,7 +26,7 @@ import { useContextMenu } from "../../../hooks/useContextMenu";
 import { useJobDispatch } from "../../../hooks/useJobDispatch";
 import { useLibraryMutation } from "../../../contexts/SpacedriveContext";
 import { usePlatform } from "../../../contexts/PlatformContext";
-import { getContentKind } from "../utils";
+import { getContentKind } from "@sd/ts-client";
 import { useExplorer } from "../context";
 import { isVirtualFile } from '@sd/ts-client';
 import { useClipboard } from "../../../hooks/useClipboard";

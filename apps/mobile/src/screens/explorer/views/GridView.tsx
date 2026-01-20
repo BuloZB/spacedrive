@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, FlatList, Pressable, Image, Dimensions } from "react-native";
 import type { File } from "@sd/ts-client";
-import { getVirtualMetadata, isVirtualFile } from "@sd/ts-client";
+import { getVirtualMetadata, isVirtualFile, getFileKindForIcon } from "@sd/ts-client";
 import { getIcon } from "@sd/assets/util/mobile";
 
 interface GridViewProps {
@@ -38,9 +38,10 @@ function FileCard({ file, onPress }: { file: File; onPress: () => void }) {
 		}
 
 		// Use getIcon from mobile-compatible util
+		const kindForIcon = getFileKindForIcon(file);
 		return getIcon(
-			file.kind || "Document",
-			false, // isDark - always use light mode for mobile for now
+			kindForIcon,
+			true, // isDark - use dark mode icons for mobile
 			file.extension,
 			file.kind === "Directory",
 		);

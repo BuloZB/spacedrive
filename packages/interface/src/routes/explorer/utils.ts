@@ -2,15 +2,7 @@ import LaptopIcon from "@sd/assets/icons/Laptop.png";
 import MobileIcon from "@sd/assets/icons/Mobile.png";
 import ServerIcon from "@sd/assets/icons/Server.png";
 import PCIcon from "@sd/assets/icons/PC.png";
-import type { ContentKind, File, SdPath } from "@sd/ts-client";
-
-/**
- * Get the content kind for a file, preferring content_identity.kind if available,
- * falling back to content_kind (identified by extension during ephemeral indexing).
- */
-export function getContentKind(file: File | null | undefined): ContentKind {
-	return file?.content_identity?.kind ?? file?.content_kind ?? "unknown";
-}
+import type { SdPath } from "@sd/ts-client";
 
 export function formatBytes(bytes: number | bigint | null): string {
 	if (bytes === null) return "0 B";

@@ -10,7 +10,7 @@ import {
 	type VideoControlsCallbacks,
 } from "./VideoControls";
 import { TopBarPortal, TopBarItem } from "../../TopBar";
-import { getContentKind } from "../../routes/explorer/utils";
+import { getContentKind } from "@sd/ts-client";
 import { useExplorer } from "../../routes/explorer/context";
 
 interface QuickPreviewFullscreenProps {

@@ -135,8 +135,6 @@ impl Syncable for Model {
 	fn exclude_fields() -> Option<&'static [&'static str]> {
 		Some(&[
 			"id",
-			"mime_type_id",
-			"kind_id",
 			"entry_count",
 			"image_media_data_id",
 			"video_media_data_id",
@@ -147,7 +145,14 @@ impl Syncable for Model {
 	}
 
 	fn sync_depends_on() -> &'static [&'static str] {
-		&[]
+		&["mime_type"]
+	}
+
+	fn foreign_key_mappings() -> Vec<crate::infra::sync::FKMapping> {
+		vec![crate::infra::sync::FKMapping::new(
+			"mime_type_id",
+			"mime_types",
+		)]
 	}
 
 	// FK Lookup Methods (content_identity is FK target for entries)
@@ -295,8 +300,18 @@ impl Syncable for Model {
 					)
 					.unwrap()),
 					content_hash: Set(content_hash),
-					mime_type_id: Set(None),
-					kind_id: Set(1),
+					mime_type_id: Set(serde_json::from_value(
+						data.get("mime_type_id")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					kind_id: Set(serde_json::from_value(
+						data.get("kind_id")
+							.cloned()
+							.unwrap_or(serde_json::Value::Number(0.into())),
+					)
+					.unwrap()),
 					text_content: Set(serde_json::from_value(
 						data.get("text_content")
 							.cloned()

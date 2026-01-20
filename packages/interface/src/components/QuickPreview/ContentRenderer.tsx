@@ -1,6 +1,7 @@
 import type { File, ContentKind } from "@sd/ts-client";
+import { getContentKind } from "@sd/ts-client";
 import { File as FileComponent } from "../../routes/explorer/File";
-import { formatBytes, getContentKind } from "../../routes/explorer/utils";
+import { formatBytes } from "../../routes/explorer/utils";
 import { usePlatform } from "../../contexts/PlatformContext";
 import { useServer } from "../../contexts/ServerContext";
 import {
