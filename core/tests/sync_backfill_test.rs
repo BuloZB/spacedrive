@@ -18,6 +18,7 @@ use sd_core::{
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect};
 use std::sync::Arc;
 use tokio::time::Duration;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
@@ -43,13 +44,16 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 
 	tracing::info!("=== Phase 1: Alice indexes location (Bob not connected yet) ===");
 
+	// Generate a shared library UUID for both devices
+	let library_id = Uuid::new_v4();
+
 	let core_alice = Core::new(temp_dir_alice.clone())
 		.await
 		.map_err(|e| anyhow::anyhow!("Failed to create Alice core: {}", e))?;
 	let device_alice_id = core_alice.device.device_id()?;
 	let library_alice = core_alice
 		.libraries
-		.create_library_no_sync("Backfill Test Library", None, core_alice.context.clone())
+		.create_library_with_id(library_id, "Backfill Test Library", None, core_alice.context.clone())
 		.await?;
 
 	let device_record = entities::device::Entity::find()
@@ -141,10 +145,14 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 	let alice_content_after_index = entities::content_identity::Entity::find()
 		.count(library_alice.db().conn())
 		.await?;
+	let alice_mime_types_after_index = entities::mime_type::Entity::find()
+		.count(library_alice.db().conn())
+		.await?;
 
 	tracing::info!(
 		entries = alice_entries_after_index,
 		content_identities = alice_content_after_index,
+		mime_types = alice_mime_types_after_index,
 		"Alice indexing complete"
 	);
 
@@ -171,7 +179,7 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 	let device_bob_id = core_bob.device.device_id()?;
 	let library_bob = core_bob
 		.libraries
-		.create_library_no_sync("Backfill Test Library", None, core_bob.context.clone())
+		.create_library_with_id(library_id, "Backfill Test Library", None, core_bob.context.clone())
 		.await?;
 
 	register_device(&library_alice, device_bob_id, "Bob").await?;
@@ -237,6 +245,9 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 	let bob_content_final = entities::content_identity::Entity::find()
 		.count(library_bob.db().conn())
 		.await?;
+	let bob_mime_types_final = entities::mime_type::Entity::find()
+		.count(library_bob.db().conn())
+		.await?;
 	let alice_volumes_final = entities::volume::Entity::find()
 		.count(library_alice.db().conn())
 		.await?;
@@ -249,6 +260,8 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 		bob_entries = bob_entries_final,
 		alice_content = alice_content_after_index,
 		bob_content = bob_content_final,
+		alice_mime_types = alice_mime_types_after_index,
+		bob_mime_types = bob_mime_types_final,
 		alice_volumes = alice_volumes_final,
 		bob_volumes = bob_volumes_final,
 		"=== Final counts ==="
@@ -256,6 +269,7 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 
 	let entry_diff = (alice_entries_after_index as i64 - bob_entries_final as i64).abs();
 	let content_diff = (alice_content_after_index as i64 - bob_content_final as i64).abs();
+	let mime_type_diff = (alice_mime_types_after_index as i64 - bob_mime_types_final as i64).abs();
 
 	assert!(
 		entry_diff <= 5,
@@ -271,6 +285,41 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 		alice_content_after_index,
 		bob_content_final,
 		content_diff
+	);
+
+	assert!(
+		mime_type_diff == 0,
+		"Mime type count mismatch after backfill: Alice {}, Bob {} (diff: {})",
+		alice_mime_types_after_index,
+		bob_mime_types_final,
+		mime_type_diff
+	);
+
+	// Verify mime types have valid UUIDs (required for sync)
+	let alice_mime_types_with_uuid = entities::mime_type::Entity::find()
+		.filter(entities::mime_type::Column::Uuid.is_not_null())
+		.count(library_alice.db().conn())
+		.await?;
+
+	assert_eq!(
+		alice_mime_types_with_uuid, alice_mime_types_after_index,
+		"All mime types on Alice should have UUIDs for sync"
+	);
+
+	let bob_mime_types_with_uuid = entities::mime_type::Entity::find()
+		.filter(entities::mime_type::Column::Uuid.is_not_null())
+		.count(library_bob.db().conn())
+		.await?;
+
+	assert_eq!(
+		bob_mime_types_with_uuid, bob_mime_types_final,
+		"All mime types on Bob should have UUIDs after sync"
+	);
+
+	tracing::info!(
+		alice_mime_types = alice_mime_types_after_index,
+		bob_mime_types = bob_mime_types_final,
+		"Mime type sync verification passed"
 	);
 
 	// Verify volume sync
@@ -356,13 +405,16 @@ async fn test_bidirectional_volume_sync() -> anyhow::Result<()> {
 	TestConfigBuilder::new(temp_dir_alice.clone()).build()?;
 	TestConfigBuilder::new(temp_dir_bob.clone()).build()?;
 
+	// Generate a shared library UUID for both devices
+	let library_id = Uuid::new_v4();
+
 	let core_alice = Core::new(temp_dir_alice.clone())
 		.await
 		.map_err(|e| anyhow::anyhow!("Failed to create Alice core: {}", e))?;
 	let device_alice_id = core_alice.device.device_id()?;
 	let library_alice = core_alice
 		.libraries
-		.create_library_no_sync("Volume Sync Test", None, core_alice.context.clone())
+		.create_library_with_id(library_id, "Volume Sync Test", None, core_alice.context.clone())
 		.await?;
 
 	let core_bob = Core::new(temp_dir_bob.clone())
@@ -371,7 +423,7 @@ async fn test_bidirectional_volume_sync() -> anyhow::Result<()> {
 	let device_bob_id = core_bob.device.device_id()?;
 	let library_bob = core_bob
 		.libraries
-		.create_library_no_sync("Volume Sync Test", None, core_bob.context.clone())
+		.create_library_with_id(library_id, "Volume Sync Test", None, core_bob.context.clone())
 		.await?;
 
 	register_device(&library_alice, device_bob_id, "Bob").await?;
