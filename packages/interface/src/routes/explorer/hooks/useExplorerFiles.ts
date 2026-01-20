@@ -5,7 +5,7 @@ import { useExplorer } from "../context";
 import type { SearchScope } from "../context";
 import { useVirtualListing } from "./useVirtualListing";
 
-export type FileSource = "search" | "virtual" | "directory";
+export type FileSource = "search" | "virtual" | "directory" | "recents";
 
 export interface ExplorerFilesResult {
 	files: File[];
@@ -30,6 +30,7 @@ export function useExplorerFiles(): ExplorerFilesResult {
 
 	// Check for search mode
 	const isSearchMode = mode.type === "search";
+	const isRecentsMode = mode.type === "recents";
 
 	// Build search query input
 	const searchQueryInput = useMemo<FileSearchInput | null>(() => {
@@ -80,6 +81,35 @@ export function useExplorerFiles(): ExplorerFilesResult {
 		};
 	}, [isSearchMode, mode, currentPath, sortBy]);
 
+	// Build recents query input
+	const recentsQueryInput = useMemo<FileSearchInput | null>(() => {
+		if (!isRecentsMode) return null;
+
+		return {
+			query: "", // Empty query to match all files
+			scope: "Library",
+			filters: {
+				file_types: null,
+				tags: null,
+				date_range: null,
+				size_range: null,
+				locations: null,
+				content_types: null,
+				include_hidden: null,
+				include_archived: null,
+			},
+			mode: "Fast", // Fast mode since we're just sorting by indexed_at
+			sort: {
+				field: "IndexedAt", // Sort by when files were indexed
+				direction: "Desc", // Most recent first
+			},
+			pagination: {
+				limit: 100, // Reasonable limit for recents screen
+				offset: 0,
+			},
+		};
+	}, [isRecentsMode]);
+
 	// Search query
 	const searchQuery = useNormalizedQuery<FileSearchInput, FileSearchOutput>({
 		wireMethod: "query:search.files",
@@ -90,6 +120,14 @@ export function useExplorerFiles(): ExplorerFilesResult {
 				? (currentPath as any)
 				: undefined,
 		enabled: isSearchMode && !!searchQueryInput && searchQueryInput.query.length >= 2,
+	});
+
+	// Recents query
+	const recentsQuery = useNormalizedQuery<FileSearchInput, FileSearchOutput>({
+		wireMethod: "query:search.files",
+		input: recentsQueryInput!,
+		resourceType: "file",
+		enabled: isRecentsMode && !!recentsQueryInput,
 	});
 
 	// Directory query
@@ -105,14 +143,23 @@ export function useExplorerFiles(): ExplorerFilesResult {
 				}
 			: null!,
 		resourceType: "file",
-		enabled: !!currentPath && !isVirtualView && !isSearchMode,
+		enabled: !!currentPath && !isVirtualView && !isSearchMode && !isRecentsMode,
 		pathScope: currentPath ?? undefined,
 	});
 
-	// Determine source and files with priority: search > virtual > directory
-	const source: FileSource = isSearchMode ? "search" : isVirtualView ? "virtual" : "directory";
+	// Determine source and files with priority: recents > search > virtual > directory
+	const source: FileSource = isRecentsMode
+		? "recents"
+		: isSearchMode
+			? "search"
+			: isVirtualView
+				? "virtual"
+				: "directory";
 
 	const files = useMemo(() => {
+		if (isRecentsMode) {
+			return (recentsQuery.data as FileSearchOutput | undefined)?.files || [];
+		}
 		if (isSearchMode) {
 			return (searchQuery.data as FileSearchOutput | undefined)?.files || [];
 		}
@@ -120,13 +167,15 @@ export function useExplorerFiles(): ExplorerFilesResult {
 			return virtualFiles || [];
 		}
 		return (directoryQuery.data as any)?.files || [];
-	}, [isSearchMode, isVirtualView, searchQuery.data, virtualFiles, directoryQuery.data]);
+	}, [isRecentsMode, isSearchMode, isVirtualView, recentsQuery.data, searchQuery.data, virtualFiles, directoryQuery.data]);
 
-	const isLoading = isSearchMode
-		? searchQuery.isLoading
-		: isVirtualView
-			? false
-			: directoryQuery.isLoading;
+	const isLoading = isRecentsMode
+		? recentsQuery.isLoading
+		: isSearchMode
+			? searchQuery.isLoading
+			: isVirtualView
+				? false
+				: directoryQuery.isLoading;
 
 	return { files, isLoading, source };
 }

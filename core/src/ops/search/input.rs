@@ -87,6 +87,7 @@ pub enum DateField {
 	CreatedAt,
 	ModifiedAt,
 	AccessedAt,
+	IndexedAt,
 }
 
 /// Filter for file size in bytes
@@ -111,6 +112,7 @@ pub enum SortField {
 	Size,
 	ModifiedAt,
 	CreatedAt,
+	IndexedAt,
 }
 
 /// Sort direction

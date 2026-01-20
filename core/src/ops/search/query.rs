@@ -594,6 +594,7 @@ impl FileSearchQuery {
 				crate::ops::search::input::DateField::CreatedAt => entry::Column::CreatedAt,
 				crate::ops::search::input::DateField::ModifiedAt => entry::Column::ModifiedAt,
 				crate::ops::search::input::DateField::AccessedAt => entry::Column::AccessedAt,
+				crate::ops::search::input::DateField::IndexedAt => entry::Column::IndexedAt,
 			};
 
 			if let Some(start) = date_range.start {
@@ -988,6 +989,7 @@ impl FileSearchQuery {
 				crate::ops::search::input::DateField::CreatedAt => Some(entry_model.created_at),
 				crate::ops::search::input::DateField::ModifiedAt => Some(entry_model.modified_at),
 				crate::ops::search::input::DateField::AccessedAt => entry_model.accessed_at,
+				crate::ops::search::input::DateField::IndexedAt => entry_model.indexed_at,
 			};
 
 			if let Some(date) = date_to_check {

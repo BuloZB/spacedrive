@@ -60,7 +60,8 @@ export interface SearchFilters {
 
 export type ExplorerMode =
 	| { type: "browse" }
-	| { type: "search"; query: string; scope: SearchScope };
+	| { type: "search"; query: string; scope: SearchScope }
+	| { type: "recents" };
 
 export type NavigationTarget =
 	| { type: "path"; path: SdPath }
@@ -190,6 +191,8 @@ type UIAction =
 	| { type: "SET_TAG_MODE"; active: boolean }
 	| { type: "ENTER_SEARCH_MODE"; query: string; scope: SearchScope }
 	| { type: "EXIT_SEARCH_MODE" }
+	| { type: "ENTER_RECENTS_MODE" }
+	| { type: "EXIT_RECENTS_MODE" }
 	| { type: "SET_SEARCH_FILTERS"; filters: SearchFilters }
 	| {
 			type: "LOAD_PREFERENCES";
@@ -243,6 +246,18 @@ function uiReducer(state: UIState, action: UIAction): UIState {
 				...state,
 				mode: { type: "browse" },
 				searchFilters: {},
+			};
+
+		case "ENTER_RECENTS_MODE":
+			return {
+				...state,
+				mode: { type: "recents" },
+			};
+
+		case "EXIT_RECENTS_MODE":
+			return {
+				...state,
+				mode: { type: "browse" },
 			};
 
 		case "SET_SEARCH_FILTERS":
@@ -395,6 +410,8 @@ interface ExplorerContextValue {
 	mode: ExplorerMode;
 	enterSearchMode: (query: string, scope?: SearchScope) => void;
 	exitSearchMode: () => void;
+	enterRecentsMode: () => void;
+	exitRecentsMode: () => void;
 	searchFilters: SearchFilters;
 	setSearchFilters: (filters: SearchFilters) => void;
 
@@ -712,6 +729,14 @@ export function ExplorerProvider({
 		uiDispatch({ type: "EXIT_SEARCH_MODE" });
 	}, []);
 
+	const enterRecentsMode = useCallback(() => {
+		uiDispatch({ type: "ENTER_RECENTS_MODE" });
+	}, []);
+
+	const exitRecentsMode = useCallback(() => {
+		uiDispatch({ type: "EXIT_RECENTS_MODE" });
+	}, []);
+
 	const setSearchFilters = useCallback((filters: SearchFilters) => {
 		uiDispatch({ type: "SET_SEARCH_FILTERS", filters });
 	}, []);
@@ -767,6 +792,8 @@ export function ExplorerProvider({
 			mode: uiState.mode,
 			enterSearchMode,
 			exitSearchMode,
+			enterRecentsMode,
+			exitRecentsMode,
 			searchFilters: uiState.searchFilters,
 			setSearchFilters,
 			devices,
@@ -808,6 +835,8 @@ export function ExplorerProvider({
 			uiState.mode,
 			enterSearchMode,
 			exitSearchMode,
+			enterRecentsMode,
+			exitRecentsMode,
 			uiState.searchFilters,
 			setSearchFilters,
 			devices,

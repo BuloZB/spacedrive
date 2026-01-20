@@ -56,7 +56,7 @@ function FileCard({ file, onPress }: { file: File; onPress: () => void }) {
 			<View className="rounded-lg p-2 items-center justify-center aspect-square mb-2">
 				<Image
 					source={iconSource}
-					className="w-16 h-16"
+					className="w-20 h-20"
 					style={{ resizeMode: "contain" }}
 				/>
 			</View>

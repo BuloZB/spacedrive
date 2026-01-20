@@ -178,6 +178,7 @@ fn passes_ephemeral_filters(
 			DateField::ModifiedAt => metadata.modified,
 			DateField::CreatedAt => metadata.created,
 			DateField::AccessedAt => metadata.accessed,
+			DateField::IndexedAt => None, // Ephemeral search doesn't have indexed_at
 		};
 
 		if let Some(system_time) = system_time_opt {

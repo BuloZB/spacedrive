@@ -134,7 +134,7 @@ export function BrowseScreen() {
 	);
 
 	return (
-		<View className="flex-1 bg-sidebar">
+		<View className="flex-1 bg-app">
 			<ScrollView
 				ref={scrollViewRef}
 				horizontal
