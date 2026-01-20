@@ -97,6 +97,7 @@
       "pages": [
         "core/networking",
         "core/pairing",
+        "core/proxy-pairing",
         "core/library-sync",
         "core/file-sync",
         "core/cloud-integration"
