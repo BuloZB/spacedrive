@@ -5,7 +5,7 @@ import {useEffect, useMemo, useState} from 'react';
 import {usePlatform} from '../../contexts/PlatformContext';
 import {useLibraryQuery} from '../../contexts/SpacedriveContext';
 import {useSelection} from '../../routes/explorer/SelectionContext';
-import {isVirtualFile} from '../../routes/explorer/utils/virtualFiles';
+import {isVirtualFile} from '@sd/ts-client';
 import {FileInspector} from './variants/FileInspector';
 import {LocationInspector} from './variants/LocationInspector';
 import {MultiFileInspector} from './variants/MultiFileInspector';
@@ -101,7 +101,7 @@ function InspectorView({
 			{!hideDragRegion && (
 				<div
 					data-tauri-drag-region
-					className="absolute inset-x-0 top-0 h-[52px] z-[60]"
+					className="absolute inset-x-0 top-0 h-[52px] z-[60] pointer-events-none"
 				/>
 			)}
 

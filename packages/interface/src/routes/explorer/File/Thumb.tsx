@@ -1,11 +1,12 @@
 import { useState, memo, useEffect } from "react";
 import clsx from "clsx";
-import { getIcon, getBeardedIcon, beardedIconUrls } from "@sd/assets/util";
+import { getIcon, getBeardedIcon } from "@sd/assets/util";
+import { beardedIconUrls } from "@sd/assets/svgs/ext/Extras/urls";
 import type { File } from "@sd/ts-client";
 import { ThumbstripScrubber } from "./ThumbstripScrubber";
 import { getContentKind } from "../utils";
 import { useServer } from "../../../contexts/ServerContext";
-import { getVirtualMetadata } from "../utils/virtualFiles";
+import { getVirtualMetadata } from '@sd/ts-client';
 
 interface ThumbProps {
   file: File;

@@ -10,7 +10,7 @@ import { useSelection } from "../../SelectionContext";
 import { TagPill } from "../../../../components/Tags";
 import { ROW_HEIGHT, TABLE_PADDING_X } from "./useTable";
 import { useFileContextMenu } from "../../hooks/useFileContextMenu";
-import { isVirtualFile } from "../../utils/virtualFiles";
+import { isVirtualFile } from '@sd/ts-client';
 import { InlineNameEdit } from "../../components/InlineNameEdit";
 import { useOpenWith } from "../../../../hooks/useOpenWith";
 

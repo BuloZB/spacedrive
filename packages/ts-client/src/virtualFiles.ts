@@ -1,4 +1,4 @@
-import type { File } from "@sd/ts-client";
+import type { File } from "./generated/types";
 
 /**
  * Virtual File System

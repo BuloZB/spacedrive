@@ -1,9 +1,13 @@
+/**
+ * Mobile-compatible asset utilities.
+ * This file exports everything from index.ts except beardedIconUrls
+ * which uses import.meta.glob (Vite-only, not compatible with React Native).
+ */
 import * as icons from "../icons";
 import { LayeredIcons } from "../svgs/ext";
 import beardedIconsMapping from "../svgs/ext/icons.json";
 
-// Note: beardedIconUrls is not exported from here for React Native compatibility
-// Web/Desktop should import directly from: @sd/assets/svgs/ext/Extras/urls
+// NOTE: We do NOT export beardedIconUrls here - it uses import.meta.glob
 
 // Define a type for icon names. This filters out any names with underscores in them.
 // The use of 'never' is to make sure that icon types with underscores are not included.

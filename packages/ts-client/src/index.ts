@@ -66,5 +66,8 @@ export * from "./stores/syncPreferences";
 export * from "./deviceIcons";
 export * from "./volumeIcons";
 
+// Virtual file system utilities
+export * from "./virtualFiles";
+
 // All auto-generated types
 export * from "./generated/types";

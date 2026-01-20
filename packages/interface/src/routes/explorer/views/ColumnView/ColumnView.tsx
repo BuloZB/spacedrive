@@ -7,7 +7,7 @@ import type { DirectorySortBy } from "@sd/ts-client";
 import { Column } from "./Column";
 import { useTypeaheadSearch } from "../../hooks/useTypeaheadSearch";
 import { useVirtualListing } from "../../hooks/useVirtualListing";
-import { isVirtualFile } from "../../utils/virtualFiles";
+import { isVirtualFile } from '@sd/ts-client';
 import { useExplorerFiles } from "../../hooks/useExplorerFiles";
 
 /** Get path string from SdPath for comparison */

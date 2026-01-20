@@ -18,6 +18,7 @@ import {
 	FilmStrip,
 	VideoCamera,
 	FolderOpen,
+	ArrowsClockwise,
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -34,6 +35,7 @@ import clsx from "clsx";
 import type { Location } from "@sd/ts-client";
 import { Button, Dialog, dialogManager, useDialog, TopBarButton, type UseDialogProps } from "@sd/ui";
 import { useLibraryMutation } from "../../../contexts/SpacedriveContext";
+import { useContextMenu } from "../../../hooks/useContextMenu";
 import LocationIcon from "@sd/assets/icons/Location.png";
 
 interface LocationInspectorProps {
@@ -93,6 +95,31 @@ function OverviewTab({ location }: { location: Location }) {
 	const navigate = useNavigate();
 	const isOverview = routeLocation.pathname === '/';
 
+	const reindexMenu = useContextMenu({
+		items: [
+			{
+				icon: MagnifyingGlass,
+				label: "Quick Reindex",
+				onClick: () => {
+					rescanLocation.mutate({
+						location_id: location.id,
+						full_rescan: false,
+					});
+				},
+			},
+			{
+				icon: Sparkle,
+				label: "Full Reindex",
+				onClick: () => {
+					rescanLocation.mutate({
+						location_id: location.id,
+						full_rescan: true,
+					});
+				},
+			},
+		],
+	});
+
 	const formatBytes = (bytes: number | null | undefined) => {
 		if (!bytes || bytes === 0) return "0 B";
 		const k = 1024;
@@ -140,23 +167,27 @@ function OverviewTab({ location }: { location: Location }) {
 
 			<Divider />
 
-			{/* Open Location Button - Only show on overview route */}
-			{isOverview && (
-				<div className="px-2 mb-5">
+			{/* Action Buttons */}
+			<div className="px-2 mb-5 flex gap-2">
+				{isOverview && (
 					<TopBarButton
 						icon={FolderOpen}
 						onClick={() => {
 							const encodedPath = encodeURIComponent(JSON.stringify(location.sd_path));
 							navigate(`/explorer?path=${encodedPath}`);
 						}}
-						className="w-full"
-						active
-						activeAccent
+						className="flex-1"
 					>
 						Open Location
 					</TopBarButton>
-				</div>
-			)}
+				)}
+
+				<TopBarButton
+					icon={ArrowsClockwise}
+					onClick={reindexMenu.show}
+					title="Reindex location"
+				/>
+			</div>
 
 			{/* Details */}
 			<Section title="Details" icon={Info}>
@@ -189,46 +220,6 @@ function OverviewTab({ location }: { location: Location }) {
 						location.index_mode.slice(1)
 					}
 				/>
-			</Section>
-
-			{/* Quick Actions */}
-			<Section title="Quick Actions" icon={Sparkle}>
-				<div className="flex flex-col gap-2">
-					<button
-						onClick={() => {
-							rescanLocation.mutate({
-								location_id: location.id,
-								full_rescan: false,
-							});
-						}}
-						disabled={rescanLocation.isPending}
-						className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors bg-app-box hover:bg-app-hover border border-app-line disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						<MagnifyingGlass className="size-4" weight="bold" />
-						<span>
-							{rescanLocation.isPending
-								? "Quick Reindex..."
-								: "Quick Reindex"}
-						</span>
-					</button>
-					<button
-						onClick={() => {
-							rescanLocation.mutate({
-								location_id: location.id,
-								full_rescan: true,
-							});
-						}}
-						disabled={rescanLocation.isPending}
-						className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors bg-app-box hover:bg-app-hover border border-app-line disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						<Sparkle className="size-4" weight="bold" />
-						<span>
-							{rescanLocation.isPending
-								? "Full Reindex..."
-								: "Full Reindex"}
-						</span>
-					</button>
-				</div>
 			</Section>
 		</div>
 	);
