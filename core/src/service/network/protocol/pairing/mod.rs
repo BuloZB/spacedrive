@@ -662,6 +662,7 @@ impl PairingProtocolHandler {
 	fn derive_proxy_shared_secret(
 		&self,
 		voucher_device_id: Uuid,
+		target_device_id: Uuid,
 		vouchee_device_id: Uuid,
 		vouchee_public_key: &[u8],
 		base_secret: &[u8],
@@ -670,8 +671,9 @@ impl PairingProtocolHandler {
 		use sha2::Sha256;
 
 		let context = format!(
-			"spacedrive-proxy-pairing-{}:{}:{}",
+			"spacedrive-proxy-pairing-{}:{}:{}:{}",
 			voucher_device_id,
+			target_device_id,
 			vouchee_device_id,
 			hex::encode(vouchee_public_key)
 		);
@@ -688,12 +690,14 @@ impl PairingProtocolHandler {
 	fn derive_proxy_session_keys(
 		&self,
 		voucher_device_id: Uuid,
+		target_device_id: Uuid,
 		vouchee_device_id: Uuid,
 		vouchee_public_key: &[u8],
 		base_secret: &[u8],
 	) -> Result<(SessionKeys, SessionKeys)> {
 		let shared_secret = self.derive_proxy_shared_secret(
 			voucher_device_id,
+			target_device_id,
 			vouchee_device_id,
 			vouchee_public_key,
 			base_secret,
@@ -945,6 +949,35 @@ impl PairingProtocolHandler {
 			});
 		}
 
+		let proxy_config = { self.proxy_config.read().await.clone() };
+		if proxy_config.auto_vouch_to_all {
+			let target_device_ids = {
+				let registry = self.device_registry.read().await;
+				registry
+					.get_paired_devices()
+					.into_iter()
+					.map(|device| device.device_id)
+					.filter(|device_id| {
+						*device_id != voucher_device_id
+							&& *device_id != vouchee_device_info.device_id
+					})
+					.collect::<Vec<_>>()
+			};
+
+			if !target_device_ids.is_empty() {
+				if let Err(e) = self
+					.start_proxy_vouching(session_id, target_device_ids)
+					.await
+				{
+					self.log_warn(&format!(
+						"Failed to auto vouch session {}: {}",
+						session_id, e
+					))
+					.await;
+				}
+			}
+		}
+
 		Ok(())
 	}
 
@@ -1096,6 +1129,7 @@ impl PairingProtocolHandler {
 			let signature = self.sign_vouch_payload(&payload)?;
 			let (receiver_keys, vouchee_keys) = self.derive_proxy_session_keys(
 				voucher_device_id,
+				target_device_id,
 				vouchee_device_info.device_id,
 				&vouchee_public_key,
 				&base_secret,
