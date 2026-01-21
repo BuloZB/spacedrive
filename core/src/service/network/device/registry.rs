@@ -68,8 +68,16 @@ impl DeviceRegistry {
 	}
 
 	/// Set the library manager for querying device data
-	pub fn set_library_manager(&mut self, library_manager: std::sync::Weak<crate::library::LibraryManager>) {
+	pub fn set_library_manager(
+		&mut self,
+		library_manager: std::sync::Weak<crate::library::LibraryManager>,
+	) {
 		self.library_manager = Some(library_manager);
+	}
+
+	/// Clone the persistence manager for async usage without locking
+	pub fn persistence(&self) -> DevicePersistence {
+		self.persistence.clone()
 	}
 
 	/// Update device online status in library database
@@ -92,12 +100,16 @@ impl DeviceRegistry {
 			use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 			match crate::infra::db::entities::device::Entity::find()
-				.filter(crate::infra::db::entities::device::Column::Uuid.eq(device_id.as_bytes().to_vec()))
+				.filter(
+					crate::infra::db::entities::device::Column::Uuid
+						.eq(device_id.as_bytes().to_vec()),
+				)
 				.one(db)
 				.await
 			{
 				Ok(Some(model)) => {
-					let mut active_model: crate::infra::db::entities::device::ActiveModel = model.into();
+					let mut active_model: crate::infra::db::entities::device::ActiveModel =
+						model.into();
 					active_model.is_online = Set(is_online);
 					active_model.last_seen_at = Set(chrono::Utc::now());
 
@@ -150,7 +162,10 @@ impl DeviceRegistry {
 						// Query device from database by UUID
 						use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 						if let Ok(Some(model)) = crate::infra::db::entities::device::Entity::find()
-							.filter(crate::infra::db::entities::device::Column::Uuid.eq(device_id.as_bytes().to_vec()))
+							.filter(
+								crate::infra::db::entities::device::Column::Uuid
+									.eq(device_id.as_bytes().to_vec()),
+							)
 							.one(db)
 							.await
 						{
@@ -298,6 +313,9 @@ impl DeviceRegistry {
 		info: DeviceInfo,
 		session_keys: SessionKeys,
 		relay_url: Option<String>,
+		pairing_type: super::PairingType,
+		vouched_by: Option<Uuid>,
+		vouched_at: Option<DateTime<Utc>>,
 	) -> Result<()> {
 		// Parse node ID from network fingerprint
 		let node_id = info
@@ -348,7 +366,15 @@ impl DeviceRegistry {
 		// Persist the paired device for future reconnection (with relay_url for optimization)
 		if let Err(e) = self
 			.persistence
-			.add_paired_device(device_id, info.clone(), session_keys.clone(), relay_url)
+			.add_paired_device(
+				device_id,
+				info.clone(),
+				session_keys.clone(),
+				relay_url,
+				pairing_type,
+				vouched_by,
+				vouched_at,
+			)
 			.await
 		{
 			self.logger
@@ -579,6 +605,14 @@ impl DeviceRegistry {
 	/// Remove a paired device from persistence
 	pub async fn remove_paired_device(&self, device_id: Uuid) -> Result<bool> {
 		self.persistence.remove_paired_device(device_id).await
+	}
+
+	/// Get persisted paired device info
+	pub async fn get_persisted_device(
+		&self,
+		device_id: Uuid,
+	) -> Result<Option<PersistedPairedDevice>> {
+		self.persistence.get_paired_device(device_id).await
 	}
 
 	/// Get peer ID for a device

@@ -18,7 +18,7 @@ pub struct ConnectionInfo {
 	pub rx_bytes: u64,
 	pub tx_bytes: u64,
 }
-pub use persistence::{DevicePersistence, PersistedPairedDevice, TrustLevel};
+pub use persistence::{DevicePersistence, PairingType, PersistedPairedDevice, TrustLevel};
 pub use registry::DeviceRegistry;
 
 /// Information about a device on the network

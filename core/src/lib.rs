@@ -330,7 +330,9 @@ impl Core {
 						// Set event bus for device registry to emit ResourceChanged events
 						networking.set_event_bus(context.events.clone()).await;
 						// Set library manager for device registry to query complete device data
-						networking.set_library_manager(Arc::downgrade(&context.libraries().await)).await;
+						networking
+							.set_library_manager(Arc::downgrade(&context.libraries().await))
+							.await;
 						info!("Networking service registered in context");
 
 						// Initialize sync service on already-loaded libraries
@@ -543,7 +545,9 @@ impl Core {
 			// Set event bus for device registry to emit ResourceChanged events
 			networking_service.set_event_bus(self.events.clone()).await;
 			// Set library manager for device registry to query complete device data
-			networking_service.set_library_manager(Arc::downgrade(&self.context.libraries().await)).await;
+			networking_service
+				.set_library_manager(Arc::downgrade(&self.context.libraries().await))
+				.await;
 		}
 
 		logger.info("Networking initialized successfully").await;
@@ -630,6 +634,23 @@ async fn register_default_protocol_handlers(
 		),
 	);
 
+	// Inject event bus for proxy pairing events
+	pairing_handler.set_event_bus(context.events.clone()).await;
+
+	// Load proxy pairing config from app config
+	if let Ok(app_config) = crate::config::AppConfig::load_from(&context.data_dir) {
+		pairing_handler
+			.set_proxy_config(app_config.proxy_pairing)
+			.await;
+	}
+
+	// Initialize vouching queue for proxy pairing
+	if let Err(e) = pairing_handler.init_vouching_queue(data_dir.clone()).await {
+		logger
+			.warn(&format!("Failed to initialize vouching queue: {}", e))
+			.await;
+	}
+
 	// Try to load persisted sessions, but don't fail if there's an error
 	if let Err(e) = pairing_handler.load_persisted_sessions().await {
 		logger
@@ -647,6 +668,11 @@ async fn register_default_protocol_handlers(
 
 	// Start cleanup task for expired sessions
 	service::network::protocol::PairingProtocolHandler::start_cleanup_task(pairing_handler.clone());
+
+	// Start vouching queue processor for proxy pairing
+	service::network::protocol::PairingProtocolHandler::start_vouching_queue_task(
+		pairing_handler.clone(),
+	);
 
 	let mut messaging_handler = service::network::protocol::MessagingProtocolHandler::new(
 		networking.device_registry(),

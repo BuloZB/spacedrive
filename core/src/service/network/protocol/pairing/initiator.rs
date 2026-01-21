@@ -245,6 +245,9 @@ impl PairingProtocolHandler {
 					device_info.clone(),
 					session_keys,
 					relay_url,
+					crate::service::network::device::PairingType::Direct,
+					None,
+					None,
 				)
 				.await?;
 		}
@@ -289,6 +292,15 @@ impl PairingProtocolHandler {
 				))
 				.await;
 			}
+		}
+
+		// Initialize proxy pairing session for vouching UI
+		if let Err(e) = self.create_vouching_session(session_id, &device_info).await {
+			self.log_warn(&format!(
+				"Failed to create vouching session for {}: {}",
+				session_id, e
+			))
+			.await;
 		}
 
 		// Send success Complete message to joiner
