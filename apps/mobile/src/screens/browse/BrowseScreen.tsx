@@ -10,6 +10,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNormalizedQuery } from "../../client";
 import { DevicesGroup, LocationsGroup, VolumesGroup } from "./components";
+import { PageIndicator } from "../../components/PageIndicator";
+import sharedColors from "@sd/ui/style/colors";
 
 interface Space {
 	id: string;
@@ -18,42 +20,6 @@ interface Space {
 }
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
-
-function SpaceIndicator({
-	spaces,
-	currentIndex,
-	totalPages,
-}: {
-	spaces: Space[];
-	currentIndex: number;
-	totalPages: number;
-}) {
-	return (
-		<View className="flex-row justify-center gap-2 mb-4">
-			{Array.from({ length: totalPages }).map((_, index) => {
-				const isCreatePage = index === totalPages - 1;
-				const space = !isCreatePage ? spaces[index] : null;
-				const isActive = currentIndex === index;
-
-				return (
-					<View
-						key={index}
-						className="h-2 rounded-full transition-all"
-						style={{
-							width: isActive ? 24 : 8,
-							backgroundColor: isCreatePage
-								? isActive
-									? "hsl(235, 70%, 55%)"
-									: "hsl(235, 15%, 30%)"
-								: space?.color || "hsl(235, 15%, 30%)",
-							opacity: isActive ? 1 : 0.3,
-						}}
-					/>
-				);
-			})}
-		</View>
-	);
-}
 
 function SpaceContent({ space, insets }: { space: Space; insets: any }) {
 	return (
@@ -133,6 +99,12 @@ export function BrowseScreen() {
 		[]
 	);
 
+	// Build page colors array - space colors for space pages, accent for create page
+	const pageColors = [
+		...spacesList.map((space) => space.color),
+		`hsl(${sharedColors.accent.DEFAULT})`, // Create page uses accent color
+	];
+
 	return (
 		<View className="flex-1 bg-app">
 			<ScrollView
@@ -158,11 +130,13 @@ export function BrowseScreen() {
 				}}
 				pointerEvents="none"
 			>
-				<SpaceIndicator
-					spaces={spacesList}
-					currentIndex={currentPage}
-					totalPages={totalPages}
-				/>
+				<View className="mb-4">
+					<PageIndicator
+						currentIndex={currentPage}
+						totalPages={totalPages}
+						pageColors={pageColors}
+					/>
+				</View>
 			</View>
 		</View>
 	);

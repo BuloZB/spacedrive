@@ -2480,6 +2480,14 @@ thumbnail_count: number;
  */
 database_size: number; 
 /**
+ * Total number of sidecar files (all types: thumbnails, embeddings, etc.)
+ */
+sidecar_count?: number; 
+/**
+ * Total size of all sidecar files in bytes
+ */
+sidecar_size?: number; 
+/**
  * Last time the library was fully indexed
  */
 last_indexed: string | null; 

@@ -1,9 +1,24 @@
-import React from "react";
-import { View, Text, Image } from "react-native";
+import React, { useState, useCallback, useRef } from "react";
+import {
+	View,
+	Text,
+	Image,
+	ScrollView,
+	Dimensions,
+	NativeScrollEvent,
+	NativeSyntheticEvent,
+} from "react-native";
 import DevicesIcon from "@sd/assets/icons/Devices.png";
 import IndexedIcon from "@sd/assets/icons/Indexed.png";
+import LocationIcon from "@sd/assets/icons/Location.png";
 import MobileIcon from "@sd/assets/icons/Mobile.png";
 import ComputeIcon from "@sd/assets/icons/Compute.png";
+import TagsIcon from "@sd/assets/icons/Tags.png";
+import DatabaseIcon from "@sd/assets/icons/Database.png";
+import StorageIcon from "@sd/assets/icons/Storage.png";
+import { PageIndicator } from "../../../components/PageIndicator";
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
 
 interface HeroStatsProps {
 	totalStorage: number; // bytes
@@ -13,6 +28,9 @@ interface HeroStatsProps {
 	tagCount: number;
 	deviceCount: number;
 	uniqueContentCount: number;
+	databaseSize: number; // bytes
+	sidecarCount: number;
+	sidecarSize: number; // bytes
 }
 
 function formatBytes(bytes: number): { value: string; unit: string } {
@@ -39,79 +57,181 @@ export function HeroStats({
 	usedStorage,
 	totalFiles,
 	locationCount,
+	tagCount,
 	deviceCount,
 	uniqueContentCount,
+	databaseSize,
+	sidecarCount,
+	sidecarSize,
 }: HeroStatsProps) {
+	const [currentPage, setCurrentPage] = useState(0);
+	const scrollViewRef = useRef<ScrollView>(null);
+
 	const usagePercent =
 		totalStorage > 0 ? (usedStorage / totalStorage) * 100 : 0;
 
 	const storageFormatted = formatBytes(totalStorage);
 	const usedFormatted = formatBytes(usedStorage);
+	const databaseFormatted = formatBytes(databaseSize);
+	const sidecarFormatted = formatBytes(sidecarSize);
 	const topsValue = 70;
 	const topsRank = getTOPSRank(topsValue);
 
+	const handleScroll = useCallback(
+		(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+			const offsetX = event.nativeEvent.contentOffset.x;
+			const page = Math.round(offsetX / SCREEN_WIDTH);
+			setCurrentPage(page);
+		},
+		[]
+	);
+
+	// Define all stats
+	const allStats = [
+		{
+			icon: DevicesIcon,
+			label: "Total Storage",
+			value: (
+				<>
+					<Text className="text-ink text-3xl font-bold">
+						{storageFormatted.value}{" "}
+						<Text className="text-ink-faint text-xl">
+							{storageFormatted.unit}
+						</Text>
+					</Text>
+				</>
+			),
+			subtitle: (
+				<>
+					<Text className="text-accent">
+						{usedFormatted.value}{" "}
+						<Text className="text-accent/70 text-[10px]">
+							{usedFormatted.unit}
+						</Text>
+					</Text>{" "}
+					used
+				</>
+			),
+			progress: usagePercent,
+		},
+		{
+			icon: IndexedIcon,
+			label: "Files Indexed",
+			value: totalFiles.toLocaleString(),
+			subtitle: `${uniqueContentCount.toLocaleString()} unique files`,
+		},
+		{
+			icon: MobileIcon,
+			label: "Connected Devices",
+			value: deviceCount,
+			subtitle: "registered in library",
+		},
+		{
+			icon: ComputeIcon,
+			label: "AI Compute Power",
+			value: (
+				<>
+					<Text className="text-ink text-3xl font-bold">
+						{topsValue}{" "}
+						<Text className="text-ink-faint text-xl">TOPS</Text>
+					</Text>
+				</>
+			),
+			subtitle: topsRank.label,
+		},
+		// Second page - Storage breakdown
+		{
+			icon: DatabaseIcon,
+			label: "Library Size",
+			value: (
+				<>
+					<Text className="text-ink text-3xl font-bold">
+						{databaseFormatted.value}{" "}
+						<Text className="text-ink-faint text-xl">
+							{databaseFormatted.unit}
+						</Text>
+					</Text>
+				</>
+			),
+			subtitle: "database on disk",
+		},
+		{
+			icon: StorageIcon,
+			label: "Sidecar Storage",
+			value: (
+				<>
+					<Text className="text-ink text-3xl font-bold">
+						{sidecarFormatted.value}{" "}
+						<Text className="text-ink-faint text-xl">
+							{sidecarFormatted.unit}
+						</Text>
+					</Text>
+				</>
+			),
+			subtitle: `${sidecarCount.toLocaleString()} files generated`,
+		},
+		{
+			icon: LocationIcon,
+			label: "Locations",
+			value: locationCount,
+			subtitle: "indexed folders",
+		},
+		{
+			icon: TagsIcon,
+			label: "Tags",
+			value: tagCount,
+			subtitle: "organization labels",
+		},
+	];
+
+	// Group stats into pages of 4
+	const STATS_PER_PAGE = 4;
+	const pages: typeof allStats[] = [];
+	for (let i = 0; i < allStats.length; i += STATS_PER_PAGE) {
+		pages.push(allStats.slice(i, i + STATS_PER_PAGE));
+	}
+
 	return (
-		<View className="px-8 pt-8 pb-12">
-			<View className="flex-row flex-wrap gap-8">
-				{/* Total Storage */}
-				<StatCard
-					icon={DevicesIcon}
-					label="Total Storage"
-					value={
-						<>
-							<Text className="text-ink text-3xl font-bold">
-								{storageFormatted.value}{" "}
-								<Text className="text-ink-faint text-xl">
-									{storageFormatted.unit}
-								</Text>
-							</Text>
-						</>
-					}
-					subtitle={
-						<>
-							<Text className="text-accent">
-								{usedFormatted.value}{" "}
-								<Text className="text-accent/70 text-[10px]">
-									{usedFormatted.unit}
-								</Text>
-							</Text>{" "}
-							used
-						</>
-					}
-					progress={usagePercent}
-				/>
+		<View className="pt-8 pb-12">
+			<ScrollView
+				ref={scrollViewRef}
+				horizontal
+				pagingEnabled
+				showsHorizontalScrollIndicator={false}
+				onScroll={handleScroll}
+				scrollEventThrottle={16}
+				decelerationRate="fast"
+			>
+				{pages.map((pageStats, pageIndex) => (
+					<View
+						key={pageIndex}
+						style={{ width: SCREEN_WIDTH }}
+						className="px-8"
+					>
+						<View className="flex-row flex-wrap gap-8">
+							{pageStats.map((stat, statIndex) => (
+								<StatCard
+									key={statIndex}
+									icon={stat.icon}
+									label={stat.label}
+									value={stat.value}
+									subtitle={stat.subtitle}
+									progress={stat.progress}
+								/>
+							))}
+						</View>
+					</View>
+				))}
+			</ScrollView>
 
-				{/* Files */}
-				<StatCard
-					icon={IndexedIcon}
-					label="Files Indexed"
-					value={totalFiles.toLocaleString()}
-					subtitle={`${uniqueContentCount.toLocaleString()} unique files`}
-				/>
-
-				{/* Devices */}
-				<StatCard
-					icon={MobileIcon}
-					label="Connected Devices"
-					value={deviceCount}
-					subtitle="registered in library"
-				/>
-
-				{/* AI Compute Power */}
-				<StatCard
-					icon={ComputeIcon}
-					label="AI Compute Power"
-					value={
-						<>
-							<Text className="text-ink text-3xl font-bold">
-								{topsValue}{" "}
-								<Text className="text-ink-faint text-xl">TOPS</Text>
-							</Text>
-						</>
-					}
-					subtitle={topsRank.label}
-				/>
-			</View>
+			{pages.length > 1 && (
+				<View className="mt-10">
+					<PageIndicator
+						currentIndex={currentPage}
+						totalPages={pages.length}
+					/>
+				</View>
+			)}
 		</View>
 	);
 }

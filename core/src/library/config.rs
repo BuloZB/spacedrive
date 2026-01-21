@@ -179,6 +179,14 @@ pub struct LibraryStatistics {
 	/// Database file size in bytes
 	pub database_size: u64,
 
+	/// Total number of sidecar files (all types: thumbnails, embeddings, etc.)
+	#[serde(default)]
+	pub sidecar_count: u64,
+
+	/// Total size of all sidecar files in bytes
+	#[serde(default)]
+	pub sidecar_size: u64,
+
 	/// Last time the library was fully indexed
 	pub last_indexed: Option<DateTime<Utc>>,
 
@@ -199,6 +207,8 @@ impl Default for LibraryStatistics {
 			available_capacity: 0,
 			thumbnail_count: 0,
 			database_size: 0,
+			sidecar_count: 0,
+			sidecar_size: 0,
 			last_indexed: None,
 			updated_at: Utc::now(),
 		}

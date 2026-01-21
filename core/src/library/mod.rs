@@ -736,6 +736,8 @@ impl Library {
 			available_capacity = stats.available_capacity,
 			thumbnail_count = stats.thumbnail_count,
 			database_size = stats.database_size,
+			sidecar_count = stats.sidecar_count,
+			sidecar_size = stats.sidecar_size,
 			"Calculated library statistics"
 		);
 
@@ -818,6 +820,8 @@ impl Library {
 			available_capacity = stats.available_capacity,
 			thumbnail_count = stats.thumbnail_count,
 			database_size = stats.database_size,
+			sidecar_count = stats.sidecar_count,
+			sidecar_size = stats.sidecar_size,
 			"Calculated library statistics (instance method)"
 		);
 
@@ -945,6 +949,15 @@ impl Library {
 			"Completed database size calculation"
 		);
 
+		debug!("Starting sidecar statistics calculation");
+		// Calculate sidecar statistics
+		let (sidecar_count, sidecar_size) = Self::calculate_sidecar_statistics_static(path).await?;
+		debug!(
+			sidecar_count = sidecar_count,
+			sidecar_size = sidecar_size,
+			"Completed sidecar statistics calculation"
+		);
+
 		Ok(LibraryStatistics {
 			total_files,
 			total_size,
@@ -956,6 +969,8 @@ impl Library {
 			available_capacity,
 			thumbnail_count,
 			database_size,
+			sidecar_count,
+			sidecar_size,
 			last_indexed: None, // Will be preserved from existing config
 			updated_at: chrono::Utc::now(),
 		})
@@ -989,6 +1004,9 @@ impl Library {
 		// Calculate database size
 		let database_size = self.calculate_database_size().await?;
 
+		// Calculate sidecar statistics
+		let (sidecar_count, sidecar_size) = self.calculate_sidecar_statistics().await?;
+
 		Ok(LibraryStatistics {
 			total_files,
 			total_size,
@@ -1000,6 +1018,8 @@ impl Library {
 			available_capacity,
 			thumbnail_count,
 			database_size,
+			sidecar_count,
+			sidecar_size,
 			last_indexed: self.config.read().await.statistics.last_indexed,
 			updated_at: chrono::Utc::now(),
 		})
@@ -1182,7 +1202,7 @@ impl Library {
 		let mut counted_volumes = 0;
 		let mut excluded_by_subpath = 0;
 
-		let mut counted_mount_points: Vec<String> = Vec::new();
+		let mut counted_mount_points: Vec<(Uuid, String)> = Vec::new();
 
 		for vol in user_volumes {
 			let mount_point = match &vol.mount_point {
@@ -1190,16 +1210,21 @@ impl Library {
 				None => continue,
 			};
 
-			// Check if this volume's mount point is a subpath of any already-counted volume
+			// Check if this volume's mount point is a subpath of any already-counted volume on the SAME device
 			let is_subpath = counted_mount_points
 				.iter()
-				.any(|parent| mount_point.starts_with(parent) && mount_point != parent);
+				.any(|(parent_device, parent_mount)| {
+					vol.device_id == *parent_device
+						&& mount_point.starts_with(parent_mount)
+						&& mount_point != parent_mount
+				});
 
 			if is_subpath {
 				debug!(
 					volume_type = vol.volume_type.as_deref().unwrap_or("Unknown"),
 					mount_point = ?mount_point,
-					"Excluding volume: subpath of already-counted volume"
+					device_id = ?vol.device_id,
+					"Excluding volume: subpath of already-counted volume on same device"
 				);
 				excluded_by_subpath += 1;
 				continue;
@@ -1209,12 +1234,13 @@ impl Library {
 			if let Some(capacity) = vol.total_capacity {
 				total_capacity = total_capacity.saturating_add(capacity as u64);
 				counted_volumes += 1;
-				counted_mount_points.push(mount_point.clone());
+				counted_mount_points.push((vol.device_id, mount_point.clone()));
 				debug!(
 					volume_type = vol.volume_type.as_deref().unwrap_or("Unknown"),
 					mount_point = ?mount_point,
 					capacity = capacity,
 					fingerprint = vol.fingerprint,
+					device_id = ?vol.device_id,
 					"Counted volume"
 				);
 			}
@@ -1316,6 +1342,80 @@ impl Library {
 			);
 			Ok(0)
 		}
+	}
+
+	/// Calculate sidecar statistics (count and total size) by scanning sidecars directory
+	async fn calculate_sidecar_statistics(&self) -> Result<(u64, u64)> {
+		let sidecars_dir = self.path().join("sidecars");
+		let thumbnails_dir = self.path().join("thumbnails");
+
+		debug!(
+			sidecars_dir = %sidecars_dir.display(),
+			thumbnails_dir = %thumbnails_dir.display(),
+			"Starting sidecar statistics calculation"
+		);
+
+		let mut total_count = 0u64;
+		let mut total_size = 0u64;
+
+		// Count and size files in sidecars directory (new structure)
+		if sidecars_dir.exists() {
+			let (count, size) = self.count_and_size_recursive(sidecars_dir.clone()).await?;
+			total_count += count;
+			total_size += size;
+			debug!(
+				sidecars_count = count,
+				sidecars_size = size,
+				"Counted sidecars directory"
+			);
+		}
+
+		// Count and size files in thumbnails directory (legacy structure)
+		if thumbnails_dir.exists() {
+			let (count, size) = self.count_and_size_recursive(thumbnails_dir.clone()).await?;
+			total_count += count;
+			total_size += size;
+			debug!(
+				thumbnails_count = count,
+				thumbnails_size = size,
+				"Counted thumbnails directory"
+			);
+		}
+
+		debug!(
+			sidecar_count = total_count,
+			sidecar_size = total_size,
+			"Completed sidecar statistics calculation"
+		);
+
+		Ok((total_count, total_size))
+	}
+
+	/// Count files and sum their sizes recursively in a directory
+	async fn count_and_size_recursive(&self, path: PathBuf) -> Result<(u64, u64)> {
+		Box::pin(self.count_and_size_recursive_impl(path)).await
+	}
+
+	async fn count_and_size_recursive_impl(&self, path: PathBuf) -> Result<(u64, u64)> {
+		let mut count = 0u64;
+		let mut size = 0u64;
+		let mut entries = tokio::fs::read_dir(&path).await?;
+
+		while let Some(entry) = entries.next_entry().await? {
+			let file_type = entry.file_type().await?;
+			if file_type.is_dir() {
+				let (sub_count, sub_size) = Box::pin(self.count_and_size_recursive_impl(entry.path())).await?;
+				count += sub_count;
+				size += sub_size;
+			} else if file_type.is_file() {
+				count += 1;
+				if let Ok(metadata) = entry.metadata().await {
+					size += metadata.len();
+				}
+			}
+		}
+
+		Ok((count, size))
 	}
 
 	// Static versions of calculation methods for background tasks
@@ -1510,7 +1610,7 @@ impl Library {
 		let mut counted_volumes = 0;
 		let mut excluded_by_subpath = 0;
 
-		let mut counted_mount_points: Vec<String> = Vec::new();
+		let mut counted_mount_points: Vec<(Uuid, String)> = Vec::new();
 
 		for vol in user_volumes {
 			let mount_point = match &vol.mount_point {
@@ -1518,16 +1618,21 @@ impl Library {
 				None => continue,
 			};
 
-			// Check if this volume's mount point is a subpath of any already-counted volume
+			// Check if this volume's mount point is a subpath of any already-counted volume on the SAME device
 			let is_subpath = counted_mount_points
 				.iter()
-				.any(|parent| mount_point.starts_with(parent) && mount_point != parent);
+				.any(|(parent_device, parent_mount)| {
+					vol.device_id == *parent_device
+						&& mount_point.starts_with(parent_mount)
+						&& mount_point != parent_mount
+				});
 
 			if is_subpath {
 				debug!(
 					volume_type = vol.volume_type.as_deref().unwrap_or("Unknown"),
 					mount_point = ?mount_point,
-					"Excluding volume: subpath of already-counted volume"
+					device_id = ?vol.device_id,
+					"Excluding volume: subpath of already-counted volume on same device"
 				);
 				excluded_by_subpath += 1;
 				continue;
@@ -1537,12 +1642,13 @@ impl Library {
 			if let Some(capacity) = vol.total_capacity {
 				total_capacity = total_capacity.saturating_add(capacity as u64);
 				counted_volumes += 1;
-				counted_mount_points.push(mount_point.clone());
+				counted_mount_points.push((vol.device_id, mount_point.clone()));
 				debug!(
 					volume_type = vol.volume_type.as_deref().unwrap_or("Unknown"),
 					mount_point = ?mount_point,
 					capacity = capacity,
 					fingerprint = vol.fingerprint,
+					device_id = ?vol.device_id,
 					"Counted volume"
 				);
 			}
@@ -1613,6 +1719,58 @@ impl Library {
 		} else {
 			Ok(0)
 		}
+	}
+
+	/// Calculate sidecar statistics (static version)
+	async fn calculate_sidecar_statistics_static(path: &PathBuf) -> Result<(u64, u64)> {
+		let sidecars_dir = path.join("sidecars");
+		let thumbnails_dir = path.join("thumbnails");
+
+		let mut total_count = 0u64;
+		let mut total_size = 0u64;
+
+		// Count and size files in sidecars directory (new structure)
+		if sidecars_dir.exists() {
+			let (count, size) = Self::count_and_size_recursive_static(sidecars_dir).await?;
+			total_count += count;
+			total_size += size;
+		}
+
+		// Count and size files in thumbnails directory (legacy structure)
+		if thumbnails_dir.exists() {
+			let (count, size) = Self::count_and_size_recursive_static(thumbnails_dir).await?;
+			total_count += count;
+			total_size += size;
+		}
+
+		Ok((total_count, total_size))
+	}
+
+	/// Count files and sum their sizes recursively (static version)
+	async fn count_and_size_recursive_static(path: PathBuf) -> Result<(u64, u64)> {
+		Box::pin(Self::count_and_size_recursive_static_impl(path)).await
+	}
+
+	async fn count_and_size_recursive_static_impl(path: PathBuf) -> Result<(u64, u64)> {
+		let mut count = 0u64;
+		let mut size = 0u64;
+		let mut entries = tokio::fs::read_dir(&path).await?;
+
+		while let Some(entry) = entries.next_entry().await? {
+			let file_type = entry.file_type().await?;
+			if file_type.is_dir() {
+				let (sub_count, sub_size) = Box::pin(Self::count_and_size_recursive_static_impl(entry.path())).await?;
+				count += sub_count;
+				size += sub_size;
+			} else if file_type.is_file() {
+				count += 1;
+				if let Ok(metadata) = entry.metadata().await {
+					size += metadata.len();
+				}
+			}
+		}
+
+		Ok((count, size))
 	}
 }
 

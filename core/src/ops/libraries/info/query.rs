@@ -123,6 +123,8 @@ impl LibraryQuery for LibraryInfoQuery {
 			total_capacity = statistics.total_capacity,
 			available_capacity = statistics.available_capacity,
 			database_size = statistics.database_size,
+			sidecar_count = statistics.sidecar_count,
+			sidecar_size = statistics.sidecar_size,
 			"Returning library info with cached statistics"
 		);
 

@@ -20,8 +20,8 @@ import { LibrarySwitcherPanel } from "../../components/LibrarySwitcherPanel";
 import { GlassButton } from "../../components/GlassButton";
 
 const HEADER_INITIAL_HEIGHT = 40;
-const HERO_HEIGHT = 340 + HEADER_INITIAL_HEIGHT;
-const HEADER_HEIGHT = 80;
+const HERO_HEIGHT = 360 + HEADER_INITIAL_HEIGHT;
+const HEADER_HEIGHT = 60;
 const NETWORK_HEADER_HEIGHT = 50;
 
 export function OverviewScreen() {
@@ -259,6 +259,7 @@ export function OverviewScreen() {
 		<View className="flex-1 bg-black">
 			{/* Hero Section - Absolute positioned with parallax */}
 			<Animated.View
+				pointerEvents="box-none"
 				style={[
 					{
 						position: "absolute",
@@ -266,7 +267,7 @@ export function OverviewScreen() {
 						left: 0,
 						right: 0,
 						height: HERO_HEIGHT * 2,
-						zIndex: 1,
+						zIndex: 25,
 						paddingTop: insets.top + HEADER_INITIAL_HEIGHT,
 					},
 					heroAnimatedStyle,
@@ -281,20 +282,26 @@ export function OverviewScreen() {
 					</Animated.Text>
 					<GlassButton
 						icon={
-							<Text className="text-ink text-lg leading-none">⋯</Text>
+							<Text className="text-ink text-2xl leading-none">⋯</Text>
 						}
 					/>
 				</View>
 
-				<HeroStats
-					totalStorage={stats.total_capacity}
-					usedStorage={stats.total_capacity - stats.available_capacity}
-					totalFiles={Number(stats.total_files)}
-					locationCount={stats.location_count}
-					tagCount={stats.tag_count}
-					deviceCount={stats.device_count}
-					uniqueContentCount={Number(stats.unique_content_count)}
-				/>
+				{/* Wrapper to elevate HeroStats above ScrollView for touch events */}
+				<View style={{ position: "relative", zIndex: 25 }} pointerEvents="auto">
+					<HeroStats
+						totalStorage={stats.total_capacity}
+						usedStorage={stats.total_capacity - stats.available_capacity}
+						totalFiles={Number(stats.total_files)}
+						locationCount={stats.location_count}
+						tagCount={stats.tag_count}
+						deviceCount={stats.device_count}
+						uniqueContentCount={Number(stats.unique_content_count)}
+						databaseSize={Number(stats.database_size)}
+						sidecarCount={Number(stats.sidecar_count ?? 0)}
+						sidecarSize={Number(stats.sidecar_size ?? 0)}
+					/>
+				</View>
 			</Animated.View>
 
 			{/* Blur Overlay */}
@@ -365,14 +372,14 @@ export function OverviewScreen() {
 						className="flex-1 px-8 flex-row items-center gap-3"
 						style={{ paddingTop: insets.top }}
 					>
-						<GlassButton
-							icon={
-								<Text className="text-ink text-lg leading-none">⋯</Text>
-							}
-						/>
 						<Text className="text-ink text-xl font-bold flex-1">
 							{libraryInfo.name}
 						</Text>
+						<GlassButton
+							icon={
+								<Text className="text-ink text-2xl leading-none">⋯</Text>
+							}
+						/>
 					</View>
 				</View>
 			</Animated.View>
@@ -427,8 +434,9 @@ export function OverviewScreen() {
 				}}
 				onScroll={scrollHandler}
 				scrollEventThrottle={16}
+				pointerEvents="box-none"
 			>
-				<View className="px-4 pt-4">
+				<View className="px-4 pt-4" pointerEvents="auto">
 
 				{/* Device Panel */}
 				<DevicePanel

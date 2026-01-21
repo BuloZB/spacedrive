@@ -2,6 +2,7 @@
 
 use crate::infra::db::entities;
 use crate::infra::event::{Event, EventBus};
+use crate::infra::sync::ChangeType;
 use crate::library::LibraryManager;
 use crate::volume::{
 	detection,
@@ -1421,6 +1422,12 @@ impl VolumeManager {
 			volume.device_id
 		);
 
+		// Sync the tracked volume to other devices
+		library
+			.sync_model(&model, ChangeType::Insert)
+			.await
+			.map_err(|e| VolumeError::Database(format!("Failed to sync volume: {}", e)))?;
+
 		info!(
 			"Tracked volume '{}' for library '{}'",
 			final_display_name.as_ref().unwrap_or(&volume.name),
@@ -1526,17 +1533,67 @@ impl VolumeManager {
 		library: &crate::library::Library,
 		fingerprint: &VolumeFingerprint,
 	) -> VolumeResult<()> {
+		use sea_orm::{sea_query::OnConflict, TransactionTrait};
+
 		let db = library.db().conn();
 
-		let result = entities::volume::Entity::delete_many()
-			.filter(entities::volume::Column::Fingerprint.eq(fingerprint.0.clone()))
-			.exec(db)
+		// Start transaction
+		let txn = db
+			.begin()
 			.await
 			.map_err(|e| VolumeError::Database(e.to_string()))?;
 
-		if result.rows_affected == 0 {
-			return Err(VolumeError::NotTracked(fingerprint.to_string()));
-		}
+		// Find the volume first to get its UUID and device info
+		let volume = entities::volume::Entity::find()
+			.filter(entities::volume::Column::Fingerprint.eq(fingerprint.0.clone()))
+			.one(&txn)
+			.await
+			.map_err(|e| VolumeError::Database(e.to_string()))?
+			.ok_or_else(|| VolumeError::NotTracked(fingerprint.to_string()))?;
+
+		// Find the device's internal ID (required for tombstone)
+		let device = entities::device::Entity::find()
+			.filter(entities::device::Column::Uuid.eq(volume.device_id))
+			.one(&txn)
+			.await
+			.map_err(|e| VolumeError::Database(e.to_string()))?
+			.ok_or_else(|| {
+				VolumeError::Database(format!("Device not found for volume: {}", volume.device_id))
+			})?;
+
+		// Delete the volume record
+		entities::volume::Entity::delete_by_id(volume.id)
+			.exec(&txn)
+			.await
+			.map_err(|e| VolumeError::Database(e.to_string()))?;
+
+		// Create tombstone for device-owned deletion sync
+		let tombstone = entities::device_state_tombstone::ActiveModel {
+			id: sea_orm::NotSet,
+			model_type: sea_orm::Set("volume".to_string()),
+			record_uuid: sea_orm::Set(volume.uuid),
+			device_id: sea_orm::Set(device.id),
+			deleted_at: sea_orm::Set(chrono::Utc::now()),
+		};
+
+		entities::device_state_tombstone::Entity::insert(tombstone)
+			.on_conflict(
+				OnConflict::columns(vec![
+					entities::device_state_tombstone::Column::ModelType,
+					entities::device_state_tombstone::Column::RecordUuid,
+					entities::device_state_tombstone::Column::DeviceId,
+				])
+				.do_nothing()
+				.to_owned(),
+			)
+			.exec(&txn)
+			.await
+			.map_err(|e| VolumeError::Database(e.to_string()))?;
+
+		// Commit transaction
+		txn.commit()
+			.await
+			.map_err(|e| VolumeError::Database(e.to_string()))?;
 
 		info!(
 			"Untracked volume '{}' from library '{}'",

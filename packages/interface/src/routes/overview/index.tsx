@@ -93,6 +93,9 @@ export function Overview() {
 							uniqueContentCount={Number(
 								stats.unique_content_count,
 							)}
+							databaseSize={Number(stats.database_size)}
+							sidecarCount={Number(stats.sidecar_count ?? 0)}
+							sidecarSize={Number(stats.sidecar_size ?? 0)}
 						/>
 
 						{/* Device Panel */}
