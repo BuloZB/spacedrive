@@ -344,6 +344,11 @@ pub enum Event {
 		paths: Vec<PathBuf>,
 	},
 
+	// Config events
+	ConfigChanged {
+		field: String,
+	},
+
 	// Custom events for extensibility
 	Custom {
 		event_type: String,

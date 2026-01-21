@@ -102,7 +102,7 @@ impl CoreAction for UpdateAppConfigAction {
 
 		// Validate theme
 		if let Some(ref theme) = self.input.theme {
-			let valid_themes = ["system", "light", "dark"];
+			let valid_themes = ["system", "light", "dark", "midnight", "noir", "slate", "nord", "mocha"];
 			if !valid_themes.contains(&theme.to_lowercase().as_str()) {
 				return Err(ActionError::Validation {
 					field: "theme".to_string(),
@@ -222,6 +222,13 @@ impl CoreAction for UpdateAppConfigAction {
 		config
 			.save()
 			.map_err(|e| ActionError::Internal(format!("Failed to save config: {}", e)))?;
+
+		// Emit config change events for each changed field
+		for field in &changes {
+			context.events.emit(crate::infra::event::Event::ConfigChanged {
+				field: field.to_string(),
+			});
+		}
 
 		info!(
 			changes = ?changes,
