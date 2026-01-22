@@ -57,21 +57,22 @@ impl TestConfigBuilder {
 			}],
 		};
 
-		let config = sd_core::config::AppConfig {
-			version: 4,
-			logging: logging_config,
-			data_dir: self.data_dir.clone(),
-			log_level: "debug".to_string(),
-			telemetry_enabled: false,
-			preferences: sd_core::config::Preferences::default(),
-			job_logging: sd_core::config::JobLoggingConfig::default(),
-			services: sd_core::config::ServiceConfig {
-				networking_enabled: false,
-				volume_monitoring_enabled: false,
-				fs_watcher_enabled: false,
-				statistics_listener_enabled: false,
-			},
-		};
+	let config = sd_core::config::AppConfig {
+		version: 4,
+		logging: logging_config,
+		data_dir: self.data_dir.clone(),
+		log_level: "debug".to_string(),
+		telemetry_enabled: false,
+		preferences: sd_core::config::Preferences::default(),
+		job_logging: sd_core::config::JobLoggingConfig::default(),
+		services: sd_core::config::ServiceConfig {
+			networking_enabled: false,
+			volume_monitoring_enabled: false,
+			fs_watcher_enabled: false,
+			statistics_listener_enabled: false,
+		},
+		proxy_pairing: sd_core::config::app_config::ProxyPairingConfig::default(),
+	};
 
 		config.save()?;
 		Ok(config)

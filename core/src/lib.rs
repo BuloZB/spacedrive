@@ -519,16 +519,27 @@ impl Core {
 		if let Some(networking_service) = self.services.networking() {
 			// Register default protocol handlers only if networking was just initialized
 			// (if networking was already initialized during Core::new(), protocols are already registered)
-			if !already_initialized {
-				logger.info("Registering protocol handlers...").await;
-				self.register_default_protocols(&networking_service).await?;
-			} else {
-				logger
-					.info("Protocol handlers already registered during initialization")
-					.await;
-			}
+		if !already_initialized {
+			logger.info("Registering protocol handlers...").await;
+			self.register_default_protocols(&networking_service).await?;
+		} else {
+			logger
+				.info("Protocol handlers already registered during initialization")
+				.await;
 
-			// Set up event bridge to integrate with core event system (only if not already done)
+			// Reload protocol configs even when networking is already initialized
+			// This allows tests and runtime config changes to take effect
+			logger.info("Reloading protocol configs from disk...").await;
+			if let Err(e) = reload_protocol_configs(&networking_service, &self.config.read().await.data_dir).await {
+				logger
+					.warn(&format!("Failed to reload some protocol configs: {}", e))
+					.await;
+			} else {
+				logger.info("Protocol configs reloaded successfully").await;
+			}
+		}
+
+		// Set up event bridge to integrate with core event system (only if not already done)
 			if !already_initialized {
 				let event_bridge = NetworkEventBridge::new(
 					networking_service.subscribe_events(),
@@ -730,6 +741,39 @@ async fn register_default_protocol_handlers(
 	// where incoming connections arrive before handlers are ready.
 	// 50ms is imperceptible to users but sufficient for async task scheduling.
 	tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+	Ok(())
+}
+
+/// Reload configuration for all protocol handlers
+/// This is called when networking is already initialized but config has changed
+async fn reload_protocol_configs(
+	networking: &service::network::NetworkingService,
+	data_dir: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+	let app_config = crate::config::AppConfig::load_from(&data_dir.to_path_buf())?;
+	let registry = networking.protocol_registry();
+	let guard = registry.read().await;
+
+	// Reload proxy pairing config
+	if let Some(handler) = guard.get_handler("pairing") {
+		if let Some(pairing_handler) = handler
+			.as_any()
+			.downcast_ref::<crate::service::network::protocol::PairingProtocolHandler>()
+		{
+			pairing_handler
+				.set_proxy_config(app_config.proxy_pairing)
+				.await;
+		}
+	}
+
+	// Future: Add config reloading for other protocol handlers here
+	// Example:
+	// if let Some(handler) = guard.get_handler("file_transfer") {
+	//     if let Some(ft_handler) = handler.as_any().downcast_ref::<FileTransferProtocolHandler>() {
+	//         ft_handler.set_config(app_config.file_transfer).await;
+	//     }
+	// }
 
 	Ok(())
 }
