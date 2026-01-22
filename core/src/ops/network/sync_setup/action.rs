@@ -219,6 +219,29 @@ impl LibrarySyncSetupAction {
 				local_library.id(),
 				remote_device_slug
 			);
+
+			// Sync the device record so it propagates to all devices in library
+			let inserted_device = entities::device::Entity::find()
+				.filter(entities::device::Column::Uuid.eq(remote_device_id))
+				.one(db.conn())
+				.await
+				.map_err(|e| ActionError::Internal(format!("Failed to query device: {}", e)))?
+				.ok_or_else(|| {
+					ActionError::Internal("Device not found after insert".to_string())
+				})?;
+
+			use crate::infra::sync::ChangeType;
+			local_library
+				.sync_model(&inserted_device, ChangeType::Insert)
+				.await
+				.map_err(|e| {
+					ActionError::Internal(format!("Failed to sync device record: {}", e))
+				})?;
+
+			info!(
+				"Synced device record for {} to all library members",
+				remote_device_id
+			);
 		}
 
 		Ok(crate::infra::action::ValidationResult::Success { metadata: None })

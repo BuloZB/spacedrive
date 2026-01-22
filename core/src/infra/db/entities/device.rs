@@ -68,8 +68,8 @@ impl crate::infra::sync::Syncable for Model {
 	}
 
 	fn version(&self) -> i64 {
-		// Device sync is state-based, version not needed
-		1
+		// Use updated_at timestamp as version for conflict resolution
+		self.updated_at.timestamp()
 	}
 
 	fn exclude_fields() -> Option<&'static [&'static str]> {
@@ -127,9 +127,10 @@ impl crate::infra::sync::Syncable for Model {
 		Ok(records.into_iter().map(|r| (r.id, r.uuid)).collect())
 	}
 
-	/// Query devices for sync backfill
+	/// Query devices for sync backfill (shared resources)
+	/// Returns ALL devices in library, not filtered by device_id
 	async fn query_for_sync(
-		device_id: Option<Uuid>,
+		_device_id: Option<Uuid>,
 		since: Option<chrono::DateTime<chrono::Utc>>,
 		_cursor: Option<(chrono::DateTime<chrono::Utc>, Uuid)>,
 		batch_size: usize,
@@ -139,12 +140,7 @@ impl crate::infra::sync::Syncable for Model {
 
 		let mut query = Entity::find();
 
-		// Filter by device UUID if specified
-		if let Some(dev_id) = device_id {
-			query = query.filter(Column::Uuid.eq(dev_id));
-		}
-
-		// Filter by timestamp if specified
+		// Filter by timestamp if specified (for incremental sync)
 		if let Some(since_time) = since {
 			query = query.filter(Column::UpdatedAt.gte(since_time));
 		}
@@ -167,137 +163,271 @@ impl crate::infra::sync::Syncable for Model {
 			.collect())
 	}
 
-	/// Apply device state change (idempotent upsert)
-	async fn apply_state_change(
-		data: serde_json::Value,
+	/// Apply shared change with HLC-based conflict resolution
+	/// Slug changes propagate to all devices, with collision avoidance only on initial insert
+	async fn apply_shared_change(
+		entry: crate::infra::sync::SharedChangeEntry,
 		db: &DatabaseConnection,
 	) -> Result<(), sea_orm::DbErr> {
-		tracing::debug!("[DEVICE_SYNC] apply_state_change called");
-
-		// Deserialize incoming data
-		let device: Model = serde_json::from_value(data)
-			.map_err(|e| sea_orm::DbErr::Custom(format!("Device deserialization failed: {}", e)))?;
-
-		tracing::debug!(
-			"[DEVICE_SYNC] Processing device: uuid={}, slug={}",
-			device.uuid,
-			device.slug
-		);
-
-		// Check if this device already exists (by UUID)
+		use crate::infra::sync::ChangeType;
 		use sea_orm::{ActiveValue::NotSet, ColumnTrait, EntityTrait, QueryFilter, Set};
 
-		let existing_device = Entity::find()
-			.filter(Column::Uuid.eq(device.uuid))
-			.one(db)
-			.await?;
-
-		// Determine the slug to use
-		let slug_to_use = if let Some(existing) = existing_device {
-			// Device exists - keep its existing slug to avoid breaking references
-			tracing::debug!(
-				"[DEVICE_SYNC] Device exists, keeping existing slug: {}",
-				existing.slug
-			);
-			existing.slug
-		} else {
-			// New device - check for slug collisions
-			tracing::debug!("[DEVICE_SYNC] New device, checking for slug collisions");
-			let existing_slugs: Vec<String> = Entity::find()
-				.all(db)
-				.await?
-				.iter()
-				.map(|d| d.slug.clone())
-				.collect();
-
-			tracing::debug!(
-				"[DEVICE_SYNC] Existing slugs in database: {:?}",
-				existing_slugs
-			);
-
-			let unique_slug =
-				crate::library::Library::ensure_unique_slug(&device.slug, &existing_slugs);
-
-			if unique_slug != device.slug {
+		match entry.change_type {
+			ChangeType::Insert | ChangeType::Update => {
 				tracing::debug!(
-					"[DEVICE_SYNC] Slug collision! Using '{}' instead of '{}'",
-					unique_slug,
-					device.slug
+					"[DEVICE_SYNC] Applying shared change: type={:?}, uuid={}",
+					entry.change_type,
+					entry.record_uuid
 				);
-			} else {
-				tracing::debug!("[DEVICE_SYNC] No collision, using slug: {}", unique_slug);
+
+				// Extract fields from JSON
+				let data = entry.data.as_object().ok_or_else(|| {
+					sea_orm::DbErr::Custom("Device data is not an object".to_string())
+				})?;
+
+				let uuid: Uuid = serde_json::from_value(
+					data.get("uuid")
+						.ok_or_else(|| sea_orm::DbErr::Custom("Missing uuid".to_string()))?
+						.clone(),
+				)
+				.map_err(|e| sea_orm::DbErr::Custom(format!("Invalid uuid: {}", e)))?;
+
+				// Check if device already exists
+				let existing_device = Entity::find()
+					.filter(Column::Uuid.eq(uuid))
+					.one(db)
+					.await?;
+
+				// Determine slug to use: collision avoidance only on INSERT
+				let slug_from_data: String = serde_json::from_value(
+					data.get("slug")
+						.cloned()
+						.unwrap_or(serde_json::Value::String("unknown".to_string())),
+				)
+				.unwrap_or_else(|_| "unknown".to_string());
+
+				let slug_to_use = if let Some(existing) = &existing_device {
+					// Device exists - use incoming slug (allow slug changes to propagate)
+					tracing::debug!(
+						"[DEVICE_SYNC] Updating existing device, accepting slug change: {} -> {}",
+						existing.slug,
+						slug_from_data
+					);
+					slug_from_data
+				} else {
+					// New device - check for slug collisions
+					tracing::debug!("[DEVICE_SYNC] New device, checking for slug collisions");
+					let existing_slugs: Vec<String> = Entity::find()
+						.all(db)
+						.await?
+						.iter()
+						.map(|d| d.slug.clone())
+						.collect();
+
+					let unique_slug =
+						crate::library::Library::ensure_unique_slug(&slug_from_data, &existing_slugs);
+
+					if unique_slug != slug_from_data {
+						tracing::debug!(
+							"[DEVICE_SYNC] Slug collision on insert! Using '{}' instead of '{}'",
+							unique_slug,
+							slug_from_data
+						);
+					}
+
+					unique_slug
+				};
+
+				// Build ActiveModel for upsert
+				let active = ActiveModel {
+					id: NotSet,
+					uuid: Set(uuid),
+					name: Set(serde_json::from_value(
+						data.get("name")
+							.cloned()
+							.unwrap_or(serde_json::Value::String("Unknown".to_string())),
+					)
+					.unwrap_or_else(|_| "Unknown".to_string())),
+					slug: Set(slug_to_use),
+					os: Set(serde_json::from_value(
+						data.get("os")
+							.cloned()
+							.unwrap_or(serde_json::Value::String("Unknown".to_string())),
+					)
+					.unwrap_or_else(|_| "Unknown".to_string())),
+					os_version: Set(serde_json::from_value(
+						data.get("os_version")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					hardware_model: Set(serde_json::from_value(
+						data.get("hardware_model")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					cpu_model: Set(serde_json::from_value(
+						data.get("cpu_model")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					cpu_architecture: Set(serde_json::from_value(
+						data.get("cpu_architecture")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					cpu_cores_physical: Set(serde_json::from_value(
+						data.get("cpu_cores_physical")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					cpu_cores_logical: Set(serde_json::from_value(
+						data.get("cpu_cores_logical")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					cpu_frequency_mhz: Set(serde_json::from_value(
+						data.get("cpu_frequency_mhz")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					memory_total_bytes: Set(serde_json::from_value(
+						data.get("memory_total_bytes")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					form_factor: Set(serde_json::from_value(
+						data.get("form_factor")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					manufacturer: Set(serde_json::from_value(
+						data.get("manufacturer")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					gpu_models: Set(serde_json::from_value(
+						data.get("gpu_models")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					boot_disk_type: Set(serde_json::from_value(
+						data.get("boot_disk_type")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					boot_disk_capacity_bytes: Set(serde_json::from_value(
+						data.get("boot_disk_capacity_bytes")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					swap_total_bytes: Set(serde_json::from_value(
+						data.get("swap_total_bytes")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+					network_addresses: Set(serde_json::from_value(
+						data.get("network_addresses")
+							.cloned()
+							.unwrap_or(serde_json::json!([])),
+					)
+					.unwrap()),
+					is_online: Set(serde_json::from_value(
+						data.get("is_online")
+							.cloned()
+							.unwrap_or(serde_json::Value::Bool(false)),
+					)
+					.unwrap_or(false)),
+					last_seen_at: Set(serde_json::from_value(
+						data.get("last_seen_at")
+							.cloned()
+							.unwrap_or_else(|| serde_json::json!(chrono::Utc::now())),
+					)
+					.unwrap_or_else(|_| chrono::Utc::now().into())),
+					capabilities: Set(serde_json::from_value(
+						data.get("capabilities")
+							.cloned()
+							.unwrap_or(serde_json::json!({})),
+					)
+					.unwrap()),
+					created_at: Set(chrono::Utc::now().into()),
+					updated_at: Set(chrono::Utc::now().into()),
+					sync_enabled: Set(serde_json::from_value(
+						data.get("sync_enabled")
+							.cloned()
+							.unwrap_or(serde_json::Value::Bool(true)),
+					)
+					.unwrap_or(true)),
+					last_sync_at: Set(serde_json::from_value(
+						data.get("last_sync_at")
+							.cloned()
+							.unwrap_or(serde_json::Value::Null),
+					)
+					.unwrap()),
+				};
+
+				// Idempotent upsert: insert or update based on UUID
+				Entity::insert(active)
+					.on_conflict(
+						sea_orm::sea_query::OnConflict::column(Column::Uuid)
+							.update_columns([
+								Column::Name,
+								Column::Slug, // Now updated on conflict to allow slug changes
+								Column::Os,
+								Column::OsVersion,
+								Column::HardwareModel,
+								Column::CpuModel,
+								Column::CpuArchitecture,
+								Column::CpuCoresPhysical,
+								Column::CpuCoresLogical,
+								Column::CpuFrequencyMhz,
+								Column::MemoryTotalBytes,
+								Column::FormFactor,
+								Column::Manufacturer,
+								Column::GpuModels,
+								Column::BootDiskType,
+								Column::BootDiskCapacityBytes,
+								Column::SwapTotalBytes,
+								Column::NetworkAddresses,
+								Column::IsOnline,
+								Column::LastSeenAt,
+								Column::Capabilities,
+								Column::UpdatedAt,
+								Column::SyncEnabled,
+								Column::LastSyncAt,
+							])
+							.to_owned(),
+					)
+					.exec(db)
+					.await?;
 			}
 
-			unique_slug
-		};
-
-		// Build ActiveModel for upsert
-		let active = ActiveModel {
-			id: NotSet,
-			uuid: Set(device.uuid),
-			name: Set(device.name),
-			slug: Set(slug_to_use),
-			os: Set(device.os),
-			os_version: Set(device.os_version),
-			hardware_model: Set(device.hardware_model),
-			cpu_model: Set(device.cpu_model),
-			cpu_architecture: Set(device.cpu_architecture),
-			cpu_cores_physical: Set(device.cpu_cores_physical),
-			cpu_cores_logical: Set(device.cpu_cores_logical),
-			cpu_frequency_mhz: Set(device.cpu_frequency_mhz),
-			memory_total_bytes: Set(device.memory_total_bytes),
-			form_factor: Set(device.form_factor),
-			manufacturer: Set(device.manufacturer),
-			gpu_models: Set(device.gpu_models),
-			boot_disk_type: Set(device.boot_disk_type),
-			boot_disk_capacity_bytes: Set(device.boot_disk_capacity_bytes),
-			swap_total_bytes: Set(device.swap_total_bytes),
-			network_addresses: Set(device.network_addresses),
-			is_online: Set(device.is_online),
-			last_seen_at: Set(device.last_seen_at),
-			capabilities: Set(device.capabilities),
-			created_at: Set(chrono::Utc::now().into()),
-			updated_at: Set(chrono::Utc::now().into()),
-			sync_enabled: Set(true),
-			last_sync_at: Set(None),
-		};
-
-		// Idempotent upsert by UUID
-		Entity::insert(active)
-			.on_conflict(
-				sea_orm::sea_query::OnConflict::column(Column::Uuid)
-					.update_columns([
-						Column::Name,
-						// Note: slug is NOT updated on conflict to preserve local slug overrides
-						Column::Os,
-						Column::OsVersion,
-						Column::HardwareModel,
-						Column::CpuModel,
-						Column::CpuArchitecture,
-						Column::CpuCoresPhysical,
-						Column::CpuCoresLogical,
-						Column::CpuFrequencyMhz,
-						Column::MemoryTotalBytes,
-						Column::FormFactor,
-						Column::Manufacturer,
-						Column::GpuModels,
-						Column::BootDiskType,
-						Column::BootDiskCapacityBytes,
-						Column::SwapTotalBytes,
-						Column::NetworkAddresses,
-						Column::IsOnline,
-						Column::LastSeenAt,
-						Column::Capabilities,
-						Column::UpdatedAt,
-					])
-					.to_owned(),
-			)
-			.exec(db)
-			.await?;
+			ChangeType::Delete => {
+				// Delete by UUID
+				tracing::debug!("[DEVICE_SYNC] Deleting device: uuid={}", entry.record_uuid);
+				Entity::delete_many()
+					.filter(Column::Uuid.eq(entry.record_uuid))
+					.exec(db)
+					.await?;
+			}
+		}
 
 		Ok(())
 	}
 }
 
-// Register with sync system via inventory
-crate::register_syncable_device_owned!(Model, "device", "devices");
+// Register with sync system via inventory as shared resource
+crate::register_syncable_shared!(Model, "device", "devices");

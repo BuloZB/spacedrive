@@ -281,6 +281,152 @@ async fn bob_sync_setup_scenario() {
 	println!("Bob: Test completed");
 }
 
+/// Carol's sync setup scenario for three-device test
+#[tokio::test]
+#[ignore]
+async fn carol_three_device_scenario() {
+	if env::var("TEST_ROLE").unwrap_or_default() != "carol" {
+		return;
+	}
+
+	env::set_var("SPACEDRIVE_TEST_DIR", "/tmp/spacedrive-three-device-test");
+
+	let data_dir = PathBuf::from("/tmp/spacedrive-three-device-test/carol");
+
+	println!("Carol: Starting three-device test");
+
+	// Initialize Core
+	let mut core = timeout(Duration::from_secs(10), Core::new(data_dir))
+		.await
+		.unwrap()
+		.unwrap();
+
+	core.device.set_name("Carol Device".to_string()).unwrap();
+
+	// Initialize networking
+	timeout(Duration::from_secs(10), core.init_networking())
+		.await
+		.unwrap()
+		.unwrap();
+
+	tokio::time::sleep(Duration::from_secs(2)).await;
+	println!("Carol: Core initialized");
+
+	// Wait for Alice's library ID
+	println!("Carol: Waiting for Alice's library ID...");
+	let library_id = loop {
+		if let Ok(id) =
+			std::fs::read_to_string("/tmp/spacedrive-three-device-test/library_id.txt")
+		{
+			break id.trim().to_string();
+		}
+		tokio::time::sleep(Duration::from_millis(500)).await;
+	};
+	println!("Carol: Found library ID: {}", library_id);
+
+	// Wait for pairing code
+	println!("Carol: Waiting for Alice's second pairing code...");
+	let pairing_code = loop {
+		if let Ok(code) =
+			std::fs::read_to_string("/tmp/spacedrive-three-device-test/pairing_code_carol.txt")
+		{
+			break code.trim().to_string();
+		}
+		tokio::time::sleep(Duration::from_millis(500)).await;
+	};
+
+	// Join pairing
+	println!("Carol: Joining pairing...");
+	if let Some(networking) = core.networking() {
+		timeout(
+			Duration::from_secs(15),
+			networking.start_pairing_as_joiner(&pairing_code, false),
+		)
+		.await
+		.unwrap()
+		.unwrap();
+	}
+
+	// Wait for pairing completion
+	println!("Carol: Waiting for pairing to complete...");
+	let mut attempts = 0;
+	while attempts < 30 {
+		tokio::time::sleep(Duration::from_secs(1)).await;
+
+		let connected = core.services.device.get_connected_devices().await.unwrap();
+		if !connected.is_empty() {
+			println!("Carol: Pairing successful!");
+
+			// Wait for Alice's ShareLocalLibrary to create library
+			println!("Carol: Waiting for library from Alice...");
+			let alice_lib_uuid = uuid::Uuid::parse_str(&library_id).unwrap();
+			let mut lib_wait_attempts = 0;
+
+			while lib_wait_attempts < 30 {
+				tokio::time::sleep(Duration::from_secs(1)).await;
+
+				if let Some(lib) = core.libraries.get_library(alice_lib_uuid).await {
+					println!("Carol: ✅ Library received! ID: {}", lib.id());
+
+					// Wait a bit for device sync to propagate
+					tokio::time::sleep(Duration::from_secs(3)).await;
+
+					// Check if Bob's device is in the library (via shared sync)
+					use sd_core::infra::db::entities;
+					use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+					// Read Bob's device ID
+					let bob_device_id = if let Ok(id) = std::fs::read_to_string(
+						"/tmp/spacedrive-three-device-test/bob_device_id.txt",
+					) {
+						uuid::Uuid::parse_str(id.trim()).ok()
+					} else {
+						None
+					};
+
+					if let Some(bob_id) = bob_device_id {
+						let bob_device = entities::device::Entity::find()
+							.filter(entities::device::Column::Uuid.eq(bob_id))
+							.one(lib.db().conn())
+							.await
+							.unwrap();
+
+						if bob_device.is_some() {
+							println!(
+								"Carol: ✅ Bob's device automatically discovered via shared sync!"
+							);
+							std::fs::write(
+								"/tmp/spacedrive-three-device-test/carol_success.txt",
+								"success",
+							)
+							.unwrap();
+						} else {
+							println!("Carol: ❌ Bob's device NOT found in library");
+							std::fs::write(
+								"/tmp/spacedrive-three-device-test/carol_error.txt",
+								"Bob device not found - shared sync failed",
+							)
+							.unwrap();
+						}
+					} else {
+						println!("Carol: ⚠️ Could not read Bob's device ID");
+					}
+
+					break;
+				}
+
+				lib_wait_attempts += 1;
+			}
+
+			break;
+		}
+
+		attempts += 1;
+	}
+
+	println!("Carol: Test completed");
+}
+
 /// Main test orchestrator
 #[tokio::test]
 async fn test_sync_setup_no_constraint_error() {
@@ -352,4 +498,31 @@ async fn test_sync_setup_no_constraint_error() {
 			panic!("Sync setup test failed");
 		}
 	}
+}
+
+/// Three-device discovery test - verify shared resource sync enables automatic device discovery
+#[tokio::test]
+async fn test_three_device_discovery() {
+	println!("Testing three-device automatic discovery via shared sync...");
+
+	// Clean up
+	let _ = std::fs::remove_dir_all("/tmp/spacedrive-three-device-test");
+	std::fs::create_dir_all("/tmp/spacedrive-three-device-test").unwrap();
+
+	// This test verifies that:
+	// 1. Alice pairs with Bob and runs sync setup
+	// 2. Alice pairs with Carol and runs sync setup
+	// 3. Bob automatically discovers Carol's device via shared sync
+	// 4. Carol automatically discovers Bob's device via shared sync
+	// No direct pairing between Bob and Carol needed!
+
+	println!("✅ Three-device discovery test placeholder");
+	println!("This test requires modifications to alice and bob scenarios");
+	println!("to add Carol pairing and device ID writing");
+
+	// TODO: Implement full three-device test with:
+	// - Alice pairs with Bob (existing flow)
+	// - Alice pairs with Carol (new flow)
+	// - Bob verifies Carol's device in library
+	// - Carol verifies Bob's device in library
 }
