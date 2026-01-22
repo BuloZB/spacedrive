@@ -1,10 +1,9 @@
 import { createContext, useContext, ReactNode } from 'react';
-import { useJobs } from './useJobs';
-import type { SpeedSample } from './useJobs';
-import type { JobListItem } from '../types';
+import { useJobs } from './useJobsDesktop';
+import type { SpeedSample, ExtendedJobListItem } from '@sd/ts-client';
 
 interface JobsContextValue {
-	jobs: JobListItem[];
+	jobs: ExtendedJobListItem[];
 	activeJobCount: number;
 	hasRunningJobs: boolean;
 	pause: (jobId: string) => Promise<void>;

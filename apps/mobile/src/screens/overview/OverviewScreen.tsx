@@ -18,9 +18,11 @@ import { HeroStats, DevicePanel, ActionButtons } from "./components";
 import { PairingPanel } from "../../components/PairingPanel";
 import { LibrarySwitcherPanel } from "../../components/LibrarySwitcherPanel";
 import { GlassButton } from "../../components/GlassButton";
+import { GlassSearchBar } from "../../components/GlassSearchBar";
+import { JobManagerPanel } from "../../components/JobManagerPanel";
 
 const HEADER_INITIAL_HEIGHT = 40;
-const HERO_HEIGHT = 360 + HEADER_INITIAL_HEIGHT;
+const HERO_HEIGHT = 430 + HEADER_INITIAL_HEIGHT;
 const HEADER_HEIGHT = 60;
 const NETWORK_HEADER_HEIGHT = 50;
 
@@ -93,7 +95,7 @@ export function OverviewScreen() {
 
 		const opacity = interpolate(
 			scrollY.value,
-			[0, HERO_HEIGHT * 0.5],
+			[0, HERO_HEIGHT * 0.8],
 			[1, 0],
 			Extrapolation.CLAMP
 		);
@@ -129,6 +131,28 @@ export function OverviewScreen() {
 		);
 
 		return { opacity };
+	});
+
+	// Hero clipping container - clips hero at page container's top edge
+	const heroClipStyle = useAnimatedStyle(() => {
+		const headerTop = insets.top + HEADER_HEIGHT;
+		const pinDistance = HERO_HEIGHT - headerTop;
+
+		// Calculate page container's visual top edge position
+		// This mirrors the page container's scroll transform
+		const scrollOffset = interpolate(
+			scrollY.value,
+			[-200, 0, pinDistance],
+			[200, 0, -pinDistance],
+			Extrapolation.CLAMP
+		);
+
+		// Clip height = where the page container's top edge is
+		const clipHeight = HERO_HEIGHT + scrollOffset;
+
+		return {
+			height: Math.max(0, clipHeight),
+		};
 	});
 
 	// Page container: visual frame only - pins below header bar
@@ -257,7 +281,7 @@ export function OverviewScreen() {
 
 	return (
 		<View className="flex-1 bg-black">
-			{/* Hero Section - Absolute positioned with parallax */}
+			{/* Hero Clipping Container - clips hero at page container's top edge */}
 			<Animated.View
 				pointerEvents="box-none"
 				style={[
@@ -266,42 +290,57 @@ export function OverviewScreen() {
 						top: 0,
 						left: 0,
 						right: 0,
-						height: HERO_HEIGHT * 2,
 						zIndex: 25,
-						paddingTop: insets.top + HEADER_INITIAL_HEIGHT,
+						overflow: "hidden",
 					},
-					heroAnimatedStyle,
+					heroClipStyle,
 				]}
 			>
-				<View className="px-8 pb-4 flex-row items-center gap-3">
-					<Animated.Text
-						style={[libraryNameScale]}
-						className="text-ink text-[30px] font-bold flex-1"
-					>
-						{libraryInfo.name}
-					</Animated.Text>
-					<GlassButton
-						icon={
-							<Text className="text-ink text-2xl leading-none">⋯</Text>
-						}
-					/>
-				</View>
+				{/* Hero Content - parallax and fade inside the clip */}
+				<Animated.View
+					pointerEvents="box-none"
+					style={[
+						{
+							paddingTop: insets.top + HEADER_INITIAL_HEIGHT,
+						},
+						heroAnimatedStyle,
+					]}
+				>
+					<View className="px-8 pb-4 flex-row items-center gap-3">
+						<Animated.Text
+							style={[libraryNameScale]}
+							className="text-ink text-[30px] font-bold flex-1"
+						>
+							{libraryInfo.name}
+						</Animated.Text>
+						<GlassButton
+							icon={
+								<Text className="text-ink text-2xl leading-none">⋯</Text>
+							}
+						/>
+					</View>
 
-				{/* Wrapper to elevate HeroStats above ScrollView for touch events */}
-				<View style={{ position: "relative", zIndex: 25 }} pointerEvents="auto">
-					<HeroStats
-						totalStorage={stats.total_capacity}
-						usedStorage={stats.total_capacity - stats.available_capacity}
-						totalFiles={Number(stats.total_files)}
-						locationCount={stats.location_count}
-						tagCount={stats.tag_count}
-						deviceCount={stats.device_count}
-						uniqueContentCount={Number(stats.unique_content_count)}
-						databaseSize={Number(stats.database_size)}
-						sidecarCount={Number(stats.sidecar_count ?? 0)}
-						sidecarSize={Number(stats.sidecar_size ?? 0)}
-					/>
-				</View>
+					{/* Search Bar */}
+					<View className="px-8 mb-4" style={{ position: "relative", zIndex: 25 }} pointerEvents="auto">
+						<GlassSearchBar />
+					</View>
+
+					{/* Wrapper to elevate HeroStats above ScrollView for touch events */}
+					<View style={{ position: "relative", zIndex: 25 }} pointerEvents="auto">
+						<HeroStats
+							totalStorage={stats.total_capacity}
+							usedStorage={stats.total_capacity - stats.available_capacity}
+							totalFiles={Number(stats.total_files)}
+							locationCount={stats.location_count}
+							tagCount={stats.tag_count}
+							deviceCount={stats.device_count}
+							uniqueContentCount={Number(stats.unique_content_count)}
+							databaseSize={Number(stats.database_size)}
+							sidecarCount={Number(stats.sidecar_count ?? 0)}
+							sidecarSize={Number(stats.sidecar_size ?? 0)}
+						/>
+					</View>
+				</Animated.View>
 			</Animated.View>
 
 			{/* Blur Overlay */}
@@ -444,6 +483,9 @@ export function OverviewScreen() {
 						setSelectedLocationId(location?.id || null)
 					}
 				/>
+
+				{/* Job Manager Panel */}
+				<JobManagerPanel />
 
 				{/* Action Buttons */}
 				<ActionButtons

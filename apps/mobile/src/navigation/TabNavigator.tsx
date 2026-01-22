@@ -7,17 +7,27 @@ import { BrowseStack } from "./stacks/BrowseStack";
 import { NetworkStack } from "./stacks/NetworkStack";
 import { SettingsStack } from "./stacks/SettingsStack";
 import type { TabParamList } from "./types";
+import { useJobs } from "../hooks/useJobs";
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
 // Simple icon components (replace with phosphor-react-native later)
-const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => (
+const TabIcon = ({ name, focused, badge }: { name: string; focused: boolean; badge?: number }) => (
 	<View
 		className={`items-center justify-center ${focused ? "opacity-100" : "opacity-50"}`}
 	>
-		<View
-			className={`h-6 w-6 rounded-md ${focused ? "bg-accent" : "bg-ink-faint"}`}
-		/>
+		<View className="relative">
+			<View
+				className={`h-6 w-6 rounded-md ${focused ? "bg-accent" : "bg-ink-faint"}`}
+			/>
+			{badge !== undefined && badge > 0 && (
+				<View className="absolute -right-2 -top-2 bg-accent rounded-full min-w-[16px] h-[16px] items-center justify-center px-1">
+					<Text className="text-white text-[9px] font-bold">
+						{badge > 99 ? '99+' : badge}
+					</Text>
+				</View>
+			)}
+		</View>
 		<Text
 			className={`text-[10px] mt-1 ${focused ? "text-accent" : "text-ink-faint"}`}
 		>
@@ -25,6 +35,11 @@ const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => (
 		</Text>
 	</View>
 );
+
+function OverviewTabIcon({ focused }: { focused: boolean }) {
+	const { activeJobCount } = useJobs();
+	return <TabIcon name="Overview" focused={focused} badge={activeJobCount} />;
+}
 
 export function TabNavigator() {
 	const insets = useSafeAreaInsets();
@@ -54,7 +69,7 @@ export function TabNavigator() {
 				component={OverviewStack}
 				options={{
 					tabBarIcon: ({ focused }) => (
-						<TabIcon name="Overview" focused={focused} />
+						<OverviewTabIcon focused={focused} />
 					),
 				}}
 			/>
