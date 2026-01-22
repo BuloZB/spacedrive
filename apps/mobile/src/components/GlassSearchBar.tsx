@@ -1,11 +1,12 @@
 import React, { forwardRef } from "react";
-import { TextInput, View, Pressable, Platform, type TextInputProps } from "react-native";
+import { TextInput, View, Pressable, type TextInputProps } from "react-native";
 import { BlurView } from "expo-blur";
 import {
 	LiquidGlassView,
 	isLiquidGlassSupported,
 } from "@callstack/liquid-glass";
 import { useRouter } from "expo-router";
+import { MagnifyingGlass } from "phosphor-react-native";
 
 interface GlassSearchBarProps extends Omit<TextInputProps, 'style'> {
 	onPress?: () => void;
@@ -26,17 +27,14 @@ export const GlassSearchBar = forwardRef<TextInput, GlassSearchBarProps>(
 		};
 
 		const content = (
-			<View className="flex-1 px-4 py-3 flex-row items-center gap-3">
-				<View className="w-5 h-5 items-center justify-center">
-					<View className="w-4 h-4 rounded-full border-2 border-ink-dull" />
-					<View className="absolute right-0 bottom-0 w-2 h-2 bg-ink-dull rotate-45 origin-bottom-right" style={{ transform: [{ scaleX: 0.5 }] }} />
-				</View>
+			<View className="flex-1 px-4 flex-row items-center gap-3">
+				<MagnifyingGlass size={20} color="hsl(235, 10%, 55%)" weight="bold" />
 				<TextInput
 					ref={ref}
 					editable={editable ?? false}
-					placeholder="Search files, tags, locations..."
+					placeholder="Search library"
 					placeholderTextColor="hsl(235, 10%, 55%)"
-					className="flex-1 text-ink text-base"
+					className="flex-1 text-ink text-base text-md"
 					cursorColor="hsl(220, 90%, 56%)"
 					{...textInputProps}
 				/>

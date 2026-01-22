@@ -306,7 +306,7 @@ export function OverviewScreen() {
 						heroAnimatedStyle,
 					]}
 				>
-					<View className="px-8 pb-4 flex-row items-center gap-3">
+					<View className="px-4 pb-4 flex-row items-center gap-3">
 						<Animated.Text
 							style={[libraryNameScale]}
 							className="text-ink text-[30px] font-bold flex-1"
@@ -321,7 +321,7 @@ export function OverviewScreen() {
 					</View>
 
 					{/* Search Bar */}
-					<View className="px-8 mb-4" style={{ position: "relative", zIndex: 25 }} pointerEvents="auto">
+					<View className="px-4 mb-4" style={{ position: "relative", zIndex: 25 }} pointerEvents="auto">
 						<GlassSearchBar />
 					</View>
 
