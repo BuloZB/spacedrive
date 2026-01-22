@@ -632,8 +632,9 @@ impl PairingProtocolHandler {
 	}
 
 	fn sign_vouch_payload(&self, payload: &VouchPayload) -> Result<Vec<u8>> {
-		let serialized = encode_to_vec(payload, standard())
-			.map_err(|e| NetworkingError::Protocol(format!("Failed to serialize vouch payload: {}", e)))?;
+		let serialized = encode_to_vec(payload, standard()).map_err(|e| {
+			NetworkingError::Protocol(format!("Failed to serialize vouch payload: {}", e))
+		})?;
 		self.identity.sign(&serialized)
 	}
 
@@ -645,8 +646,9 @@ impl PairingProtocolHandler {
 	) -> Result<bool> {
 		PairingSecurity::validate_public_key(public_key_bytes)?;
 		PairingSecurity::validate_signature(signature)?;
-		let serialized = encode_to_vec(payload, standard())
-			.map_err(|e| NetworkingError::Protocol(format!("Failed to serialize vouch payload: {}", e)))?;
+		let serialized = encode_to_vec(payload, standard()).map_err(|e| {
+			NetworkingError::Protocol(format!("Failed to serialize vouch payload: {}", e))
+		})?;
 
 		use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 		let verifying_key =
@@ -1007,6 +1009,13 @@ impl PairingProtocolHandler {
 				NetworkingError::Protocol("Missing vouchee public key".to_string())
 			})?;
 			let secret = session.shared_secret.clone();
+			
+			self.log_debug(&format!(
+				"Vouching device {} with node_id: '{}'",
+				device_info.device_id, device_info.network_fingerprint.node_id
+			))
+			.await;
+			
 			(device_info, public_key, secret)
 		};
 
@@ -1426,21 +1435,27 @@ impl PairingProtocolHandler {
 			return Ok(());
 		}
 
-		if proxy_config.auto_accept_vouched && voucher_is_trusted {
-			{
-				let mut registry = self.device_registry.write().await;
-				registry
-					.complete_pairing(
-						vouchee_device_info.device_id,
-						vouchee_device_info.clone(),
-						proxied_session_keys.clone(),
-						None,
-						crate::service::network::device::PairingType::Proxied,
-						Some(voucher_device_id),
-						Some(chrono::Utc::now()),
-					)
-					.await?;
-			}
+	if proxy_config.auto_accept_vouched && voucher_is_trusted {
+		{
+			self.log_info(&format!(
+				"Auto-accepting proxy pairing for device {} with node_id: '{}'",
+				vouchee_device_info.device_id, vouchee_device_info.network_fingerprint.node_id
+			))
+			.await;
+
+			let mut registry = self.device_registry.write().await;
+			registry
+				.complete_pairing(
+					vouchee_device_info.device_id,
+					vouchee_device_info.clone(),
+					proxied_session_keys.clone(),
+					None,
+					crate::service::network::device::PairingType::Proxied,
+					Some(voucher_device_id),
+					Some(chrono::Utc::now()),
+				)
+				.await?;
+		}
 
 			let accepting_device_id = self.get_device_info().await?.device_id;
 			let response = PairingMessage::ProxyPairingResponse {
@@ -1929,8 +1944,15 @@ impl PairingProtocolHandler {
 			.await
 			.map_err(|e| NetworkingError::Transport(format!("Failed to write message: {}", e)))?;
 
-		send.finish()
-			.map_err(|e| NetworkingError::Transport(format!("Failed to finish stream: {}", e)))?;
+		// Flush to ensure message is sent, but DON'T call finish() to keep stream open for response
+		send.flush()
+			.await
+			.map_err(|e| NetworkingError::Transport(format!("Failed to flush stream: {}", e)))?;
+
+		// For PairingRequest from joiner, handle the full handshake on this stream
+		if matches!(message, PairingMessage::PairingRequest { .. }) {
+			return self.handle_joiner_pairing_stream(send, recv, node_id).await;
+		}
 
 		let mut len_buf = [0u8; 4];
 		match recv.read_exact(&mut len_buf).await {
@@ -1955,6 +1977,139 @@ impl PairingProtocolHandler {
 				Ok(Some(response))
 			}
 			Err(_) => Ok(None),
+		}
+	}
+
+	/// Handle the joiner's full pairing handshake on a single stream
+	async fn handle_joiner_pairing_stream(
+		&self,
+		mut send: impl tokio::io::AsyncWrite + Unpin,
+		mut recv: impl tokio::io::AsyncRead + Unpin,
+		initiator_node_id: NodeId,
+	) -> Result<Option<PairingMessage>> {
+		use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+		// Read Challenge from initiator
+		let mut len_buf = [0u8; 4];
+		recv.read_exact(&mut len_buf).await.map_err(|e| {
+			NetworkingError::Transport(format!("Failed to read challenge length: {}", e))
+		})?;
+		let challenge_len = u32::from_be_bytes(len_buf) as usize;
+
+		if challenge_len > MAX_MESSAGE_SIZE {
+			return Err(NetworkingError::Protocol(format!(
+				"Challenge too large: {} bytes",
+				challenge_len
+			)));
+		}
+
+		let mut challenge_buf = vec![0u8; challenge_len];
+		recv.read_exact(&mut challenge_buf)
+			.await
+			.map_err(|e| NetworkingError::Transport(format!("Failed to read challenge: {}", e)))?;
+
+		let challenge_msg: PairingMessage = serde_json::from_slice(&challenge_buf)
+			.map_err(|e| NetworkingError::Serialization(e))?;
+
+		// Process Challenge and generate Response
+		let (session_id, response_data) = match challenge_msg {
+			PairingMessage::Challenge {
+				session_id,
+				challenge,
+				device_info,
+			} => {
+				self.log_info(&format!(
+					"Received Challenge for session {} on stream",
+					session_id
+				))
+				.await;
+				let response = self
+					.handle_pairing_challenge(session_id, challenge, device_info)
+					.await?;
+				(session_id, response)
+			}
+			_ => {
+				return Err(NetworkingError::Protocol(
+					"Expected Challenge message".to_string(),
+				));
+			}
+		};
+
+		// Send Response back on same stream
+		let response_len = response_data.len() as u32;
+		send.write_all(&response_len.to_be_bytes())
+			.await
+			.map_err(|e| {
+				NetworkingError::Transport(format!("Failed to write response length: {}", e))
+			})?;
+
+		send.write_all(&response_data)
+			.await
+			.map_err(|e| NetworkingError::Transport(format!("Failed to write response: {}", e)))?;
+
+		send.flush()
+			.await
+			.map_err(|e| NetworkingError::Transport(format!("Failed to flush response: {}", e)))?;
+
+		self.log_info(&format!(
+			"Sent Response for session {} on stream, waiting for Complete",
+			session_id
+		))
+		.await;
+
+		// Read Complete message
+		recv.read_exact(&mut len_buf).await.map_err(|e| {
+			NetworkingError::Transport(format!("Failed to read complete length: {}", e))
+		})?;
+		let complete_len = u32::from_be_bytes(len_buf) as usize;
+
+		if complete_len > MAX_MESSAGE_SIZE {
+			return Err(NetworkingError::Protocol(format!(
+				"Complete message too large: {} bytes",
+				complete_len
+			)));
+		}
+
+		let mut complete_buf = vec![0u8; complete_len];
+		recv.read_exact(&mut complete_buf)
+			.await
+			.map_err(|e| NetworkingError::Transport(format!("Failed to read complete: {}", e)))?;
+
+		let complete_msg: PairingMessage =
+			serde_json::from_slice(&complete_buf).map_err(|e| NetworkingError::Serialization(e))?;
+
+		match complete_msg {
+			PairingMessage::Complete {
+				session_id: complete_session_id,
+				success,
+				reason,
+			} => {
+				self.log_info(&format!(
+					"Received Complete for session {} - success: {}",
+					complete_session_id, success
+				))
+				.await;
+
+				// Process completion
+				let from_device = self.get_device_id_for_node(initiator_node_id).await;
+				self.handle_completion(
+					complete_session_id,
+					success,
+					reason,
+					from_device,
+					initiator_node_id,
+				)
+				.await?;
+
+				Ok(Some(PairingMessage::Complete {
+					session_id: complete_session_id,
+					success,
+					reason: None,
+				}))
+			}
+			_ => Err(NetworkingError::Protocol(
+				"Expected Complete message".to_string(),
+			)),
 		}
 	}
 
