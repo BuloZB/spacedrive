@@ -37,7 +37,6 @@ mod m20251226_000001_add_device_id_to_entries;
 mod m20260104_000001_replace_device_id_with_volume_id;
 mod m20260105_000001_add_volume_id_to_locations;
 mod m20260114_000001_fix_search_index_include_directories;
-mod m20260123_000001_device_to_shared_sync;
 
 pub struct Migrator;
 
