@@ -70,7 +70,7 @@ export function FileKindsView() {
 		Record<string, never>,
 		ContentKindStatsOutput
 	>({
-		wireMethod: "query:files.content_kind_stats",
+		query: "files.content_kind_stats",
 		input: {},
 		resourceType: "content_kind",
 	});

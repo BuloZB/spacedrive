@@ -1,15 +1,28 @@
-import React, { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
 	View,
 	Text,
 	ScrollView,
 	Dimensions,
-	NativeScrollEvent,
-	NativeSyntheticEvent,
+	type NativeScrollEvent,
+	type NativeSyntheticEvent,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets, type EdgeInsets } from "react-native-safe-area-context";
+import Animated, {
+	useSharedValue,
+	useAnimatedScrollHandler,
+	useAnimatedStyle,
+	interpolate,
+	Extrapolation,
+} from "react-native-reanimated";
 import { useNormalizedQuery } from "../../client";
-import { DevicesGroup, LocationsGroup, VolumesGroup } from "./components";
+import { PageIndicator } from "../../components/PageIndicator";
+import { GlassSearchBar } from "../../components/GlassSearchBar";
+import { useRouter } from "expo-router";
+import sharedColors from "@sd/ui/style/colors";
+import type { SpaceItem, SpaceGroup } from "@sd/ts-client";
+import { SpaceItem as SpaceItemComponent, SpaceGroupComponent } from "./components";
+import { SettingsGroup } from "../../components/primitive";
 
 interface Space {
 	id: string;
@@ -19,76 +32,105 @@ interface Space {
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
-function SpaceIndicator({
-	spaces,
-	currentIndex,
-	totalPages,
+function SpaceContent({
+	space,
+	insets
 }: {
-	spaces: Space[];
-	currentIndex: number;
-	totalPages: number;
+	space: Space;
+	insets: EdgeInsets;
 }) {
-	return (
-		<View className="flex-row justify-center gap-2 mb-4">
-			{Array.from({ length: totalPages }).map((_, index) => {
-				const isCreatePage = index === totalPages - 1;
-				const space = !isCreatePage ? spaces[index] : null;
-				const isActive = currentIndex === index;
+	const router = useRouter();
+	const scrollY = useSharedValue(0);
 
-				return (
-					<View
-						key={index}
-						className="h-2 rounded-full transition-all"
-						style={{
-							width: isActive ? 24 : 8,
-							backgroundColor: isCreatePage
-								? isActive
-									? "hsl(235, 70%, 55%)"
-									: "hsl(235, 15%, 30%)"
-								: space?.color || "hsl(235, 15%, 30%)",
-							opacity: isActive ? 1 : 0.3,
-						}}
-					/>
-				);
-			})}
-		</View>
+	const scrollHandler = useAnimatedScrollHandler({
+		onScroll: (event) => {
+			scrollY.value = event.contentOffset.y;
+		},
+	});
+
+	const handleSearchPress = () => {
+		router.push("/search");
+	};
+
+	// Fetch space layout
+	const { data: layout } = useNormalizedQuery({
+		query: "spaces.get_layout",
+		input: { space_id: space.id },
+		resourceType: "space_layout",
+		resourceId: space.id,
+		enabled: !!space.id,
+	});
+
+	// Space name scale on overscroll (anchored left)
+	const spaceNameScale = useAnimatedStyle(() => {
+		const scale = interpolate(
+			scrollY.value,
+			[-200, 0],
+			[1.3, 1],
+			Extrapolation.CLAMP
+		);
+
+		return {
+			transform: [{ scale }],
+			transformOrigin: 'left center',
+		};
+	});
+
+	// Filter out Overview items (mobile doesn't show Overview in browse tab)
+	const spaceItems = (layout?.space_items || []).filter(
+		(item) => item.item_type !== "Overview"
 	);
-}
+	const groups = layout?.groups || [];
 
-function SpaceContent({ space, insets }: { space: Space; insets: any }) {
 	return (
-		<ScrollView
+		<Animated.ScrollView
 			style={{ width: SCREEN_WIDTH }}
 			contentContainerStyle={{
-				paddingTop: insets.top + 80,
+				paddingTop: insets.top + 45,
 				paddingHorizontal: 16,
-				paddingBottom: insets.bottom + 100,
+				paddingBottom: insets.bottom + 60,
 			}}
 			showsVerticalScrollIndicator={false}
+			onScroll={scrollHandler}
+			scrollEventThrottle={16}
 		>
 			{/* Header */}
 			<View className="mb-6">
-				<View className="flex-row items-center gap-2 mb-1">
+				<View className="flex-row items-center gap-2">
 					<View
-						className="w-3 h-3 rounded-full"
+						className="w-4 h-4 mx-1 rounded-full"
 						style={{ backgroundColor: space.color }}
 					/>
-					<Text className="text-2xl font-bold text-ink">{space.name}</Text>
+					<Animated.Text
+						style={[spaceNameScale]}
+						className="text-ink text-[30px] font-bold"
+					>
+						{space.name}
+					</Animated.Text>
 				</View>
-				<Text className="text-ink-dull text-sm">
-					Your libraries and spaces
-				</Text>
 			</View>
 
-			{/* Locations */}
-			<LocationsGroup />
+			{/* Search Bar */}
+			<View className="mb-6">
+				<GlassSearchBar onPress={handleSearchPress} editable={false} />
+			</View>
 
-			{/* Devices */}
-			<DevicesGroup />
+			{/* Space Items (pinned shortcuts) */}
+			{spaceItems.length > 0 && (
+				<View className="mb-6">
+					<SettingsGroup>
+						{spaceItems.map((item) => (
+							<SpaceItemComponent key={item.id} item={item} />
+						))}
+					</SettingsGroup>
+				</View>
+			)}
 
-			{/* Volumes */}
-			<VolumesGroup />
-		</ScrollView>
+			{/* Groups */}
+			{groups.map(({ group, items }) => (
+				<SpaceGroupComponent key={group.id} group={group} items={items} />
+			))}
+		</Animated.ScrollView>
 	);
 }
 
@@ -114,7 +156,7 @@ function CreateSpaceScreen() {
 export function BrowseScreen() {
 	const insets = useSafeAreaInsets();
 	const { data: spacesData } = useNormalizedQuery({
-		wireMethod: "query:spaces.list",
+		query: "spaces.list",
 		input: null,
 		resourceType: "space",
 	});
@@ -133,6 +175,12 @@ export function BrowseScreen() {
 		[]
 	);
 
+	// Build page colors array - space colors for space pages, accent for create page
+	const pageColors = [
+		...spacesList.map((space) => space.color),
+		`hsl(${sharedColors.accent.DEFAULT})`, // Create page uses accent color
+	];
+
 	return (
 		<View className="flex-1 bg-app">
 			<ScrollView
@@ -145,7 +193,11 @@ export function BrowseScreen() {
 				decelerationRate="fast"
 			>
 				{spacesList.map((space) => (
-					<SpaceContent key={space.id} space={space} insets={insets} />
+					<SpaceContent
+						key={space.id}
+						space={space}
+						insets={insets}
+					/>
 				))}
 				<CreateSpaceScreen />
 			</ScrollView>
@@ -158,11 +210,13 @@ export function BrowseScreen() {
 				}}
 				pointerEvents="none"
 			>
-				<SpaceIndicator
-					spaces={spacesList}
-					currentIndex={currentPage}
-					totalPages={totalPages}
-				/>
+				<View className="mb-4">
+					<PageIndicator
+						currentIndex={currentPage}
+						totalPages={totalPages}
+						pageColors={pageColors}
+					/>
+				</View>
 			</View>
 		</View>
 	);

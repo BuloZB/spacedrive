@@ -67,7 +67,7 @@ export function VolumesGroup({
 	sortableListeners
 }: VolumesGroupProps) {
 	const {data: volumesData} = useNormalizedQuery({
-		wireMethod: 'query:volumes.list',
+		query: 'volumes.list',
 		input: {filter},
 		resourceType: 'volume'
 	});

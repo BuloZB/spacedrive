@@ -34,6 +34,16 @@ pub async fn extract_image_metadata_with_blurhash(
 		sd_media_metadata::exif::MediaDate::Naive(dt) => dt.and_utc(),
 	});
 
+	// Extract GPS coordinates from location data
+	let (latitude, longitude) = exif
+		.location
+		.as_ref()
+		.map(|loc| {
+			let (lat, lon) = loc.coordinates();
+			(Some(lat), Some(lon))
+		})
+		.unwrap_or((None, None));
+
 	Ok(image_media_data::ActiveModel {
 		id: sea_orm::ActiveValue::NotSet,
 		uuid: Set(uuid),
@@ -41,15 +51,15 @@ pub async fn extract_image_metadata_with_blurhash(
 		height: Set(exif.resolution.height as i32),
 		blurhash: Set(blurhash),
 		date_taken: Set(date_taken.map(Into::into)),
-		latitude: Set(None),  // TODO: Extract from EXIF location
-		longitude: Set(None), // TODO: Extract from EXIF location
+		latitude: Set(latitude),
+		longitude: Set(longitude),
 		camera_make: Set(exif.camera_data.device_make),
 		camera_model: Set(exif.camera_data.device_model),
 		lens_model: Set(exif.camera_data.lens_model),
 		focal_length: Set(exif.camera_data.focal_length.map(|f| f.to_string())),
 		aperture: Set(None), // TODO: Extract from EXIF
 		shutter_speed: Set(exif.camera_data.shutter_speed.map(|s| s.to_string())),
-		iso: Set(None), // TODO: Extract from EXIF
+		iso: Set(exif.camera_data.iso),
 		orientation: Set(Some(exif.camera_data.orientation as i16)),
 		color_space: Set(exif.camera_data.color_space),
 		color_profile: Set(exif.camera_data.color_profile.map(|p| format!("{:?}", p))),

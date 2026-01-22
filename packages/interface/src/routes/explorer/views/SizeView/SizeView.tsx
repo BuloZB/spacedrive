@@ -340,7 +340,7 @@ export function SizeView() {
 	} | null>(null);
 
 	const directoryQuery = useNormalizedQuery({
-		wireMethod: 'query:files.directory_listing',
+		query: 'files.directory_listing',
 		input: currentPath
 			? {
 					path: currentPath,

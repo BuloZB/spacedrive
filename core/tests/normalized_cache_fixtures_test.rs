@@ -406,7 +406,7 @@ async fn capture_event_fixtures_for_typescript() -> Result<(), Box<dyn std::erro
 		"name": "directory_view_exact_mode",
 		"description": "Directory view should only show direct children, filtering out subdirectory files",
 		"query": {
-			"wireMethod": "query:files.directory_listing",
+			"query": "files.directory_listing",
 			"input": {
 				"path": test_location_path,
 				"limit": null,
@@ -439,7 +439,7 @@ async fn capture_event_fixtures_for_typescript() -> Result<(), Box<dyn std::erro
 		"name": "media_view_recursive_mode",
 		"description": "Media view should show all files recursively including subdirectories",
 		"query": {
-			"wireMethod": "query:files.media_listing",
+			"query": "files.media_listing",
 			"input": {
 				"path": test_location_path,
 				"include_descendants": true,
@@ -473,7 +473,7 @@ async fn capture_event_fixtures_for_typescript() -> Result<(), Box<dyn std::erro
 		"name": "location_updates",
 		"description": "Location list should update when locations are created or modified",
 		"query": {
-			"wireMethod": "query:locations.list",
+			"query": "locations.list",
 			"input": null,
 			"resourceType": "location",
 			"pathScope": null,

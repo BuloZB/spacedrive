@@ -30,7 +30,7 @@ export function Overview() {
 		isLoading,
 		error,
 	} = useNormalizedQuery<null, Library>({
-		wireMethod: "query:libraries.info",
+		query: "libraries.info",
 		input: null,
 		resourceType: "library",
 	});
@@ -40,7 +40,7 @@ export function Overview() {
 		LocationsListQueryInput,
 		LocationsListOutput
 	>({
-		wireMethod: "query:locations.list",
+		query: "locations.list",
 		input: null,
 		resourceType: "location",
 	});
@@ -93,6 +93,9 @@ export function Overview() {
 							uniqueContentCount={Number(
 								stats.unique_content_count,
 							)}
+							databaseSize={Number(stats.database_size)}
+							sidecarCount={Number(stats.sidecar_count ?? 0)}
+							sidecarSize={Number(stats.sidecar_size ?? 0)}
 						/>
 
 						{/* Device Panel */}

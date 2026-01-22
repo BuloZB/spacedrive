@@ -30,15 +30,6 @@ export default function TabLayout() {
         )}
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="network">
-        <Label>Network</Label>
-        {Platform.OS === 'ios' ? (
-          <Icon sf="network" />
-        ) : (
-          <Icon name="wifi" />
-        )}
-      </NativeTabs.Trigger>
-
       <NativeTabs.Trigger name="settings">
         <Label>Settings</Label>
         {Platform.OS === 'ios' ? (

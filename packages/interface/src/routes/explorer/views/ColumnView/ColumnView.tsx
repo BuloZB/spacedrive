@@ -184,7 +184,7 @@ export function ColumnView() {
 
 	// Query files for the active column (for keyboard navigation)
 	const activeColumnQuery = useNormalizedQuery({
-		wireMethod: "query:files.directory_listing",
+		query: "files.directory_listing",
 		input: activeColumnPath
 			? {
 					path: activeColumnPath,
@@ -234,7 +234,7 @@ export function ColumnView() {
 	// Query the next column for right arrow navigation
 	const nextColumnPath = columnStack[activeColumnIndex + 1];
 	const nextColumnQuery = useNormalizedQuery({
-		wireMethod: "query:files.directory_listing",
+		query: "files.directory_listing",
 		input: nextColumnPath
 			? {
 					path: nextColumnPath,

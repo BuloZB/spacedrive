@@ -1146,7 +1146,7 @@ describe("Cache Update Tests", () => {
 		const { result } = renderHook(
 			() =>
 				useNormalizedQuery({
-					wireMethod: "query:files.directory_listing",
+					query: "files.directory_listing",
 					input: { path: { Physical: { path: folderPath } } },
 					resourceType: "file",
 					pathScope: { Physical: { path: folderPath } },
@@ -1211,7 +1211,7 @@ The primary use case for bridge tests is verifying that `useNormalizedQuery` cac
 const { result } = renderHook(
 	() =>
 		useNormalizedQuery({
-			wireMethod: "query:files.directory_listing",
+			query: "files.directory_listing",
 			input: {
 				/* ... */
 			},

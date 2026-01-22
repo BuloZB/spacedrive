@@ -7,6 +7,11 @@ import { ListView } from "./views/ListView";
 import { GridView } from "./views/GridView";
 import type { Device } from "@sd/ts-client";
 import { useNormalizedQuery } from "../../client";
+import { GlassButton } from "../../components/GlassButton";
+import { GlassContextMenu } from "../../components/GlassContextMenu";
+import { SearchToolbar } from "../../components/SearchToolbar";
+import { useSearchStore } from "./context/SearchContext";
+import { List, ArrowLeft } from "phosphor-react-native";
 
 type ViewMode = "list" | "grid";
 
@@ -20,6 +25,7 @@ export function ExplorerScreen() {
 		id?: string;
 	}>();
 	const [viewMode, setViewMode] = useState<ViewMode>("list");
+	const { isSearchMode, query } = useSearchStore();
 
 	// Parse params into the format expected by hooks
 	const params = useMemo(() => {
@@ -41,7 +47,7 @@ export function ExplorerScreen() {
 
 	// Fetch device for path display
 	const { data: devices } = useNormalizedQuery<any, Device[]>({
-		wireMethod: "query:devices.list",
+		query: "devices.list",
 		input: {
 			include_offline: true,
 			include_details: false,
@@ -103,52 +109,75 @@ export function ExplorerScreen() {
 				className="bg-app-box border-b border-app-line"
 				style={{ paddingTop: insets.top }}
 			>
-				<View className="flex-row items-center justify-between px-4 h-14">
+				<View className="relative flex-row items-center justify-between px-4 h-14">
 					{/* Back button */}
-					<Pressable
+					<GlassButton
 						onPress={() => router.back()}
-						className="w-10 h-10 items-center justify-center -ml-2"
-					>
-						<Text className="text-ink text-xl">←</Text>
-					</Pressable>
+						icon={
+							<ArrowLeft size={20} color="hsl(235, 10%, 55%)" weight="bold" />
+						}
+					/>
 
-					{/* Title */}
-					<Text className="text-ink font-semibold text-lg flex-1 text-center">
+					{/* Title - absolutely centered */}
+					<Text
+						className="absolute left-0 right-0 text-ink font-semibold text-lg text-center"
+						pointerEvents="none"
+					>
 						{title}
 					</Text>
 
-					{/* View mode switcher */}
-					<View className="flex-row gap-1">
-						<Pressable
-							onPress={() => setViewMode("list")}
-							className={`w-10 h-10 items-center justify-center rounded-md ${
-								viewMode === "list" ? "bg-accent/10" : ""
-							}`}
-						>
-							<Text
-								className={
-									viewMode === "list" ? "text-accent" : "text-ink-dull"
+					{/* View mode menu */}
+					<GlassContextMenu
+						items={[
+							{
+								label: "List View",
+								onPress: () => setViewMode("list"),
+								icon: (
+									<List
+										size={20}
+										color={
+											viewMode === "list"
+												? "hsl(208, 100%, 57%)"
+												: "hsl(235, 10%, 55%)"
+										}
+										weight="bold"
+									/>
+								),
+								active: viewMode === "list",
+							},
+							{
+								label: "Grid View",
+								onPress: () => setViewMode("grid"),
+								icon: (
+									<Text
+										style={{
+											fontSize: 20,
+											color:
+												viewMode === "grid"
+													? "hsl(208, 100%, 57%)"
+													: "hsl(235, 10%, 55%)",
+										}}
+									>
+										⊞
+									</Text>
+								),
+								active: viewMode === "grid",
+							},
+						]}
+						trigger={
+							<GlassButton
+								icon={
+									<Text className="text-ink-dull" style={{ fontSize: 18 }}>
+										⋯
+									</Text>
 								}
-							>
-								≡
-							</Text>
-						</Pressable>
-						<Pressable
-							onPress={() => setViewMode("grid")}
-							className={`w-10 h-10 items-center justify-center rounded-md ${
-								viewMode === "grid" ? "bg-accent/10" : ""
-							}`}
-						>
-							<Text
-								className={
-									viewMode === "grid" ? "text-accent" : "text-ink-dull"
-								}
-							>
-								⊞
-							</Text>
-						</Pressable>
-					</View>
+							/>
+						}
+					/>
 				</View>
+
+				{/* Search Toolbar */}
+				{isSearchMode && query.length >= 2 && <SearchToolbar />}
 			</View>
 
 			{/* Content */}

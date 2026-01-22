@@ -1,26 +1,25 @@
-import {sounds} from '@sd/assets/sounds';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {
-	useLibraryMutation,
-	useLibraryQuery,
-	useSpacedriveClient
-} from '../../../contexts/SpacedriveContext';
-import {useVolumeIndexingStore} from '../../../stores/volumeIndexingStore';
-import type {JobListItem} from '../types';
-
-// Global set to track which jobs have already played their completion sound
-// This prevents multiple hook instances from playing the sound multiple times
-const completedJobSounds = new Set<string>();
-
-// Global throttle to prevent multiple sounds within 5 seconds
-let lastSoundPlayedAt = 0;
-const SOUND_THROTTLE_MS = 5000;
+import type {JobListItem, GenericProgress} from '../generated/types';
+import {useLibraryMutation} from './useMutation';
+import {useLibraryQuery} from './useQuery';
+import {useSpacedriveClient} from './useClient';
 
 // Speed sample for historical graph
-interface SpeedSample {
+export interface SpeedSample {
 	timestamp: number; // Date.now()
 	bytesPerSecond: number;
 }
+
+// Extended job with runtime progress fields from JobProgress events
+export type ExtendedJobListItem = JobListItem & {
+	current_phase?: string;
+	current_path?: any;
+	status_message?: string;
+	generic_progress?: GenericProgress;
+};
+
+// Re-export GenericProgress for convenience
+export type {GenericProgress};
 
 // Downsample speed history to max 100 samples
 function downsampleSpeedHistory(samples: SpeedSample[]): SpeedSample[] {
@@ -33,8 +32,7 @@ function downsampleSpeedHistory(samples: SpeedSample[]): SpeedSample[] {
 		// Average the samples in this bucket
 		const bucket = samples.slice(i, i + step);
 		const avgRate =
-			bucket.reduce((sum, s) => sum + s.bytesPerSecond, 0) /
-			bucket.length;
+			bucket.reduce((sum, s) => sum + s.bytesPerSecond, 0) / bucket.length;
 		downsampled.push({
 			timestamp: bucket[0].timestamp,
 			bytesPerSecond: avgRate
@@ -44,14 +42,41 @@ function downsampleSpeedHistory(samples: SpeedSample[]): SpeedSample[] {
 	return downsampled;
 }
 
+export interface UseJobsOptions {
+	/**
+	 * Callback when a job completes successfully
+	 */
+	onJobCompleted?: (jobId: string, jobType: string) => void;
+	/**
+	 * Callback when a job fails
+	 */
+	onJobFailed?: (jobId: string) => void;
+	/**
+	 * Callback when a job is cancelled
+	 */
+	onJobCancelled?: (jobId: string) => void;
+}
+
+export interface UseJobsReturn {
+	jobs: ExtendedJobListItem[];
+	activeJobCount: number;
+	hasRunningJobs: boolean;
+	pause: (jobId: string) => Promise<void>;
+	resume: (jobId: string) => Promise<void>;
+	cancel: (jobId: string) => Promise<void>;
+	isLoading: boolean;
+	error: any;
+	getSpeedHistory: (jobId: string) => SpeedSample[];
+}
+
 /**
- * Unified hook for job management and counting.
- * Prevents duplicate queries and subscriptions that were causing infinite loops.
+ * Core job management hook - shared between desktop and mobile.
+ * Handles job list queries, event subscriptions, and speed history tracking.
  */
-export function useJobs() {
-	const [jobs, setJobs] = useState<JobListItem[]>([]);
+export function useJobs(options: UseJobsOptions = {}): UseJobsReturn {
+	const {onJobCompleted, onJobFailed, onJobCancelled} = options;
+	const [jobs, setJobs] = useState<ExtendedJobListItem[]>([]);
 	const client = useSpacedriveClient();
-	const {setVolumeJob, clearVolumeJob} = useVolumeIndexingStore();
 
 	// Speed history for graphing (job_id -> samples)
 	const speedHistoryRef = useRef<Map<string, SpeedSample[]>>(new Map());
@@ -75,33 +100,16 @@ export function useJobs() {
 	}, [refetch]);
 
 	// Ref for stable jobs access to avoid stale closures in event handlers
-	const jobsRef = useRef<JobListItem[]>([]);
+	const jobsRef = useRef<ExtendedJobListItem[]>([]);
 	useEffect(() => {
 		jobsRef.current = jobs;
 	}, [jobs]);
 
 	useEffect(() => {
 		if (data?.jobs) {
-			// Filter out background jobs (they have run_in_background: true and no action_context)
-			// Volume indexing jobs will have action_context with volume_fingerprint
-			const foregroundJobs = data.jobs;
-			setJobs(foregroundJobs);
-
-			// Update volume indexing tracking for active volume index jobs
-			foregroundJobs.forEach((job) => {
-				if (job.name === 'indexer' && job.status === 'running') {
-					const volumeFingerprint =
-						job.action_context?.context?.volume_fingerprint;
-					if (
-						volumeFingerprint &&
-						typeof volumeFingerprint === 'string'
-					) {
-						setVolumeJob(volumeFingerprint, job.id);
-					}
-				}
-			});
+			setJobs(data.jobs as ExtendedJobListItem[]);
 		}
-	}, [data, setVolumeJob]);
+	}, [data]);
 
 	// Single subscription for all job events
 	useEffect(() => {
@@ -111,16 +119,8 @@ export function useJobs() {
 		let isCancelled = false;
 
 		const handleEvent = (event: any) => {
-			// Handle JobStarted to track volume indexing jobs
 			if ('JobStarted' in event) {
 				refetchRef.current();
-
-				// Check if this is a volume indexing job
-				const startedData = event.JobStarted;
-				if (startedData?.job_type === 'indexer') {
-					// Query job list to get action_context
-					// This will be available after refetch completes
-				}
 			} else if (
 				'JobQueued' in event ||
 				'JobCompleted' in event ||
@@ -140,52 +140,17 @@ export function useJobs() {
 						event.JobCancelled?.job_id;
 
 					if (jobId) {
-						// Clear volume indexing mapping if this was a volume job
-						// Use jobsRef.current to avoid stale closure (jobs state may be outdated)
-						const completedJob = jobsRef.current.find((j) => j.id === jobId);
-						if (completedJob?.name === 'indexer') {
-							const volumeFingerprint =
-								completedJob.action_context?.context
-									?.volume_fingerprint;
-							if (
-								volumeFingerprint &&
-								typeof volumeFingerprint === 'string'
-							) {
-								clearVolumeJob(volumeFingerprint);
-							}
-						}
-
 						// Clean up speed history for completed/failed/cancelled jobs
 						speedHistoryRef.current.delete(jobId);
 
-						if (
-							'JobCompleted' in event &&
-							!completedJobSounds.has(jobId)
-						) {
-							completedJobSounds.add(jobId);
-
-							// Throttle: only play sound if enough time has passed since last sound
-							const now = Date.now();
-							if (now - lastSoundPlayedAt >= SOUND_THROTTLE_MS) {
-								lastSoundPlayedAt = now;
-
-								// Play job-specific sound
-								const jobType = event.JobCompleted?.job_type;
-								if (
-									jobType?.includes('copy') ||
-									jobType?.includes('Copy')
-								) {
-									sounds.copy();
-								} else {
-									sounds.jobDone();
-								}
-							}
-
-							// Clean up old entries after 5 seconds to prevent memory leak
-							setTimeout(
-								() => completedJobSounds.delete(jobId),
-								5000
-							);
+						// Call callbacks
+						if ('JobCompleted' in event) {
+							const jobType = event.JobCompleted?.job_type || '';
+							onJobCompleted?.(jobId, jobType);
+						} else if ('JobFailed' in event) {
+							onJobFailed?.(jobId);
+						} else if ('JobCancelled' in event) {
+							onJobCancelled?.(jobId);
 						}
 					}
 				}
@@ -250,7 +215,7 @@ export function useJobs() {
 			]
 		};
 
-		client.subscribeFiltered(filter, handleEvent).then((unsub) => {
+		client.subscribeFiltered(filter, handleEvent).then((unsub: () => void) => {
 			if (isCancelled) {
 				unsub();
 			} else {
@@ -262,7 +227,7 @@ export function useJobs() {
 			isCancelled = true;
 			unsubscribe?.();
 		};
-	}, [client]);
+	}, [client, onJobCompleted, onJobFailed, onJobCancelled]);
 
 	const pause = async (jobId: string) => {
 		try {
@@ -317,6 +282,3 @@ export function useJobs() {
 		getSpeedHistory
 	};
 }
-
-// Export type for external use
-export type {SpeedSample};

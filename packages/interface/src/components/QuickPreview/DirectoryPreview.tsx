@@ -10,7 +10,7 @@ interface DirectoryPreviewProps {
 
 export function DirectoryPreview({ file }: DirectoryPreviewProps) {
 	const directoryQuery = useNormalizedQuery({
-		wireMethod: "query:files.directory_listing",
+		query: "files.directory_listing",
 		input: {
 			path: file.sd_path,
 			limit: null,

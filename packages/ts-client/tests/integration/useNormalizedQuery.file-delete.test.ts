@@ -126,7 +126,7 @@ describe("useNormalizedQuery - File Deletion Integration", () => {
 		const { result: folderResult } = renderHook(
 			() =>
 				useNormalizedQuery({
-					wireMethod: "query:files.directory_listing",
+					query: "files.directory_listing",
 					input: {
 						path: {
 							Physical: {

@@ -127,7 +127,7 @@ describe("useNormalizedQuery - File Moves Integration", () => {
 		const { result: folderAResult } = renderHook(
 			() =>
 				useNormalizedQuery({
-					wireMethod: "query:files.directory_listing",
+					query: "files.directory_listing",
 					input: {
 						path: {
 							Physical: {
@@ -154,7 +154,7 @@ describe("useNormalizedQuery - File Moves Integration", () => {
 		const { result: folderBResult } = renderHook(
 			() =>
 				useNormalizedQuery({
-					wireMethod: "query:files.directory_listing",
+					query: "files.directory_listing",
 					input: {
 						path: {
 							Physical: {

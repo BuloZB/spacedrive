@@ -14,7 +14,7 @@ export function TagView() {
 
 	// Fetch the tag details
 	const {data: tagData, isLoading: tagLoading} = useNormalizedQuery({
-		wireMethod: 'query:tags.by_id',
+		query: 'tags.by_id',
 		input: {tag_id: tagId},
 		resourceType: 'tag',
 		resourceId: tagId,
@@ -23,7 +23,7 @@ export function TagView() {
 
 	// Fetch tag ancestors for breadcrumb
 	const {data: ancestorsData} = useNormalizedQuery({
-		wireMethod: 'query:tags.ancestors',
+		query: 'tags.ancestors',
 		input: {tag_id: tagId},
 		resourceType: 'tag',
 		resourceId: tagId,
@@ -32,7 +32,7 @@ export function TagView() {
 
 	// Fetch tag children for quick filters
 	const {data: childrenData} = useNormalizedQuery({
-		wireMethod: 'query:tags.children',
+		query: 'tags.children',
 		input: {tag_id: tagId},
 		resourceType: 'tag',
 		resourceId: tagId,
@@ -41,7 +41,7 @@ export function TagView() {
 
 	// Fetch related tags for suggestions
 	const {data: relatedData} = useNormalizedQuery({
-		wireMethod: 'query:tags.related',
+		query: 'tags.related',
 		input: {tag_id: tagId},
 		resourceType: 'tag',
 		resourceId: tagId,
@@ -50,7 +50,7 @@ export function TagView() {
 
 	// Fetch files with this tag
 	const {data: filesData, isLoading: filesLoading} = useNormalizedQuery({
-		wireMethod: 'query:files.by_tag',
+		query: 'files.by_tag',
 		input: {
 			tag_id: tagId,
 			include_children: false, // TODO: Make this toggleable

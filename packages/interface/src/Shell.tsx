@@ -15,9 +15,15 @@ import {
 	useTabManager,
 } from "./components/TabManager";
 import { usePlatform } from "./contexts/PlatformContext";
+import { useTheme } from "./hooks/useTheme";
 
 interface ShellProps {
 	client: SpacedriveClient;
+}
+
+function ThemeApplier() {
+	useTheme();
+	return null;
 }
 
 function ShellWithTabs() {
@@ -25,6 +31,7 @@ function ShellWithTabs() {
 
 	return (
 		<DndProvider>
+			<ThemeApplier />
 			<RouterProvider router={router} />
 		</DndProvider>
 	);

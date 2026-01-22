@@ -202,6 +202,8 @@ PODS:
     - Yoga
   - ExpoAsset (12.0.11):
     - ExpoModulesCore
+  - ExpoBlur (15.0.8):
+    - ExpoModulesCore
   - ExpoCamera (17.0.10):
     - ExpoModulesCore
     - ZXingObjC/OneD
@@ -276,6 +278,28 @@ PODS:
   - libwebp/sharpyuv (1.5.0)
   - libwebp/webp (1.5.0):
     - libwebp/sharpyuv
+  - LiquidGlass (0.7.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - RCTDeprecation (0.81.5)
   - RCTRequired (0.81.5)
   - RCTTypeSafety (0.81.5):
@@ -2352,6 +2376,7 @@ DEPENDENCIES:
   - "expo-dev-menu (from `../../../node_modules/.bun/expo-dev-menu@7.0.18+668c6eeaed077a0c/node_modules/expo-dev-menu`)"
   - "expo-dev-menu-interface (from `../../../node_modules/.bun/expo-dev-menu-interface@2.0.0+668c6eeaed077a0c/node_modules/expo-dev-menu-interface/ios`)"
   - "ExpoAsset (from `../../../node_modules/.bun/expo-asset@12.0.11+668c6eeaed077a0c/node_modules/expo-asset/ios`)"
+  - "ExpoBlur (from `../../../node_modules/.bun/expo-blur@15.0.8+668c6eeaed077a0c/node_modules/expo-blur/ios`)"
   - "ExpoCamera (from `../../../node_modules/.bun/expo-camera@17.0.10+668c6eeaed077a0c/node_modules/expo-camera/ios`)"
   - "ExpoDocumentPicker (from `../../../node_modules/.bun/expo-document-picker@14.0.8+668c6eeaed077a0c/node_modules/expo-document-picker/ios`)"
   - "ExpoFileSystem (from `../../../node_modules/.bun/expo-file-system@19.0.20+668c6eeaed077a0c/node_modules/expo-file-system/ios`)"
@@ -2366,6 +2391,7 @@ DEPENDENCIES:
   - "EXUpdatesInterface (from `../../../node_modules/.bun/expo-updates-interface@2.0.0+668c6eeaed077a0c/node_modules/expo-updates-interface/ios`)"
   - "FBLazyVector (from `../../../node_modules/.bun/react-native@0.81.5+87dd5a4c738f4c73/node_modules/react-native/Libraries/FBLazyVector`)"
   - "hermes-engine (from `../../../node_modules/.bun/react-native@0.81.5+87dd5a4c738f4c73/node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)"
+  - "LiquidGlass (from `../../../node_modules/.bun/@callstack+liquid-glass@0.7.0+87dd5a4c738f4c73/node_modules/@callstack/liquid-glass`)"
   - "RCTDeprecation (from `../../../node_modules/.bun/react-native@0.81.5+87dd5a4c738f4c73/node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)"
   - "RCTRequired (from `../../../node_modules/.bun/react-native@0.81.5+87dd5a4c738f4c73/node_modules/react-native/Libraries/Required`)"
   - "RCTTypeSafety (from `../../../node_modules/.bun/react-native@0.81.5+87dd5a4c738f4c73/node_modules/react-native/Libraries/TypeSafety`)"
@@ -2473,6 +2499,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/.bun/expo-dev-menu-interface@2.0.0+668c6eeaed077a0c/node_modules/expo-dev-menu-interface/ios"
   ExpoAsset:
     :path: "../../../node_modules/.bun/expo-asset@12.0.11+668c6eeaed077a0c/node_modules/expo-asset/ios"
+  ExpoBlur:
+    :path: "../../../node_modules/.bun/expo-blur@15.0.8+668c6eeaed077a0c/node_modules/expo-blur/ios"
   ExpoCamera:
     :path: "../../../node_modules/.bun/expo-camera@17.0.10+668c6eeaed077a0c/node_modules/expo-camera/ios"
   ExpoDocumentPicker:
@@ -2502,6 +2530,8 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../../../node_modules/.bun/react-native@0.81.5+87dd5a4c738f4c73/node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-2025-07-07-RNv0.81.0-e0fc67142ec0763c6b6153ca2bf96df815539782
+  LiquidGlass:
+    :path: "../../../node_modules/.bun/@callstack+liquid-glass@0.7.0+87dd5a4c738f4c73/node_modules/@callstack/liquid-glass"
   RCTDeprecation:
     :path: "../../../node_modules/.bun/react-native@0.81.5+87dd5a4c738f4c73/node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation"
   RCTRequired:
@@ -2663,6 +2693,7 @@ SPEC CHECKSUMS:
   expo-dev-menu: 05b18812110c175814c6af0d09dd658abcc5e00d
   expo-dev-menu-interface: 600df12ea01efecdd822daaf13cc0ac091775533
   ExpoAsset: 23a958e97d3d340919fe6774db35d563241e6c03
+  ExpoBlur: b90747a3f22a8b6ceffd9cb0dc41a4184efdc656
   ExpoCamera: 6a326deb45ba840749652e4c15198317aa78497e
   ExpoDocumentPicker: 7cd9e71a0f66fb19eb0a586d6f26eee1284692e0
   ExpoFileSystem: 3592defb5faa3c5866a2900eae87ceec8cc0489f
@@ -2680,6 +2711,7 @@ SPEC CHECKSUMS:
   libavif: 84bbb62fb232c3018d6f1bab79beea87e35de7b7
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f
   libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
+  LiquidGlass: 2bbbcea458d5a2b018c2dd024040c4023d73eec8
   RCTDeprecation: 943572d4be82d480a48f4884f670135ae30bf990
   RCTRequired: 8f3cfc90cc25cf6e420ddb3e7caaaabc57df6043
   RCTTypeSafety: 16a4144ca3f959583ab019b57d5633df10b5e97c

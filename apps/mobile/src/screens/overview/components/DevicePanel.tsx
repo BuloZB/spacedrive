@@ -65,7 +65,7 @@ export function DevicePanel({ onLocationSelect }: DevicePanelProps = {}) {
 		any,
 		any
 	>({
-		wireMethod: "query:volumes.list",
+		query: "volumes.list",
 		input: { filter: "All" },
 		resourceType: "volume",
 	});
@@ -75,7 +75,7 @@ export function DevicePanel({ onLocationSelect }: DevicePanelProps = {}) {
 		any,
 		DeviceWithConnection[]
 	>({
-		wireMethod: "query:devices.list",
+		query: "devices.list",
 		input: { include_offline: true, include_details: false },
 		resourceType: "device",
 	});
@@ -83,7 +83,7 @@ export function DevicePanel({ onLocationSelect }: DevicePanelProps = {}) {
 	// Fetch all locations
 	const { data: locationsData, isLoading: locationsLoading } =
 		useNormalizedQuery<any, any>({
-			wireMethod: "query:locations.list",
+			query: "locations.list",
 			input: null,
 			resourceType: "location",
 		});
@@ -152,6 +152,7 @@ export function DevicePanel({ onLocationSelect }: DevicePanelProps = {}) {
 
 	return (
 		<View className="mb-6">
+
 			{devices.map((device: DeviceWithConnection) => {
 				const deviceVolumes = volumesByDevice[device.id] || [];
 				const deviceJobs = jobsByDevice[device.id] || [];
@@ -178,7 +179,7 @@ export function DevicePanel({ onLocationSelect }: DevicePanelProps = {}) {
 			})}
 
 			{devices.length === 0 && (
-				<View className="bg-app-box border border-app-line rounded-xl overflow-hidden">
+				<View className="border border-app-line/30 rounded-xl overflow-hidden">
 					<View className="py-12 items-center">
 						<Text className="text-4xl opacity-20 mb-3">💾</Text>
 						<Text className="text-sm text-ink-faint">No devices detected</Text>
@@ -243,9 +244,9 @@ function DeviceCard({
 	);
 
 	return (
-		<View className="bg-app-darkBox border border-app-line mb-4 rounded-xl overflow-hidden">
+		<View className="border border-app-line/30 mb-6 rounded-xl overflow-hidden">
 			{/* Device Header */}
-			<View className="bg-app-box border-b border-app-line px-6 py-4">
+			<View className="border-b border-app-line/30 px-6 py-4">
 				<View className="flex-row items-center gap-4">
 					{/* Left: Device icon and name */}
 					<View className="flex-1 flex-row items-center gap-3">
@@ -304,7 +305,7 @@ function DeviceCard({
 
 			{/* Active Jobs Section */}
 			{activeJobs.length > 0 && (
-				<View className="border-b border-app-line bg-app/50 px-3 py-3 gap-2">
+				<View className="border-b border-app-line/30 px-3 py-3 gap-2">
 					{/* TODO: Add JobCard component when ported */}
 					<Text className="text-ink-dull text-xs">
 						{activeJobs.length} active {activeJobs.length === 1 ? "job" : "jobs"}
@@ -349,7 +350,7 @@ function LocationsScroller({
 	onLocationSelect,
 }: LocationsScrollerProps) {
 	return (
-		<View className="border-b border-app-line px-3 py-3">
+		<View className="border-b border-app-line/30 px-3 py-3">
 			<ScrollView horizontal showsHorizontalScrollIndicator={false} className="gap-2">
 				{locations.map((location) => {
 					const isSelected = selectedLocationId === location.id;

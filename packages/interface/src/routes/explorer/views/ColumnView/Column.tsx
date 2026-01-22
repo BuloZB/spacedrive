@@ -132,7 +132,7 @@ export const Column = memo(function Column({
 	const { selectedFiles } = useSelection();
 
 	const directoryQuery = useNormalizedQuery({
-		wireMethod: "query:files.directory_listing",
+		query: "files.directory_listing",
 		input: {
 			path: path!,
 			limit: null,

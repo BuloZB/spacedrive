@@ -525,7 +525,7 @@ export type DataVolumeSnapshot = { entries_synced: { [key in string]: number }; 
 /**
  * Time-based fields that can be filtered
  */
-export type DateField = "CreatedAt" | "ModifiedAt" | "AccessedAt";
+export type DateField = "CreatedAt" | "ModifiedAt" | "AccessedAt" | "IndexedAt";
 
 /**
  * Filter for a time-based field
@@ -1066,7 +1066,7 @@ resource_type: string;
 /**
  * The deleted resource's ID
  */
-resource_id: string } } | { LocationAdded: { library_id: string; location_id: string; path: string } } | { LocationRemoved: { library_id: string; location_id: string } } | { FilesIndexed: { library_id: string; location_id: string; count: number } } | { ThumbnailsGenerated: { library_id: string; count: number } } | { FileOperationCompleted: { library_id: string; operation: FileOperation; affected_files: number } } | { FilesModified: { library_id: string; paths: string[] } } | { Custom: { event_type: string } };
+resource_id: string } } | { LocationAdded: { library_id: string; location_id: string; path: string } } | { LocationRemoved: { library_id: string; location_id: string } } | { FilesIndexed: { library_id: string; location_id: string; count: number } } | { ThumbnailsGenerated: { library_id: string; count: number } } | { FileOperationCompleted: { library_id: string; operation: FileOperation; affected_files: number } } | { FilesModified: { library_id: string; paths: string[] } } | { ConfigChanged: { field: string } } | { Custom: { event_type: string } };
 
 /**
  * Event category for grouping related events
@@ -2480,6 +2480,14 @@ thumbnail_count: number;
  */
 database_size: number; 
 /**
+ * Total number of sidecar files (all types: thumbnails, embeddings, etc.)
+ */
+sidecar_count?: number; 
+/**
+ * Total size of all sidecar files in bytes
+ */
+sidecar_size?: number; 
+/**
  * Last time the library was fully indexed
  */
 last_indexed: string | null; 
@@ -3594,7 +3602,7 @@ export type SortDirection = "Asc" | "Desc";
 /**
  * Fields that can be used for sorting
  */
-export type SortField = "Relevance" | "Name" | "Size" | "ModifiedAt" | "CreatedAt";
+export type SortField = "Relevance" | "Name" | "Size" | "ModifiedAt" | "CreatedAt" | "IndexedAt";
 
 /**
  * Sorting options for search results

@@ -42,7 +42,7 @@ export function useExplorerKeyboard() {
 
 	// Query files for keyboard operations
 	const directoryQuery = useNormalizedQuery({
-		wireMethod: "query:files.directory_listing",
+		query: "files.directory_listing",
 		input: currentPath
 			? {
 					path: currentPath,

@@ -9,17 +9,19 @@ import {
 	Fingerprint,
 	HardDrive,
 	Hash,
+	Heart,
 	Image,
 	Info,
 	MagnifyingGlass,
 	MapPin,
 	Microphone,
-	Palette,
 	Paperclip,
 	PaperPlaneRight,
+	ShareNetwork,
 	Sparkle,
 	Tag as TagIcon,
 	TextAa,
+	Timer,
 	Trash,
 	VideoCamera
 } from '@phosphor-icons/react';
@@ -27,6 +29,7 @@ import {getIcon} from '@sd/assets/util';
 import type {File} from '@sd/ts-client';
 import {toast} from '@sd/ui';
 import clsx from 'clsx';
+import {LocationMap} from '../LocationMap';
 import {useState} from 'react';
 import {useJobsContext} from '../../../components/JobManager/hooks/JobsContext';
 import {TagSelectorButton} from '../../../components/Tags';
@@ -51,11 +54,46 @@ export function FileInspector({file}: FileInspectorProps) {
 	const [activeTab, setActiveTab] = useState('overview');
 	const isDev = import.meta.env.DEV;
 
+	// Extract parent directory for pathScope to enable reactive sidecar updates
+	const getParentPath = (): SdPath | undefined => {
+		if (!file.sd_path) return undefined;
+
+		if ('Physical' in file.sd_path) {
+			const fullPath = file.sd_path.Physical.path;
+			const lastSlash = fullPath.lastIndexOf('/');
+			if (lastSlash === -1) return undefined;
+
+			return {
+				Physical: {
+					...file.sd_path.Physical,
+					path: fullPath.substring(0, lastSlash)
+				}
+			};
+		}
+
+		if ('Cloud' in file.sd_path) {
+			const fullPath = file.sd_path.Cloud.path;
+			const lastSlash = fullPath.lastIndexOf('/');
+			if (lastSlash === -1) return undefined;
+
+			return {
+				Cloud: {
+					...file.sd_path.Cloud,
+					path: fullPath.substring(0, lastSlash)
+				}
+			};
+		}
+
+		return undefined;
+	};
+
 	const fileQuery = useNormalizedQuery<{file_id: string}, File>({
-		wireMethod: 'query:files.by_id',
+		query: 'files.by_id',
 		input: {file_id: file?.id || ''},
 		resourceType: 'file',
-		resourceId: file?.id, // Filter batch events to only this file
+		resourceId: file?.id,
+		pathScope: getParentPath(),
+		includeDescendants: false,
 		enabled: !!file?.id
 	});
 
@@ -110,6 +148,474 @@ export function FileInspector({file}: FileInspectorProps) {
 				</TabContent>
 			</div>
 		</>
+	);
+}
+
+// Quick Actions Component - Favorite, Share & Jobs buttons
+function FileQuickActions({file}: {file: File}) {
+	const platform = usePlatform();
+	const [isFavorite, setIsFavorite] = useState(false); // TODO: Get from file metadata
+
+	// AI Processing mutations
+	const extractText = useLibraryMutation('media.ocr.extract');
+	const transcribeAudio = useLibraryMutation('media.speech.transcribe');
+	const generateSplat = useLibraryMutation('media.splat.generate');
+	const regenerateThumbnail = useLibraryMutation('media.thumbnail.regenerate');
+	const generateThumbstrip = useLibraryMutation('media.thumbstrip.generate');
+	const generateProxy = useLibraryMutation('media.proxy.generate');
+
+	// Check content kind for available actions
+	const isImage = getContentKind(file) === 'image';
+	const isVideo = getContentKind(file) === 'video';
+	const isAudio = getContentKind(file) === 'audio';
+	const showJobsButton = isImage || isVideo || isAudio;
+
+	// Get physical path for sharing
+	const getPhysicalPath = (): string | null => {
+		if (file.sd_path && 'Physical' in file.sd_path) {
+			return (file.sd_path as {Physical: {path: string}}).Physical.path;
+		}
+		return null;
+	};
+
+	const physicalPath = getPhysicalPath();
+	const canShare = !!physicalPath && !!platform.shareFiles;
+
+	const handleFavorite = async () => {
+		setIsFavorite(!isFavorite);
+		// TODO: Wire up to metadata.set_favorite mutation when available
+	};
+
+	const handleShare = async () => {
+		if (!physicalPath || !platform.shareFiles) {
+			toast.error({
+				title: 'Cannot Share',
+				body: 'This file cannot be shared from its current location'
+			});
+			return;
+		}
+
+		try {
+			await platform.shareFiles([physicalPath]);
+		} catch (err) {
+			console.error('Failed to share file:', err);
+			toast.error({
+				title: 'Share Failed',
+				body: String(err)
+			});
+		}
+	};
+
+	// Jobs context menu
+	const jobsMenu = useContextMenu({
+		items: [
+			// Image actions
+			{
+				icon: TextAa,
+				label: 'Extract Text (OCR)',
+				onClick: () => {
+					extractText.mutate({
+						entry_uuid: file.id,
+						languages: ['eng'],
+						force: false
+					});
+				},
+				condition: () => isImage
+			},
+			{
+				icon: Cube,
+				label: 'Generate 3D Splat',
+				onClick: () => {
+					generateSplat.mutate({
+						entry_uuid: file.id,
+						model_path: null
+					});
+				},
+				condition: () => isImage
+			},
+			// Video/Audio actions
+			{
+				icon: Microphone,
+				label: 'Generate Subtitles',
+				onClick: () => {
+					transcribeAudio.mutate({
+						entry_uuid: file.id,
+						model: 'base',
+						language: null
+					});
+				},
+				condition: () => isVideo || isAudio
+			},
+			// Video-only actions
+			{
+				icon: FilmStrip,
+				label: 'Generate Thumbstrip',
+				onClick: () => {
+					generateThumbstrip.mutate({
+						entry_uuid: file.id,
+						variants: ['thumbstrip_preview', 'thumbstrip_detailed'],
+						force: false
+					});
+				},
+				condition: () => isVideo
+			},
+			{
+				icon: VideoCamera,
+				label: 'Generate Scrubbing Proxy',
+				onClick: () => {
+					generateProxy.mutate({
+						entry_uuid: file.id,
+						resolution: 'scrubbing',
+						force: false,
+						use_hardware_accel: true
+					});
+				},
+				condition: () => isVideo
+			},
+			{type: 'separator' as const},
+			// Common actions
+			{
+				icon: ArrowsClockwise,
+				label: 'Regenerate Thumbnails',
+				onClick: () => {
+					regenerateThumbnail.mutate({
+						entry_uuid: file.id,
+						variants: ['grid@1x', 'grid@2x', 'detail@1x'],
+						force: true
+					});
+				},
+				condition: () => isImage || isVideo
+			}
+		]
+	});
+
+	return (
+		<div className="flex items-center gap-1.5">
+			{/* Favorite Button */}
+			<button
+				type="button"
+				onClick={handleFavorite}
+				className={clsx(
+					'flex size-7 items-center justify-center rounded-full border transition-all active:scale-95',
+					isFavorite
+						? 'border-accent/30 bg-accent/20 text-accent'
+						: 'border-sidebar-line/30 bg-sidebar-box/20 text-sidebar-inkDull hover:bg-sidebar-box/30 hover:text-sidebar-ink'
+				)}
+				title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+			>
+				<Heart size={14} weight={isFavorite ? 'fill' : 'bold'} />
+			</button>
+
+			{/* Share Button */}
+			{canShare && (
+				<button
+					type="button"
+					onClick={handleShare}
+					className="border-sidebar-line/30 bg-sidebar-box/20 text-sidebar-inkDull hover:bg-sidebar-box/30 hover:text-sidebar-ink flex size-7 items-center justify-center rounded-full border transition-all active:scale-95"
+					title="Share"
+				>
+					<ShareNetwork size={14} weight="bold" />
+				</button>
+			)}
+
+			{/* Jobs Button */}
+			{showJobsButton && (
+				<button
+					type="button"
+					onClick={(e) => jobsMenu.show(e)}
+					className="border-sidebar-line/30 bg-sidebar-box/20 text-sidebar-inkDull hover:bg-sidebar-box/30 hover:text-sidebar-ink flex size-7 items-center justify-center rounded-full border transition-all active:scale-95"
+					title="Processing Jobs"
+				>
+					<Sparkle size={14} weight="bold" />
+				</button>
+			)}
+		</div>
+	);
+}
+
+// Media Metadata Card Component - iOS Photos style
+function MediaMetadataCard({file}: {file: File}) {
+	const imageData = file.image_media_data;
+	const videoData = file.video_media_data;
+
+	if (!imageData && !videoData) return null;
+
+	// Format date/time like iOS: "Monday • Jan 19, 2026 • 08:00"
+	const formatMediaDate = (dateStr: string | null | undefined) => {
+		if (!dateStr) return null;
+		const date = new Date(dateStr);
+		const weekday = date.toLocaleDateString('en-US', {weekday: 'long'});
+		const monthDay = date.toLocaleDateString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric'
+		});
+		const time = date.toLocaleTimeString('en-US', {
+			hour: '2-digit',
+			minute: '2-digit',
+			hour12: false
+		});
+		return `${weekday} • ${monthDay} • ${time}`;
+	};
+
+	// Calculate megapixels
+	const getMegapixels = (width: number, height: number) => {
+		const mp = (width * height) / 1000000;
+		return mp >= 1 ? `${mp.toFixed(1)} MP` : `${(mp * 1000).toFixed(0)} KP`;
+	};
+
+	// Get format from extension
+	const getFormat = () => {
+		const ext = file.extension?.toUpperCase();
+		if (!ext) return null;
+		// Map common extensions to display names
+		const formatMap: Record<string, string> = {
+			HEIC: 'HEIF',
+			HEIF: 'HEIF',
+			JPG: 'JPEG',
+			JPEG: 'JPEG',
+			PNG: 'PNG',
+			WEBP: 'WebP',
+			RAW: 'RAW',
+			DNG: 'DNG',
+			CR2: 'RAW',
+			NEF: 'RAW',
+			ARW: 'RAW',
+			MOV: 'MOV',
+			MP4: 'MP4',
+			M4V: 'M4V',
+			WEBM: 'WebM',
+			MKV: 'MKV',
+			AVI: 'AVI'
+		};
+		return formatMap[ext] || ext;
+	};
+
+	// Get camera display name
+	const getCameraDisplay = () => {
+		if (imageData?.camera_make && imageData?.camera_model) {
+			return `${imageData.camera_make} ${imageData.camera_model}`;
+		}
+		if (imageData?.camera_model) return imageData.camera_model;
+		if (imageData?.camera_make) return imageData.camera_make;
+		return null;
+	};
+
+	// Get lens/camera info line (e.g., "Main Camera — 24 mm ƒ1.78")
+	const getLensInfo = () => {
+		const parts: string[] = [];
+
+		if (imageData?.lens_model) {
+			parts.push(imageData.lens_model);
+		} else if (imageData?.focal_length) {
+			// If no lens model, just show focal length
+			parts.push(imageData.focal_length);
+		}
+
+		if (imageData?.aperture) {
+			// Format aperture with ƒ symbol
+			const aperture = imageData.aperture.replace(/^f\/?/i, 'ƒ');
+			if (parts.length > 0) {
+				parts[parts.length - 1] += ` ${aperture}`;
+			} else {
+				parts.push(aperture);
+			}
+		}
+
+		return parts.length > 0 ? parts.join(' — ') : null;
+	};
+
+	// Get resolution line (e.g., "12 MP • 3024 × 4032 • 2.1 MB")
+	const getResolutionLine = () => {
+		const parts: string[] = [];
+		const width = imageData?.width || videoData?.width;
+		const height = imageData?.height || videoData?.height;
+
+		if (width && height) {
+			parts.push(getMegapixels(width, height));
+			parts.push(`${width} × ${height}`);
+		}
+
+		if (file.size) {
+			parts.push(formatBytes(file.size));
+		}
+
+		return parts.length > 0 ? parts.join(' • ') : null;
+	};
+
+	// Get technical specs (ISO, focal length, exposure, aperture, shutter)
+	const getTechSpecs = () => {
+		if (!imageData) return [];
+
+		const specs: {label: string; value: string}[] = [];
+
+		if (imageData.iso) {
+			specs.push({label: 'ISO', value: String(imageData.iso)});
+		}
+
+		if (imageData.focal_length) {
+			specs.push({label: '', value: imageData.focal_length});
+		}
+
+		// Exposure value (not typically in our data, but could be calculated)
+		// For now skip this
+
+		if (imageData.aperture) {
+			const aperture = imageData.aperture.replace(/^f\/?/i, 'ƒ');
+			specs.push({label: '', value: aperture});
+		}
+
+		if (imageData.shutter_speed) {
+			specs.push({label: '', value: imageData.shutter_speed});
+		}
+
+		return specs;
+	};
+
+	// Get video-specific info
+	const getVideoInfo = () => {
+		if (!videoData) return null;
+
+		const parts: string[] = [];
+
+		if (videoData.codec) {
+			parts.push(videoData.codec.toUpperCase());
+		}
+
+		if (videoData.fps_num && videoData.fps_den && videoData.fps_den !== 0) {
+			const fps = Math.round(videoData.fps_num / videoData.fps_den);
+			parts.push(`${fps} fps`);
+		}
+
+		if (videoData.bit_rate) {
+			const mbps = (videoData.bit_rate / 1000000).toFixed(1);
+			parts.push(`${mbps} Mbps`);
+		}
+
+		return parts.length > 0 ? parts.join(' • ') : null;
+	};
+
+	// Get duration for video
+	const getDuration = () => {
+		if (!videoData?.duration_seconds) return null;
+		const duration = videoData.duration_seconds;
+		const minutes = Math.floor(duration / 60);
+		const seconds = Math.floor(duration % 60);
+		return `${minutes}:${String(seconds).padStart(2, '0')}`;
+	};
+
+	const mediaDate = formatMediaDate(
+		imageData?.date_taken?.toString() || videoData?.date_captured?.toString()
+	);
+	const cameraDisplay = getCameraDisplay();
+	const format = getFormat();
+	const lensInfo = getLensInfo();
+	const resolutionLine = getResolutionLine();
+	const techSpecs = getTechSpecs();
+	const hasLocation = !!(imageData?.latitude && imageData?.longitude);
+	const videoInfo = getVideoInfo();
+	const duration = getDuration();
+	const colorProfile = imageData?.color_profile;
+
+	return (
+		<div className="space-y-3">
+			{/* Date/Time Header */}
+			{mediaDate && (
+				<div className="px-2">
+					<div className="text-sidebar-ink text-sm font-semibold">
+						{mediaDate}
+					</div>
+					<div className="text-sidebar-inkDull mt-0.5 flex items-center gap-1.5 text-xs">
+						<Image size={12} weight="bold" />
+						<span>{file.name}</span>
+					</div>
+				</div>
+			)}
+
+			{/* Camera Info Card */}
+			{(cameraDisplay || resolutionLine || videoInfo) && (
+				<div className="bg-app-box/60 border-app-line/50 mx-2 overflow-hidden rounded-xl border">
+					{/* Camera Header */}
+					{cameraDisplay && (
+						<div className="border-app-line/30 flex items-center justify-between border-b px-3 py-2.5">
+							<span className="text-sidebar-ink text-sm font-medium">
+								{cameraDisplay}
+							</span>
+							<div className="flex items-center gap-1.5">
+								{format && (
+									<span className="bg-app-box border-app-line text-sidebar-inkDull rounded-md border px-1.5 py-0.5 text-[10px] font-semibold">
+										{format}
+									</span>
+								)}
+								{hasLocation && (
+									<span className="text-sidebar-inkDull">
+										<MapPin size={14} weight="fill" />
+									</span>
+								)}
+							</div>
+						</div>
+					)}
+
+					{/* Camera/Lens Details */}
+					<div className="space-y-1 px-3 py-2.5">
+						{lensInfo && (
+							<div className="text-sidebar-inkDull text-xs">
+								{lensInfo}
+							</div>
+						)}
+						{resolutionLine && (
+							<div className="text-sidebar-inkDull text-xs">
+								{resolutionLine}
+							</div>
+						)}
+						{videoInfo && (
+							<div className="text-sidebar-inkDull text-xs">
+								{videoInfo}
+							</div>
+						)}
+						{duration && (
+							<div className="text-sidebar-inkDull flex items-center gap-1 text-xs">
+								<Timer size={12} weight="bold" />
+								<span>{duration}</span>
+							</div>
+						)}
+					</div>
+
+					{/* Technical Specs Row */}
+					{techSpecs.length > 0 && (
+						<div className="border-app-line/30 flex items-center justify-between border-t px-3 py-2">
+							{techSpecs.map((spec) => (
+								<div
+									key={`${spec.label}-${spec.value}`}
+									className="text-sidebar-inkDull text-center text-[11px]"
+								>
+									{spec.label && (
+										<span className="mr-0.5 font-medium">
+											{spec.label}
+										</span>
+									)}
+									<span>{spec.value}</span>
+								</div>
+							))}
+							{colorProfile && (
+								<span className="bg-app-box border-app-line text-sidebar-inkDull rounded-md border px-1.5 py-0.5 text-[10px] font-medium uppercase">
+									{colorProfile}
+								</span>
+							)}
+						</div>
+					)}
+				</div>
+			)}
+
+			{/* Location Map */}
+			{hasLocation && imageData && imageData.latitude && imageData.longitude && (
+				<LocationMap
+					latitude={imageData.latitude}
+					longitude={imageData.longitude}
+					className="bg-app-box/60 border-app-line/50 mx-2 overflow-hidden rounded-xl border"
+				/>
+			)}
+		</div>
 	);
 }
 
@@ -170,14 +676,29 @@ function OverviewTab({file}: {file: File}) {
 				/>
 			</div>
 
-			{/* File name */}
-			<div className="px-2 text-center">
-				<h4 className="text-sidebar-ink truncate text-sm font-semibold">
+			{/* File name & Quick Actions */}
+			<div className="px-2">
+				<h4 className="text-sidebar-ink truncate text-center text-sm font-semibold">
 					{file.name}
 					{file.extension ? `.${file.extension}` : ''}
 				</h4>
-				<p className="text-sidebar-inkDull mt-1 text-xs">{fileKind}</p>
+				<p className="text-sidebar-inkDull mt-1 text-center text-xs">
+					{fileKind}
+				</p>
+				{/* Quick Actions - Favorite, Share & Jobs */}
+				<div className="mt-2.5">
+					<FileQuickActions file={file} />
+				</div>
 			</div>
+
+			{/* Media Metadata Card - iOS Photos style */}
+			{(isImage || isVideo) &&
+				(file.image_media_data || file.video_media_data) && (
+					<>
+						<Divider />
+						<MediaMetadataCard file={file} />
+					</>
+				)}
 
 			<Divider />
 
@@ -1033,7 +1554,7 @@ function InstancesTab({file}: {file: File}) {
 		{entry_uuid: string},
 		{instances: File[]; total_count: number}
 	>({
-		wireMethod: 'query:files.alternate_instances',
+		query: 'files.alternate_instances',
 		input: {entry_uuid: file?.id || ''},
 		enabled: !!file?.id && !!file?.content_identity
 	});
@@ -1042,7 +1563,7 @@ function InstancesTab({file}: {file: File}) {
 
 	// Query devices to get proper names and icons
 	const devicesQuery = useNormalizedQuery<any, any[]>({
-		wireMethod: 'query:devices.list',
+		query: 'devices.list',
 		input: {
 			include_offline: true,
 			include_details: false,

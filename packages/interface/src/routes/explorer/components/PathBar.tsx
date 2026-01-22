@@ -122,7 +122,7 @@ function IndexIndicator({ path }: { path: SdPath }) {
 
 	// Fetch all locations
 	const { data: locationsData } = useNormalizedQuery({
-		wireMethod: "query:locations.list",
+		query: "locations.list",
 		input: null,
 		resourceType: "location",
 	});
