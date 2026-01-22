@@ -32,7 +32,7 @@ Journey to v2.0.0-pre.1:
 ✔ Fix volume reactivity @done(26-01-20 14:59)
 ☐ Merge ephemeral results with indexed results to enable showing hidden files on demand
 ☐ Mobile explorer
-	☐ search
+	✔ search @done(26-01-22 12:21)
 	☐ inspector
 	☐ context menu
 	☐ view settings

@@ -33,7 +33,7 @@ use uuid::Uuid;
 
 use super::{ProtocolEvent, ProtocolHandler};
 use crate::{
-	config::ProxyPairingConfig,
+	config::app_config::ProxyPairingConfig,
 	infra::event::{Event, EventBus, ResourceMetadata},
 	service::network::{
 		device::{DeviceInfo, DeviceRegistry, SessionKeys},
@@ -41,6 +41,8 @@ use crate::{
 		NetworkingError, Result,
 	},
 };
+use bincode::config::standard;
+use bincode::serde::encode_to_vec;
 use persistence::PairingPersistence;
 use security::PairingSecurity;
 use vouching_queue::{VouchQueueStatus, VouchingQueue, VouchingQueueEntry};
@@ -630,8 +632,8 @@ impl PairingProtocolHandler {
 	}
 
 	fn sign_vouch_payload(&self, payload: &VouchPayload) -> Result<Vec<u8>> {
-		let serialized =
-			bincode::serialize(payload).map_err(|e| NetworkingError::Serialization(e))?;
+		let serialized = encode_to_vec(payload, standard())
+			.map_err(|e| NetworkingError::Protocol(format!("Failed to serialize vouch payload: {}", e)))?;
 		self.identity.sign(&serialized)
 	}
 
@@ -643,8 +645,8 @@ impl PairingProtocolHandler {
 	) -> Result<bool> {
 		PairingSecurity::validate_public_key(public_key_bytes)?;
 		PairingSecurity::validate_signature(signature)?;
-		let serialized =
-			bincode::serialize(payload).map_err(|e| NetworkingError::Serialization(e))?;
+		let serialized = encode_to_vec(payload, standard())
+			.map_err(|e| NetworkingError::Protocol(format!("Failed to serialize vouch payload: {}", e)))?;
 
 		use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 		let verifying_key =
@@ -829,7 +831,7 @@ impl PairingProtocolHandler {
 					};
 
 					if let (Some(info), Some(keys)) = (device_info, session_keys) {
-						accepted.push(super::proxy::AcceptedDevice {
+						accepted.push(proxy::AcceptedDevice {
 							device_info: info,
 							session_keys: keys,
 						});
@@ -846,7 +848,7 @@ impl PairingProtocolHandler {
 						.reason
 						.clone()
 						.unwrap_or_else(|| "Vouch rejected".to_string());
-					rejected.push(super::proxy::RejectedDevice {
+					rejected.push(proxy::RejectedDevice {
 						device_id: vouch.device_id,
 						device_name: vouch.device_name.clone(),
 						reason,
@@ -949,7 +951,7 @@ impl PairingProtocolHandler {
 			});
 		}
 
-		let proxy_config = { self.proxy_config.read().await.clone() };
+		let proxy_config: ProxyPairingConfig = { self.proxy_config.read().await.clone() };
 		if proxy_config.auto_vouch_to_all {
 			let target_device_ids = {
 				let registry = self.device_registry.read().await;
@@ -1293,7 +1295,7 @@ impl PairingProtocolHandler {
 		proxied_session_keys: SessionKeys,
 		remote_node_id: NodeId,
 	) -> Result<()> {
-		let proxy_config = { self.proxy_config.read().await.clone() };
+		let proxy_config: ProxyPairingConfig = { self.proxy_config.read().await.clone() };
 
 		let (voucher_info, voucher_node_id) = {
 			let registry = self.device_registry.read().await;
@@ -1581,8 +1583,8 @@ impl PairingProtocolHandler {
 		&self,
 		session_id: Uuid,
 		voucher_device_id: Uuid,
-		accepted_by: Vec<super::proxy::AcceptedDevice>,
-		rejected_by: Vec<super::proxy::RejectedDevice>,
+		accepted_by: Vec<proxy::AcceptedDevice>,
+		rejected_by: Vec<proxy::RejectedDevice>,
 	) -> Result<()> {
 		for accepted in accepted_by {
 			let device_id = accepted.device_info.device_id;
@@ -1623,7 +1625,7 @@ impl PairingProtocolHandler {
 			return Ok(());
 		};
 
-		let config = { self.proxy_config.read().await.clone() };
+		let config: ProxyPairingConfig = { self.proxy_config.read().await.clone() };
 		let entries = queue.list_entries().await?;
 		let now = chrono::Utc::now();
 

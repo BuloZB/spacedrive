@@ -220,6 +220,7 @@ impl TestConfigBuilder {
 				statistics_listener_enabled: self.statistics_listener_enabled,
 			},
 			logging: crate::config::app_config::LoggingConfig::default(),
+			proxy_pairing: crate::config::app_config::ProxyPairingConfig::default(),
 		}
 	}
 

@@ -343,6 +343,6 @@ impl VouchingQueue {
 				NetworkingError::Protocol(format!("Failed to delete expired vouches: {}", e))
 			})?;
 
-		Ok(result.rows_affected)
+		Ok(result.rows_affected())
 	}
 }
