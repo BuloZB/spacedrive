@@ -37,7 +37,7 @@ export function useVirtualListing(): VirtualListingResult {
 	// Fetch locations
 	const { data: locationsData, isLoading: locationsLoading } =
 		useNormalizedQuery({
-			wireMethod: "query:locations.list",
+			query: "locations.list",
 			input: null,
 			resourceType: "location",
 			enabled: view === "device",
@@ -46,7 +46,7 @@ export function useVirtualListing(): VirtualListingResult {
 	// Fetch volumes
 	const { data: volumesData, isLoading: volumesLoading } = useNormalizedQuery(
 		{
-			wireMethod: "query:volumes.list",
+			query: "volumes.list",
 			input: { filter: "All" },
 			resourceType: "volume",
 			enabled: view === "device",
@@ -56,7 +56,7 @@ export function useVirtualListing(): VirtualListingResult {
 	// Fetch devices
 	const { data: devicesData, isLoading: devicesLoading } = useNormalizedQuery(
 		{
-			wireMethod: "query:devices.list",
+			query: "devices.list",
 			input: { include_offline: true, include_details: false },
 			resourceType: "device",
 			enabled: view === "devices" || view === "device",

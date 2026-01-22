@@ -73,7 +73,7 @@ describe("useNormalizedQuery - Event Replay Tests", () => {
 		// Now apply the filtered resources to a cache using the ACTUAL production function
 		const testQueryClient = new QueryClient();
 		const queryKey = [
-			testCase.query.wireMethod,
+			`query:${testCase.query.query}`,
 			"test-library-id",
 			testCase.query.input,
 		];

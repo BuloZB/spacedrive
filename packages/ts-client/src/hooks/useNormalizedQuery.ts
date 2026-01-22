@@ -13,7 +13,7 @@
  *
  * ```tsx
  * const { data: files } = useNormalizedQuery({
- *   wireMethod: 'query:files.directory_listing',
+ *   query: "files.directory_listing",
  *   input: { path: currentPath },
  *   resourceType: 'file',
  *   pathScope: currentPath,
@@ -34,8 +34,8 @@ import type { Simplify } from "type-fest";
 // Types
 
 export type UseNormalizedQueryOptions<I, O = any, TSelected = O> = Simplify<{
-	/** Wire method to call (e.g., "query:files.directory_listing") */
-	wireMethod: string;
+	/** Query method to call (e.g., "files.directory_listing") */
+	query: string;
 	/** Input for the query */
 	input: I;
 	/** Resource type for event filtering (e.g., "file", "location") */
@@ -117,10 +117,15 @@ export function useNormalizedQuery<I, O = any, TSelected = O>(
 		};
 	}, [client]);
 
+	const wireMethod = useMemo(
+		() => toWireMethod(options.query),
+		[options.query],
+	);
+
 	// Query key
 	const queryKey = useMemo(
-		() => [options.wireMethod, libraryId, options.input],
-		[options.wireMethod, libraryId, JSON.stringify(options.input)],
+		() => [wireMethod, libraryId, options.input],
+		[wireMethod, libraryId, JSON.stringify(options.input)],
 	);
 
 	// Standard TanStack Query
@@ -128,10 +133,7 @@ export function useNormalizedQuery<I, O = any, TSelected = O>(
 		queryKey,
 		queryFn: async () => {
 			invariant(libraryId, "Library ID must be set before querying");
-			return await client.execute<I, O>(
-				options.wireMethod,
-				options.input,
-			);
+			return await client.execute<I, O>(wireMethod, options.input);
 		},
 		enabled: (options.enabled ?? true) && !!libraryId,
 		select: options.select,
@@ -243,6 +245,7 @@ export function handleResourceEvent(
 	queryClient: QueryClient,
 	debug?: boolean,
 ) {
+	const wireMethod = toWireMethod(options.query);
 	// Skip string events (like "CoreStarted", "CoreShutdown")
 	if (typeof event === "string") {
 		return;
@@ -252,7 +255,7 @@ export function handleResourceEvent(
 	if ("Refresh" in event) {
 		if (debug) {
 			console.log(
-				`[useNormalizedQuery] ${options.wireMethod} processing Refresh`,
+				`[useNormalizedQuery] ${wireMethod} processing Refresh`,
 				event,
 			);
 		}
@@ -272,7 +275,7 @@ export function handleResourceEvent(
 		if (resource_type === options.resourceType) {
 			if (debug) {
 				console.log(
-					`[useNormalizedQuery] ${options.wireMethod} processing ResourceChanged`,
+					`[useNormalizedQuery] ${wireMethod} processing ResourceChanged`,
 					event,
 				);
 			}
@@ -302,7 +305,7 @@ export function handleResourceEvent(
 		) {
 			if (debug) {
 				console.log(
-					`[useNormalizedQuery] ${options.wireMethod} processing ResourceChangedBatch`,
+					`[useNormalizedQuery] ${wireMethod} processing ResourceChangedBatch`,
 					event,
 				);
 			}
@@ -327,13 +330,28 @@ export function handleResourceEvent(
 		if (resource_type === options.resourceType) {
 			if (debug) {
 				console.log(
-					`[useNormalizedQuery] ${options.wireMethod} processing ResourceDeleted`,
+					`[useNormalizedQuery] ${wireMethod} processing ResourceDeleted`,
 					event,
 				);
 			}
 			deleteResource(resource_id, queryKey, queryClient);
 		}
 	}
+}
+
+function toWireMethod(query: string): string {
+	invariant(query, "useNormalizedQuery requires a query method");
+
+	if (query.startsWith("query:")) {
+		return query;
+	}
+
+	invariant(
+		!query.startsWith("action:"),
+		"useNormalizedQuery only supports queries, remove the action prefix",
+	);
+
+	return `query:${query}`;
 }
 
 // Batch Filtering

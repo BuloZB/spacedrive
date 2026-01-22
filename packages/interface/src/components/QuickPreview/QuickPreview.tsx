@@ -89,7 +89,7 @@ export function QuickPreview() {
 		isLoading,
 		error,
 	} = useNormalizedQuery<{ file_id: string }, File>({
-		wireMethod: "query:files.by_id",
+		query: "files.by_id",
 		input: { file_id: fileId! },
 		resourceType: "file",
 		resourceId: fileId!,

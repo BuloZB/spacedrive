@@ -132,7 +132,7 @@ export function MediaView() {
 
 	// Query for all media files from current path with descendants (only when NOT in search mode)
 	const mediaQuery = useNormalizedQuery({
-		wireMethod: "query:files.media_listing",
+		query: "files.media_listing",
 		input: currentPath
 			? {
 					path: currentPath,

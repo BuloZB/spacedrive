@@ -128,7 +128,7 @@ describe("useNormalizedQuery - Folder Rename Integration", () => {
 		const { result: rootResult } = renderHook(
 			() =>
 				useNormalizedQuery({
-					wireMethod: "query:files.directory_listing",
+					query: "files.directory_listing",
 					input: {
 						path: {
 							Physical: {
@@ -155,7 +155,7 @@ describe("useNormalizedQuery - Folder Rename Integration", () => {
 		const { result: folderResult } = renderHook(
 			() =>
 				useNormalizedQuery({
-					wireMethod: "query:files.directory_listing",
+					query: "files.directory_listing",
 					input: {
 						path: {
 							Physical: {

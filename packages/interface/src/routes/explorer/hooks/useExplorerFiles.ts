@@ -112,7 +112,7 @@ export function useExplorerFiles(): ExplorerFilesResult {
 
 	// Search query
 	const searchQuery = useNormalizedQuery<FileSearchInput, FileSearchOutput>({
-		wireMethod: "query:search.files",
+		query: "search.files",
 		input: searchQueryInput!,
 		resourceType: "file",
 		pathScope:
@@ -124,7 +124,7 @@ export function useExplorerFiles(): ExplorerFilesResult {
 
 	// Recents query
 	const recentsQuery = useNormalizedQuery<FileSearchInput, FileSearchOutput>({
-		wireMethod: "query:search.files",
+		query: "search.files",
 		input: recentsQueryInput!,
 		resourceType: "file",
 		enabled: isRecentsMode && !!recentsQueryInput,
@@ -132,7 +132,7 @@ export function useExplorerFiles(): ExplorerFilesResult {
 
 	// Directory query
 	const directoryQuery = useNormalizedQuery({
-		wireMethod: "query:files.directory_listing",
+		query: "files.directory_listing",
 		input: currentPath
 			? {
 					path: currentPath,

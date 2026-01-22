@@ -38,7 +38,7 @@ export function TagSelector({
 	// Fetch all tags using search with empty query
 	// Using select to normalize TagSearchResult[] to Tag[] for consistent cache structure
 	const { data: allTags = [] } = useNormalizedQuery({
-		wireMethod: 'query:tags.search',
+		query: 'tags.search',
 		input: { query: '' },
 		resourceType: 'tag',
 		select: (data: any) => data?.tags?.map((result: any) => result.tag || result).filter(Boolean) ?? []

@@ -111,7 +111,7 @@ describe("useNormalizedQuery - Bulk Moves Integration", () => {
 		const { result: rootResult } = renderHook(
 			() =>
 				useNormalizedQuery({
-					wireMethod: "query:files.directory_listing",
+					query: "files.directory_listing",
 					input: {
 						path: {
 							Physical: {
@@ -138,7 +138,7 @@ describe("useNormalizedQuery - Bulk Moves Integration", () => {
 		const { result: subfolderResult } = renderHook(
 			() =>
 				useNormalizedQuery({
-					wireMethod: "query:files.directory_listing",
+					query: "files.directory_listing",
 					input: {
 						path: {
 							Physical: {

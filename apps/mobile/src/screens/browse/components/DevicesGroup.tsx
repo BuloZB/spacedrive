@@ -9,7 +9,7 @@ import { SettingsGroup, SettingsLink } from "../../../components/primitive";
 export function DevicesGroup() {
 	const router = useRouter();
 	const { data: devices, isLoading } = useNormalizedQuery<any, Device[]>({
-		wireMethod: "query:devices.list",
+		query: "devices.list",
 		input: {
 			include_offline: true,
 			include_details: false,

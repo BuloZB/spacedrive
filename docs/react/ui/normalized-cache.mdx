@@ -70,7 +70,7 @@ import { useNormalizedQuery } from "@sd/ts-client";
 
 function DirectoryView({ path }: { path: SdPath }) {
 	const { data, isLoading } = useNormalizedQuery({
-		wireMethod: "query:files.directory_listing",
+		query: "files.directory_listing",
 		input: { path },
 		resourceType: "file",
 		pathScope: path,
@@ -100,7 +100,7 @@ function DirectoryView({ path }: { path: SdPath }) {
 ```tsx
 function MediaGallery({ path }: { path: SdPath }) {
 	const { data } = useNormalizedQuery({
-		wireMethod: "query:files.media_listing",
+		query: "files.media_listing",
 		input: { path, include_descendants: true },
 		resourceType: "file",
 		pathScope: path,
@@ -120,7 +120,7 @@ function MediaGallery({ path }: { path: SdPath }) {
 ```tsx
 function LocationsList() {
 	const { data } = useNormalizedQuery({
-		wireMethod: "query:locations.list",
+		query: "locations.list",
 		input: null,
 		resourceType: "location",
 		// No pathScope - locations are global resources
@@ -137,7 +137,7 @@ function LocationsList() {
 ```tsx
 function FileInspector({ fileId }: { fileId: string }) {
 	const { data: file } = useNormalizedQuery({
-		wireMethod: "query:files.by_id",
+		query: "files.by_id",
 		input: { file_id: fileId },
 		resourceType: "file",
 		resourceId: fileId, // Only events for this file
@@ -161,8 +161,8 @@ function FileInspector({ fileId }: { fileId: string }) {
 
 ```tsx
 interface UseNormalizedQueryOptions<I> {
-	// Wire method to call (e.g., "query:files.directory_listing")
-	wireMethod: string;
+	// Query method to call (e.g., "files.directory_listing")
+	query: string;
 
 	// Input for the query
 	input: I;
@@ -425,7 +425,7 @@ Multiple hooks with identical filters automatically share a single backend subsc
 // Component A
 function LocationsList() {
   useNormalizedQuery({
-    wireMethod: 'query:locations.list',
+    query: 'locations.list',
     resourceType: 'location',
   });
 }
@@ -433,7 +433,7 @@ function LocationsList() {
 // Component B (mounted at same time)
 function LocationsDropdown() {
   useNormalizedQuery({
-    wireMethod: 'query:locations.list',
+    query: 'locations.list',
     resourceType: 'location',
   });
 }
@@ -549,7 +549,7 @@ cargo test --test normalized_cache_fixtures_test
 ```tsx
 // Good
 const { data } = useNormalizedQuery({
-	wireMethod: "query:files.directory_listing",
+	query: "files.directory_listing",
 	input: { path },
 	resourceType: "file",
 	pathScope: path, // Server filters efficiently
@@ -557,7 +557,7 @@ const { data } = useNormalizedQuery({
 
 // Bad - will skip subscription
 const { data } = useNormalizedQuery({
-	wireMethod: "query:files.directory_listing",
+	query: "files.directory_listing",
 	input: { path },
 	resourceType: "file",
 	// Missing pathScope! Subscription skipped to prevent overload
@@ -581,7 +581,7 @@ includeDescendants: true; // All matching files
 
 ```tsx
 const { data } = useNormalizedQuery({
-	wireMethod: "query:files.directory_listing",
+	query: "files.directory_listing",
 	input: { path },
 	resourceType: "file",
 	pathScope: path,
@@ -691,7 +691,7 @@ const { data } = useLibraryQuery({
 
 // After (instant updates)
 const { data } = useNormalizedQuery({
-	wireMethod: "query:locations.list",
+	query: "locations.list",
 	input: null,
 	resourceType: "location",
 });
@@ -764,7 +764,7 @@ import {
 
 ```tsx
 const { data: items } = useNormalizedQuery({
-	wireMethod: "query:items.list",
+	query: "items.list",
 	input: filters,
 	resourceType: "item",
 });
@@ -779,7 +779,7 @@ const { data: items } = useNormalizedQuery({
 
 ```tsx
 const { data: files } = useNormalizedQuery({
-	wireMethod: "query:files.directory_listing",
+	query: "files.directory_listing",
 	input: { path },
 	resourceType: "file",
 	pathScope: path,
@@ -795,7 +795,7 @@ const { data: files } = useNormalizedQuery({
 
 ```tsx
 const { data: file } = useNormalizedQuery({
-	wireMethod: "query:files.by_id",
+	query: "files.by_id",
 	input: { file_id },
 	resourceType: "file",
 	resourceId: file_id,

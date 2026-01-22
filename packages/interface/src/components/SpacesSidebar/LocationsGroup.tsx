@@ -19,7 +19,7 @@ export function LocationsGroup({
   const navigate = useNavigate();
 
   const { data: locationsData } = useNormalizedQuery({
-    wireMethod: "query:locations.list",
+    query: "locations.list",
     input: null, // Unit struct serializes as null, not {}
     resourceType: "location",
   });

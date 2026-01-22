@@ -88,7 +88,7 @@ export function FileInspector({file}: FileInspectorProps) {
 	};
 
 	const fileQuery = useNormalizedQuery<{file_id: string}, File>({
-		wireMethod: 'query:files.by_id',
+		query: 'files.by_id',
 		input: {file_id: file?.id || ''},
 		resourceType: 'file',
 		resourceId: file?.id,
@@ -1554,7 +1554,7 @@ function InstancesTab({file}: {file: File}) {
 		{entry_uuid: string},
 		{instances: File[]; total_count: number}
 	>({
-		wireMethod: 'query:files.alternate_instances',
+		query: 'files.alternate_instances',
 		input: {entry_uuid: file?.id || ''},
 		enabled: !!file?.id && !!file?.content_identity
 	});
@@ -1563,7 +1563,7 @@ function InstancesTab({file}: {file: File}) {
 
 	// Query devices to get proper names and icons
 	const devicesQuery = useNormalizedQuery<any, any[]>({
-		wireMethod: 'query:devices.list',
+		query: 'devices.list',
 		input: {
 			include_offline: true,
 			include_details: false,
