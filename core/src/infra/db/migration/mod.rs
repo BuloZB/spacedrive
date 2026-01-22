@@ -79,7 +79,6 @@ impl MigratorTrait for Migrator {
 			Box::new(m20260104_000001_replace_device_id_with_volume_id::Migration),
 			Box::new(m20260105_000001_add_volume_id_to_locations::Migration),
 			Box::new(m20260114_000001_fix_search_index_include_directories::Migration),
-			Box::new(m20260123_000001_device_to_shared_sync::Migration),
 		]
 	}
 }
