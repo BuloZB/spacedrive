@@ -30,7 +30,7 @@ export function Overview() {
 		isLoading,
 		error,
 	} = useNormalizedQuery<null, Library>({
-		wireMethod: "query:libraries.info",
+		query: "libraries.info",
 		input: null,
 		resourceType: "library",
 	});
@@ -40,7 +40,7 @@ export function Overview() {
 		LocationsListQueryInput,
 		LocationsListOutput
 	>({
-		wireMethod: "query:locations.list",
+		query: "locations.list",
 		input: null,
 		resourceType: "location",
 	});

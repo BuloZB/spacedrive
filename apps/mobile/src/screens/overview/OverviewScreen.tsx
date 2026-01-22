@@ -43,14 +43,14 @@ export function OverviewScreen() {
 		isLoading,
 		error,
 	} = useNormalizedQuery<null, Library>({
-		wireMethod: "query:libraries.info",
+		query: "libraries.info",
 		input: null,
 		resourceType: "library",
 	});
 
 	// Fetch locations list to get the selected location reactively
 	const { data: locationsData } = useNormalizedQuery<any, any>({
-		wireMethod: "query:locations.list",
+		query: "locations.list",
 		input: null,
 		resourceType: "location",
 	});

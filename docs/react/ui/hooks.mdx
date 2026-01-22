@@ -135,7 +135,7 @@ import { useNormalizedCache } from '@sd/interface';
 
 function LocationsList() {
   const { data: locations } = useNormalizedCache({
-    wireMethod: 'query:locations.list',
+    query: 'locations.list',
     input: {},
     resourceType: 'location',
     isGlobalList: true,
@@ -566,7 +566,7 @@ const { data: nodeInfo } = useCoreQuery(
 
 // Dynamic data - short stale time or use useNormalizedCache
 const { data: files } = useNormalizedCache({
-  wireMethod: 'query:files.directory_listing',
+  query: 'files.directory_listing',
   input: { path },
   resourceType: 'file',
 });

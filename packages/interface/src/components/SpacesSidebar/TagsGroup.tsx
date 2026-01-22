@@ -100,7 +100,7 @@ export function TagsGroup({
 	// Fetch tags with real-time updates using search with empty query
 	// Using select to normalize TagSearchResult[] to Tag[] for consistent cache structure
 	const { data: tags = [], isLoading } = useNormalizedQuery({
-		wireMethod: 'query:tags.search',
+		query: 'tags.search',
 		input: { query: '' },
 		resourceType: 'tag',
 		select: (data: any) => data?.tags?.map((result: any) => result.tag || result).filter(Boolean) ?? []

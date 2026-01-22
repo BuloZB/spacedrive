@@ -17,7 +17,7 @@ export function TabDefaultsSync() {
 		ListLibraryDevicesInput,
 		Device[]
 	>({
-		wireMethod: "query:devices.list",
+		query: "devices.list",
 		input: { include_offline: true, include_details: false },
 		resourceType: "device",
 	});

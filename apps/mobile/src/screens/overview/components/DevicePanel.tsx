@@ -65,7 +65,7 @@ export function DevicePanel({ onLocationSelect }: DevicePanelProps = {}) {
 		any,
 		any
 	>({
-		wireMethod: "query:volumes.list",
+		query: "volumes.list",
 		input: { filter: "All" },
 		resourceType: "volume",
 	});
@@ -75,7 +75,7 @@ export function DevicePanel({ onLocationSelect }: DevicePanelProps = {}) {
 		any,
 		DeviceWithConnection[]
 	>({
-		wireMethod: "query:devices.list",
+		query: "devices.list",
 		input: { include_offline: true, include_details: false },
 		resourceType: "device",
 	});
@@ -83,7 +83,7 @@ export function DevicePanel({ onLocationSelect }: DevicePanelProps = {}) {
 	// Fetch all locations
 	const { data: locationsData, isLoading: locationsLoading } =
 		useNormalizedQuery<any, any>({
-			wireMethod: "query:locations.list",
+			query: "locations.list",
 			input: null,
 			resourceType: "location",
 		});

@@ -80,7 +80,7 @@ function CreateSpaceScreen() {
 export function BrowseScreen() {
 	const insets = useSafeAreaInsets();
 	const { data: spacesData } = useNormalizedQuery({
-		wireMethod: "query:spaces.list",
+		query: "spaces.list",
 		input: null,
 		resourceType: "space",
 	});

@@ -45,7 +45,7 @@ function ShellLayoutContent() {
 
 	// Fetch locations to get current location info
 	const locationsQuery = useNormalizedQuery<null, {locations: Location[]}>({
-		wireMethod: 'query:locations.list',
+		query: 'locations.list',
 		input: null,
 		resourceType: 'location'
 	});

@@ -17,7 +17,7 @@ export function LocationsSection() {
   const previousLocationIdsRef = useRef<Set<string>>(new Set());
 
   const locationsQuery = useNormalizedQuery<null, Location>({
-    wireMethod: "query:locations.list",
+    query: "locations.list",
     input: null,
     resourceType: "location",
   });

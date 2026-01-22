@@ -9,13 +9,13 @@ import type { Device } from "@sd/ts-client";
 export function LocationsGroup() {
 	const router = useRouter();
 	const { data: locationsData } = useNormalizedQuery({
-		wireMethod: "query:locations.list",
+		query: "locations.list",
 		input: null,
 		resourceType: "location",
 	});
 
 	const { data: devices } = useNormalizedQuery<any, Device[]>({
-		wireMethod: "query:devices.list",
+		query: "devices.list",
 		input: {
 			include_offline: true,
 			include_details: false,

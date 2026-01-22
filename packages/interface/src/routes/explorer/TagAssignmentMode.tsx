@@ -34,7 +34,7 @@ export function TagAssignmentMode({ isActive, onExit }: TagAssignmentModeProps) 
 		{ query: string },
 		{ tags: Array<{ tag: Tag } | Tag> }
 	>({
-		wireMethod: 'query:tags.search',
+		query: 'tags.search',
 		input: { query: '' },
 		resourceType: 'tag'
 	});

@@ -139,7 +139,7 @@ export function VolumeBar({volume, index}: VolumeBarProps) {
 
 	// Get current device to check if this volume is local
 	const devicesQuery = useNormalizedQuery<any, Device[]>({
-		wireMethod: 'query:devices.list',
+		query: 'devices.list',
 		input: {include_offline: true, include_details: false},
 		resourceType: 'device'
 	});
