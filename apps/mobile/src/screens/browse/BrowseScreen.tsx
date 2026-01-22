@@ -18,6 +18,7 @@ import Animated, {
 import { useNormalizedQuery } from "../../client";
 import { PageIndicator } from "../../components/PageIndicator";
 import { GlassSearchBar } from "../../components/GlassSearchBar";
+import { useRouter } from "expo-router";
 import sharedColors from "@sd/ui/style/colors";
 import type { SpaceItem, SpaceGroup } from "@sd/ts-client";
 import { SpaceItem as SpaceItemComponent, SpaceGroupComponent } from "./components";
@@ -38,6 +39,7 @@ function SpaceContent({
 	space: Space;
 	insets: EdgeInsets;
 }) {
+	const router = useRouter();
 	const scrollY = useSharedValue(0);
 
 	const scrollHandler = useAnimatedScrollHandler({
@@ -45,6 +47,10 @@ function SpaceContent({
 			scrollY.value = event.contentOffset.y;
 		},
 	});
+
+	const handleSearchPress = () => {
+		router.push("/search");
+	};
 
 	// Fetch space layout
 	const { data: layout } = useNormalizedQuery({
@@ -106,7 +112,7 @@ function SpaceContent({
 
 			{/* Search Bar */}
 			<View className="mb-6">
-				<GlassSearchBar />
+				<GlassSearchBar onPress={handleSearchPress} editable={false} />
 			</View>
 
 			{/* Space Items (pinned shortcuts) */}

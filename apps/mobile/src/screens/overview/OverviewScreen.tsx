@@ -9,6 +9,7 @@ import Animated, {
 	interpolate,
 	Extrapolation,
 	withTiming,
+	withRepeat,
 	Easing,
 } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
@@ -20,6 +21,10 @@ import { LibrarySwitcherPanel } from "../../components/LibrarySwitcherPanel";
 import { GlassButton } from "../../components/GlassButton";
 import { GlassSearchBar } from "../../components/GlassSearchBar";
 import { JobManagerPanel } from "../../components/JobManagerPanel";
+import { useRouter } from "expo-router";
+import { useSearchStore } from "../explorer/context/SearchContext";
+import { CircleNotch, ListBullets } from "phosphor-react-native";
+import { useJobs } from "../../hooks/useJobs";
 
 const HEADER_INITIAL_HEIGHT = 40;
 const HERO_HEIGHT = 430 + HEADER_INITIAL_HEIGHT;
@@ -29,6 +34,7 @@ const NETWORK_HEADER_HEIGHT = 50;
 export function OverviewScreen() {
 	const insets = useSafeAreaInsets();
 	const navigation = useNavigation();
+	const router = useRouter();
 	const scrollY = useSharedValue(0);
 	const expandedOffsetY = useSharedValue(0);
 	const [showPairing, setShowPairing] = useState(false);
@@ -36,6 +42,35 @@ export function OverviewScreen() {
 	const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
 		null
 	);
+	const { enterSearchMode } = useSearchStore();
+	const { activeJobCount, hasRunningJobs } = useJobs();
+
+	// Spinning animation for jobs icon
+	const spinRotation = useSharedValue(0);
+
+	useEffect(() => {
+		if (hasRunningJobs) {
+			spinRotation.value = withRepeat(
+				withTiming(360, { duration: 1000, easing: Easing.linear }),
+				-1, // infinite
+				false // don't reverse
+			);
+		} else {
+			spinRotation.value = withTiming(0, { duration: 200 });
+		}
+	}, [hasRunningJobs, spinRotation]);
+
+	const spinStyle = useAnimatedStyle(() => ({
+		transform: [{ rotate: `${spinRotation.value}deg` }],
+	}));
+
+	const handleSearchPress = () => {
+		router.push("/search");
+	};
+
+	const handleJobsPress = () => {
+		router.push("/jobs");
+	};
 
 	// Fetch library info with real-time statistics updates
 	const {
@@ -314,6 +349,37 @@ export function OverviewScreen() {
 							{libraryInfo.name}
 						</Animated.Text>
 						<GlassButton
+							onPress={handleJobsPress}
+							icon={
+								<View>
+									{hasRunningJobs ? (
+										<Animated.View style={spinStyle}>
+											<CircleNotch
+												size={22}
+												color="hsl(208, 100%, 57%)"
+												weight="bold"
+											/>
+										</Animated.View>
+									) : (
+										<ListBullets
+											size={22}
+											color="hsl(235, 10%, 55%)"
+											weight="bold"
+										/>
+									)}
+									{activeJobCount > 0 && (
+										<View
+											className="absolute -top-1 -right-1 bg-accent rounded-full min-w-[16px] h-[16px] items-center justify-center"
+										>
+											<Text className="text-white text-[10px] font-bold">
+												{activeJobCount > 9 ? "9+" : activeJobCount}
+											</Text>
+										</View>
+									)}
+								</View>
+							}
+						/>
+						<GlassButton
 							icon={
 								<Text className="text-ink text-2xl leading-none">⋯</Text>
 							}
@@ -322,7 +388,7 @@ export function OverviewScreen() {
 
 					{/* Search Bar */}
 					<View className="px-4 mb-4" style={{ position: "relative", zIndex: 25 }} pointerEvents="auto">
-						<GlassSearchBar />
+						<GlassSearchBar onPress={handleSearchPress} editable={false} />
 					</View>
 
 					{/* Wrapper to elevate HeroStats above ScrollView for touch events */}
