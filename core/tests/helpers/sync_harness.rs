@@ -151,7 +151,6 @@ pub async fn register_device(
 		created_at: Set(Utc::now()),
 		updated_at: Set(Utc::now()),
 		sync_enabled: Set(true),
-		last_sync_at: Set(None),
 	};
 
 	// Check if device already exists
@@ -213,19 +212,22 @@ pub async fn create_test_volume(
 }
 
 /// Set all devices in a library to "synced" state (prevents auto-backfill)
-pub async fn set_all_devices_synced(library: &Arc<Library>) -> anyhow::Result<()> {
-	use chrono::Utc;
-	use sea_orm::ActiveValue;
-
-	for device in entities::device::Entity::find()
-		.all(library.db().conn())
-		.await?
-	{
-		let mut active: entities::device::ActiveModel = device.into();
-		active.last_sync_at = ActiveValue::Set(Some(Utc::now()));
-		active.update(library.db().conn()).await?;
-	}
-
+///
+/// NOTE: This function is now a no-op for the legacy last_sync_at column.
+/// The Ready state logic now uses per-peer watermarks in sync.db instead.
+/// For tests that need to prevent auto-backfill, set sync state directly to Ready
+/// via `peer_sync.set_state_for_test(DeviceSyncState::Ready)` and create
+/// watermark entries using the ResourceWatermarkStore.
+#[deprecated(
+	note = "last_sync_at is no longer used for sync decisions. Use set_peer_watermarks_for_test instead."
+)]
+pub async fn set_all_devices_synced(_library: &Arc<Library>) -> anyhow::Result<()> {
+	// No-op: last_sync_at is no longer written or read.
+	// Per-peer watermarks in sync.db are now the source of truth.
+	// Tests should use set_peer_watermarks_for_test() to create watermarks.
+	tracing::warn!(
+		"set_all_devices_synced is deprecated - last_sync_at is no longer used for sync decisions"
+	);
 	Ok(())
 }
 
@@ -916,8 +918,11 @@ impl TwoDeviceHarnessBuilder {
 		register_device(&library_alice, device_bob_id, "Bob").await?;
 		register_device(&library_bob, device_alice_id, "Alice").await?;
 
-		// Set last_sync_at to prevent auto-backfill
+		// NOTE: set_all_devices_synced is deprecated - auto-backfill is now controlled
+		// by per-peer watermarks in sync.db, not last_sync_at
+		#[allow(deprecated)]
 		set_all_devices_synced(&library_alice).await?;
+		#[allow(deprecated)]
 		set_all_devices_synced(&library_bob).await?;
 
 		tracing::info!(

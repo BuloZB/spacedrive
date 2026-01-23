@@ -205,7 +205,6 @@ impl LibrarySyncSetupAction {
 				created_at: Set(Utc::now()),
 				updated_at: Set(Utc::now()),
 				sync_enabled: Set(true),
-				last_sync_at: Set(None),
 			};
 
 			device_model

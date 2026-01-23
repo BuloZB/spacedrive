@@ -377,7 +377,6 @@ impl MessagingProtocolHandler {
 								})),
 								created_at: Set(Utc::now()),
 								sync_enabled: Set(true),
-								last_sync_at: Set(None),
 								updated_at: Set(Utc::now()),
 							};
 

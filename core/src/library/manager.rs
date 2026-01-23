@@ -334,7 +334,6 @@ impl LibraryManager {
 			created_at: Set(Utc::now()),
 			updated_at: Set(Utc::now()),
 			sync_enabled: Set(true),
-			last_sync_at: Set(None),
 		};
 
 		initial_device_model
@@ -1147,7 +1146,6 @@ impl LibraryManager {
 				})),
 				created_at: Set(device.created_at),
 				sync_enabled: Set(true), // Enable sync by default for this device
-				last_sync_at: Set(None),
 				updated_at: Set(Utc::now()),
 			};
 

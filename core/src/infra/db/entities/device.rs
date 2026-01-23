@@ -39,10 +39,7 @@ pub struct Model {
 	#[serde(default)]
 	pub updated_at: DateTimeUtc,
 
-	// Sync coordination fields (added in m20251009_000001_add_sync_to_devices)
-	// Watermarks moved to sync.db per-resource tracking (m20251115_000001)
 	pub sync_enabled: bool,
-	pub last_sync_at: Option<DateTimeUtc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -193,10 +190,7 @@ impl crate::infra::sync::Syncable for Model {
 				.map_err(|e| sea_orm::DbErr::Custom(format!("Invalid uuid: {}", e)))?;
 
 				// Check if device already exists
-				let existing_device = Entity::find()
-					.filter(Column::Uuid.eq(uuid))
-					.one(db)
-					.await?;
+				let existing_device = Entity::find().filter(Column::Uuid.eq(uuid)).one(db).await?;
 
 				// Determine slug to use: collision avoidance only on INSERT
 				let slug_from_data: String = serde_json::from_value(
@@ -224,8 +218,10 @@ impl crate::infra::sync::Syncable for Model {
 						.map(|d| d.slug.clone())
 						.collect();
 
-					let unique_slug =
-						crate::library::Library::ensure_unique_slug(&slug_from_data, &existing_slugs);
+					let unique_slug = crate::library::Library::ensure_unique_slug(
+						&slug_from_data,
+						&existing_slugs,
+					);
 
 					if unique_slug != slug_from_data {
 						tracing::debug!(
@@ -371,12 +367,6 @@ impl crate::infra::sync::Syncable for Model {
 							.unwrap_or(serde_json::Value::Bool(true)),
 					)
 					.unwrap_or(true)),
-					last_sync_at: Set(serde_json::from_value(
-						data.get("last_sync_at")
-							.cloned()
-							.unwrap_or(serde_json::Value::Null),
-					)
-					.unwrap()),
 				};
 
 				// Idempotent upsert: insert or update based on UUID
@@ -407,7 +397,6 @@ impl crate::infra::sync::Syncable for Model {
 								Column::Capabilities,
 								Column::UpdatedAt,
 								Column::SyncEnabled,
-								Column::LastSyncAt,
 							])
 							.to_owned(),
 					)

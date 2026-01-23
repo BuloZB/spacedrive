@@ -37,6 +37,7 @@ mod m20251226_000001_add_device_id_to_entries;
 mod m20260104_000001_replace_device_id_with_volume_id;
 mod m20260105_000001_add_volume_id_to_locations;
 mod m20260114_000001_fix_search_index_include_directories;
+mod m20260123_000001_remove_legacy_sync_columns;
 
 pub struct Migrator;
 
@@ -79,6 +80,7 @@ impl MigratorTrait for Migrator {
 			Box::new(m20260104_000001_replace_device_id_with_volume_id::Migration),
 			Box::new(m20260105_000001_add_volume_id_to_locations::Migration),
 			Box::new(m20260114_000001_fix_search_index_include_directories::Migration),
+			Box::new(m20260123_000001_remove_legacy_sync_columns::Migration),
 		]
 	}
 }

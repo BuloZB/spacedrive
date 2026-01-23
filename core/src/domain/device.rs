@@ -85,9 +85,6 @@ pub struct Device {
 	/// Whether sync is enabled for this device
 	pub sync_enabled: bool,
 
-	/// Last time this device synced
-	pub last_sync_at: Option<DateTime<Utc>>,
-
 	/// When this device was first added
 	pub created_at: DateTime<Utc>,
 
@@ -206,7 +203,6 @@ impl Device {
 			is_online: true,
 			last_seen_at: now,
 			sync_enabled: true,
-			last_sync_at: None,
 			created_at: now,
 			updated_at: now,
 			// Ephemeral fields
@@ -316,7 +312,6 @@ impl Device {
 			is_online: is_connected,
 			last_seen_at: info.last_seen,
 			sync_enabled: true,
-			last_sync_at: None,
 			created_at: info.last_seen,
 			updated_at: info.last_seen,
 			// Ephemeral fields
@@ -1143,7 +1138,6 @@ impl From<Device> for entities::device::ActiveModel {
 			capabilities: Set(device.capabilities),
 			created_at: Set(device.created_at),
 			sync_enabled: Set(device.sync_enabled),
-			last_sync_at: Set(device.last_sync_at),
 			updated_at: Set(device.updated_at),
 		}
 	}
@@ -1183,7 +1177,6 @@ impl TryFrom<entities::device::Model> for Device {
 			is_online: model.is_online,
 			last_seen_at: model.last_seen_at,
 			sync_enabled: model.sync_enabled,
-			last_sync_at: model.last_sync_at,
 			created_at: model.created_at,
 			updated_at: model.updated_at,
 			// Ephemeral fields - set by caller based on context
