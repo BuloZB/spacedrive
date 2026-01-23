@@ -272,10 +272,11 @@ impl LibrarySyncSetupAction {
 		// Send CreateSharedLibraryRequest to remote device
 		use crate::service::network::protocol::library_messages::LibraryMessage;
 
-		let local_device_config = context
+		// Get full device information including hardware specs
+		let local_device = context
 			.device_manager
-			.config()
-			.map_err(|e| ActionError::Internal(format!("Failed to get device config: {}", e)))?;
+			.to_device()
+			.map_err(|e| ActionError::Internal(format!("Failed to get device info: {}", e)))?;
 
 		// Get library-specific slug for this device
 		let local_device_slug = context
@@ -289,8 +290,23 @@ impl LibrarySyncSetupAction {
 			library_name: library_name.clone(),
 			description: config.description.clone(),
 			requesting_device_id: self.input.local_device_id,
-			requesting_device_name: local_device_config.name.clone(),
+			requesting_device_name: local_device.name,
 			requesting_device_slug: local_device_slug,
+			requesting_device_os: local_device.os.to_string(),
+			requesting_device_os_version: local_device.os_version,
+			requesting_device_hardware_model: local_device.hardware_model,
+			requesting_device_cpu_model: local_device.cpu_model,
+			requesting_device_cpu_architecture: local_device.cpu_architecture,
+			requesting_device_cpu_cores_physical: local_device.cpu_cores_physical,
+			requesting_device_cpu_cores_logical: local_device.cpu_cores_logical,
+			requesting_device_cpu_frequency_mhz: local_device.cpu_frequency_mhz,
+			requesting_device_memory_total_bytes: local_device.memory_total_bytes,
+			requesting_device_form_factor: local_device.form_factor.map(|f| f.to_string()),
+			requesting_device_manufacturer: local_device.manufacturer,
+			requesting_device_gpu_models: local_device.gpu_models,
+			requesting_device_boot_disk_type: local_device.boot_disk_type,
+			requesting_device_boot_disk_capacity_bytes: local_device.boot_disk_capacity_bytes,
+			requesting_device_swap_total_bytes: local_device.swap_total_bytes,
 		};
 
 		info!(
@@ -330,23 +346,19 @@ impl LibrarySyncSetupAction {
 					remote_slug
 				);
 
-				// Register remote device in local library with its resolved slug
-				self.register_remote_device_in_library(
-					&context,
-					local_library,
-					self.input.remote_device_id,
-					remote_slug,
-				)
-				.await?;
-
-				// Send request to remote device to register local device
+				// Send RegisterDeviceRequest to remote device
+				// Remote will register us, then send RegisterDeviceRequest back to register themselves
+				// This bidirectional exchange ensures both devices have full hardware specs
 				let networking = context
 					.get_networking()
 					.await
 					.ok_or_else(|| ActionError::Internal("Networking not available".to_string()))?;
-				let local_device_config = context.device_manager.config().map_err(|e| {
-					ActionError::Internal(format!("Failed to get device config: {}", e))
-				})?;
+
+				// Get full device information including hardware specs
+				let local_device = context
+					.device_manager
+					.to_device()
+					.map_err(|e| ActionError::Internal(format!("Failed to get device info: {}", e)))?;
 
 				// Get library-specific slug (uses override if set, otherwise global slug)
 				let local_device_slug = context
@@ -360,11 +372,23 @@ impl LibrarySyncSetupAction {
 					request_id: Uuid::new_v4(),
 					library_id: Some(library_id),
 					device_id: self.input.local_device_id,
-					device_name: local_device_config.name.clone(),
+					device_name: local_device.name,
 					device_slug: local_device_slug,
-					os_name: local_device_config.os.to_string(),
-					os_version: None,
-					hardware_model: local_device_config.hardware_model.clone(),
+					os_name: local_device.os.to_string(),
+					os_version: local_device.os_version,
+					hardware_model: local_device.hardware_model,
+					cpu_model: local_device.cpu_model,
+					cpu_architecture: local_device.cpu_architecture,
+					cpu_cores_physical: local_device.cpu_cores_physical,
+					cpu_cores_logical: local_device.cpu_cores_logical,
+					cpu_frequency_mhz: local_device.cpu_frequency_mhz,
+					memory_total_bytes: local_device.memory_total_bytes,
+					form_factor: local_device.form_factor.map(|f| f.to_string()),
+					manufacturer: local_device.manufacturer,
+					gpu_models: local_device.gpu_models,
+					boot_disk_type: local_device.boot_disk_type,
+					boot_disk_capacity_bytes: local_device.boot_disk_capacity_bytes,
+					swap_total_bytes: local_device.swap_total_bytes,
 				};
 
 				match networking
@@ -473,20 +497,15 @@ impl LibrarySyncSetupAction {
 		};
 
 		// Register remote device in the newly created local library
-		self.register_remote_device_in_library(
-			&context,
-			&local_library,
-			self.input.remote_device_id,
-			remote_device_slug,
-		)
-		.await?;
+		// Send RegisterDeviceRequest to remote device
+		// Remote will register us, then send RegisterDeviceRequest back to register themselves
+		// This bidirectional exchange ensures both devices have full hardware specs
 
-		// Send request to remote device to register local device
-
-		let local_device_config = context
+		// Get full device information including hardware specs
+		let local_device = context
 			.device_manager
-			.config()
-			.map_err(|e| ActionError::Internal(format!("Failed to get device config: {}", e)))?;
+			.to_device()
+			.map_err(|e| ActionError::Internal(format!("Failed to get device info: {}", e)))?;
 
 		// Get library-specific slug (uses override if set, otherwise global slug)
 		let local_device_slug = context
@@ -500,11 +519,23 @@ impl LibrarySyncSetupAction {
 			request_id: Uuid::new_v4(),
 			library_id: Some(remote_library_id),
 			device_id: self.input.local_device_id,
-			device_name: local_device_config.name.clone(),
+			device_name: local_device.name,
 			device_slug: local_device_slug,
-			os_name: local_device_config.os.to_string(),
-			os_version: None,
-			hardware_model: local_device_config.hardware_model.clone(),
+			os_name: local_device.os.to_string(),
+			os_version: local_device.os_version,
+			hardware_model: local_device.hardware_model,
+			cpu_model: local_device.cpu_model,
+			cpu_architecture: local_device.cpu_architecture,
+			cpu_cores_physical: local_device.cpu_cores_physical,
+			cpu_cores_logical: local_device.cpu_cores_logical,
+			cpu_frequency_mhz: local_device.cpu_frequency_mhz,
+			memory_total_bytes: local_device.memory_total_bytes,
+			form_factor: local_device.form_factor.map(|f| f.to_string()),
+			manufacturer: local_device.manufacturer,
+			gpu_models: local_device.gpu_models,
+			boot_disk_type: local_device.boot_disk_type,
+			boot_disk_capacity_bytes: local_device.boot_disk_capacity_bytes,
+			swap_total_bytes: local_device.swap_total_bytes,
 		};
 
 		match networking
