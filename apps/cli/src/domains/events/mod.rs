@@ -445,5 +445,10 @@ fn summarize_event(event: &Event) -> String {
 		Event::Custom { event_type, data } => {
 			format!("Custom event: {} - {:?}", event_type, data)
 		}
+
+		// Config events
+		Event::ConfigChanged { field } => {
+			format!("Configuration changed: {}", field)
+		}
 	}
 }
