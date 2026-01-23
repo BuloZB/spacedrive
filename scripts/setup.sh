@@ -107,7 +107,9 @@ fi
 case "$(uname)" in
   "Darwin")
     if [ "$(uname -m)" = 'x86_64' ] && ! [ "${CI:-}" = "true" ]; then
-      brew install nasm
+      brew install nasm cmake
+    elif ! [ "${CI:-}" = "true" ]; then
+      brew install cmake
     fi
 
     # Install rust deps for iOS
@@ -149,7 +151,7 @@ case "$(uname)" in
       set -- "$@" gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 
       # C/C++ build dependencies, required to build some *-sys crates
-      set -- "$@" llvm-dev libclang-dev clang nasm perl
+      set -- "$@" llvm-dev libclang-dev clang nasm perl cmake
 
       # React dependencies
       set -- "$@" libvips42
@@ -167,7 +169,7 @@ case "$(uname)" in
       set -- "$@" gst-plugins-base gst-plugins-good gst-plugins-ugly
 
       # C/C++ build dependencies, required to build some *-sys crates
-      set -- "$@" clang nasm perl
+      set -- "$@" clang nasm perl cmake
 
       # React dependencies
       set -- "$@" libvips
@@ -192,7 +194,7 @@ case "$(uname)" in
         gstreamer1-plugins-good-extras gstreamer1-plugins-ugly-free
 
       # C/C++ build dependencies, required to build some *-sys crates
-      set -- "$@" clang clang-devel nasm perl-core
+      set -- "$@" clang clang-devel nasm perl-core cmake
 
       # React dependencies
       set -- "$@" vips
@@ -211,7 +213,7 @@ case "$(uname)" in
       set -- "$@" gst-plugins-base-dev gst-plugins-good gst-plugins-ugly
 
       # C/C++ build dependencies, required to build some *-sys crates
-      set -- "$@" llvm16-dev clang16 nasm perl
+      set -- "$@" llvm16-dev clang16 nasm perl cmake
 
       # React dependencies
       set -- "$@" vips
@@ -230,7 +232,7 @@ case "$(uname)" in
       set -- "$@" gstreamer-1.0-plugins-good gstreamer-1.0-plugins-ugly gstreamer-1.0-devel gstreamer-1.0-plugins-base-devel
 
       # C/C++ build dependencies, required to build some *-sys crates
-      set -- "$@" llvm-devel llvm-clang-devel llvm-clang nasm perl
+      set -- "$@" llvm-devel llvm-clang-devel llvm-clang nasm perl cmake
 
       # React dependencies
       set -- "$@" libvips
