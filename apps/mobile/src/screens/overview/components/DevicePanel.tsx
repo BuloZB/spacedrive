@@ -20,7 +20,7 @@ import { useVolumeIndexingStore } from "../../../stores";
 
 // Temporary type extension
 type DeviceWithConnection = Device & {
-	connection_method?: "Direct" | "Relay" | "Mixed" | null;
+	connection_method?: "LocalNetwork" | "DirectInternet" | "RelayProxy" | null;
 };
 
 function formatBytes(bytes: number): string {
@@ -194,14 +194,14 @@ export function DevicePanel({ onLocationSelect }: DevicePanelProps = {}) {
 }
 
 interface ConnectionBadgeProps {
-	method: "Direct" | "Relay" | "Mixed";
+	method: "LocalNetwork" | "DirectInternet" | "RelayProxy";
 }
 
 function ConnectionBadge({ method }: ConnectionBadgeProps) {
 	const labels = {
-		Direct: "Local",
-		Relay: "Relay",
-		Mixed: "Mixed",
+		LocalNetwork: "Local",
+		DirectInternet: "Direct",
+		RelayProxy: "Relay",
 	};
 
 	return (

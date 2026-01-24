@@ -39,7 +39,7 @@ import {VolumeBar} from './VolumeBar';
 
 // Temporary type extension until types are regenerated
 type DeviceWithConnection = Device & {
-	connection_method?: 'Direct' | 'Relay' | 'Mixed' | null;
+	connection_method?: 'LocalNetwork' | 'DirectInternet' | 'RelayProxy' | null;
 };
 
 export function formatBytes(bytes: number): string {
@@ -268,14 +268,14 @@ export function DevicePanel({onLocationSelect}: DevicePanelProps = {}) {
 }
 
 interface ConnectionBadgeProps {
-	method: 'Direct' | 'Relay' | 'Mixed';
+	method: 'LocalNetwork' | 'DirectInternet' | 'RelayProxy';
 }
 
 function ConnectionBadge({method}: ConnectionBadgeProps) {
 	const labels = {
-		Direct: 'Local',
-		Relay: 'Relay',
-		Mixed: 'Mixed'
+		LocalNetwork: 'Local',
+		DirectInternet: 'Direct',
+		RelayProxy: 'Relay'
 	};
 
 	return (

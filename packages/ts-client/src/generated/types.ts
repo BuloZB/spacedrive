@@ -94,7 +94,11 @@ services: ServiceConfigOutput;
 /**
  * Daemon logging configuration
  */
-logging: LoggingConfigOutput };
+logging: LoggingConfigOutput; 
+/**
+ * Proxy pairing configuration
+ */
+proxy_pairing: ProxyPairingConfigOutput };
 
 export type ApplyTagsInput = { 
 /**
@@ -220,17 +224,20 @@ export type CompositionRule = { operator: CompositionOperator; operands: string[
  */
 export type ConnectionMethod = 
 /**
- * Direct peer-to-peer connection (mDNS/local network)
+ * Direct connection on local network (mDNS/same subnet)
+ * Fastest option - wire speed, no internet required
  */
-"Direct" | 
+"LocalNetwork" | 
 /**
- * Connection via relay server
+ * Direct UDP connection over internet (NAT traversal)
+ * Fast, but requires internet. Uses no relay bandwidth.
  */
-"Relay" | 
+"DirectInternet" | 
 /**
- * Mixed connection (both direct and relay)
+ * Connection proxied through relay server
+ * Reliable fallback. Relay hosts the bandwidth.
  */
-"Mixed";
+"RelayProxy";
 
 /**
  * Domain representation of content identity
@@ -644,10 +651,6 @@ last_seen_at: string;
  */
 sync_enabled: boolean; 
 /**
- * Last time this device synced
- */
-last_sync_at: string | null; 
-/**
  * When this device was first added
  */
 created_at: string; 
@@ -671,6 +674,8 @@ is_connected?: boolean;
  * Connection method when connected (Direct, Relay, or Mixed)
  */
 connection_method?: ConnectionMethod | null };
+
+export type DeviceDebugInfo = { uuid: string; name: string; sync_enabled: boolean; has_node_id: boolean; node_id: string | null };
 
 /**
  * Device form factor types
@@ -1033,7 +1038,7 @@ error_type: string } } | { LibraryStatisticsUpdated: { library_id: string; stati
  * Refresh event - signals that all frontend caches should be invalidated
  * Emitted after major data recalculations (e.g., volume unique_bytes refresh)
  */
-"Refresh" | { EntryCreated: { library_id: string; entry_id: string } } | { EntryModified: { library_id: string; entry_id: string } } | { EntryDeleted: { library_id: string; entry_id: string } } | { EntryMoved: { library_id: string; entry_id: string; old_path: string; new_path: string } } | { FsRawChange: { library_id: string; kind: FsRawEventKind } } | { VolumeAdded: Volume } | { VolumeRemoved: { fingerprint: VolumeFingerprint } } | { VolumeUpdated: { fingerprint: VolumeFingerprint; old_info: VolumeInfo; new_info: VolumeInfo } } | { VolumeSpeedTested: { fingerprint: VolumeFingerprint; read_speed_mbps: number; write_speed_mbps: number } } | { VolumeMountChanged: { fingerprint: VolumeFingerprint; is_mounted: boolean } } | { VolumeError: { fingerprint: VolumeFingerprint; error: string } } | { JobQueued: { job_id: string; job_type: string; device_id: string } } | { JobStarted: { job_id: string; job_type: string; device_id: string } } | { JobProgress: { job_id: string; job_type: string; device_id: string; progress: number; message: string | null; generic_progress: GenericProgress | null } } | { JobCompleted: { job_id: string; job_type: string; device_id: string; output: JobOutput } } | { JobFailed: { job_id: string; job_type: string; device_id: string; error: string } } | { JobCancelled: { job_id: string; job_type: string; device_id: string } } | { JobPaused: { job_id: string; device_id: string } } | { JobResumed: { job_id: string; device_id: string } } | { IndexingStarted: { location_id: string } } | { IndexingProgress: { location_id: string; processed: number; total: number | null } } | { IndexingCompleted: { location_id: string; total_files: number; total_dirs: number } } | { IndexingFailed: { location_id: string; error: string } } | { DeviceConnected: { device_id: string; device_name: string } } | { DeviceDisconnected: { device_id: string } } | { SyncStateChanged: { library_id: string; previous_state: string; new_state: string; timestamp: string } } | { SyncActivity: { library_id: string; peer_device_id: string; activity_type: SyncActivityType; model_type: string | null; count: number; timestamp: string } } | { SyncConnectionChanged: { library_id: string; peer_device_id: string; peer_name: string; connected: boolean; timestamp: string } } | { SyncError: { library_id: string; peer_device_id: string | null; error_type: string; message: string; timestamp: string } } | { ResourceChanged: { 
+"Refresh" | { ProxyPairingConfirmationRequired: { session_id: string; vouchee_device_name: string; vouchee_device_os: string; voucher_device_name: string; voucher_device_id: string; expires_at: string } } | { ProxyPairingVouchingReady: { session_id: string; vouchee_device_id: string } } | { EntryCreated: { library_id: string; entry_id: string } } | { EntryModified: { library_id: string; entry_id: string } } | { EntryDeleted: { library_id: string; entry_id: string } } | { EntryMoved: { library_id: string; entry_id: string; old_path: string; new_path: string } } | { FsRawChange: { library_id: string; kind: FsRawEventKind } } | { VolumeAdded: Volume } | { VolumeRemoved: { fingerprint: VolumeFingerprint } } | { VolumeUpdated: { fingerprint: VolumeFingerprint; old_info: VolumeInfo; new_info: VolumeInfo } } | { VolumeSpeedTested: { fingerprint: VolumeFingerprint; read_speed_mbps: number; write_speed_mbps: number } } | { VolumeMountChanged: { fingerprint: VolumeFingerprint; is_mounted: boolean } } | { VolumeError: { fingerprint: VolumeFingerprint; error: string } } | { JobQueued: { job_id: string; job_type: string; device_id: string } } | { JobStarted: { job_id: string; job_type: string; device_id: string } } | { JobProgress: { job_id: string; job_type: string; device_id: string; progress: number; message: string | null; generic_progress: GenericProgress | null } } | { JobCompleted: { job_id: string; job_type: string; device_id: string; output: JobOutput } } | { JobFailed: { job_id: string; job_type: string; device_id: string; error: string } } | { JobCancelled: { job_id: string; job_type: string; device_id: string } } | { JobPaused: { job_id: string; device_id: string } } | { JobResumed: { job_id: string; device_id: string } } | { IndexingStarted: { location_id: string } } | { IndexingProgress: { location_id: string; processed: number; total: number | null } } | { IndexingCompleted: { location_id: string; total_files: number; total_dirs: number } } | { IndexingFailed: { location_id: string; error: string } } | { DeviceConnected: { device_id: string; device_name: string } } | { DeviceDisconnected: { device_id: string } } | { SyncStateChanged: { library_id: string; previous_state: string; new_state: string; timestamp: string } } | { SyncActivity: { library_id: string; peer_device_id: string; activity_type: SyncActivityType; model_type: string | null; count: number; timestamp: string } } | { SyncConnectionChanged: { library_id: string; peer_device_id: string; peer_name: string; connected: boolean; timestamp: string } } | { SyncError: { library_id: string; peer_device_id: string | null; error_type: string; message: string; timestamp: string } } | { ResourceChanged: { 
 /**
  * Resource type identifier (e.g., "location", "tag", "album")
  */
@@ -1618,6 +1623,10 @@ export type GetSyncMetricsOutput = {
  * The metrics snapshot
  */
 metrics: SyncMetricsSnapshot };
+
+export type GetSyncPartnersInput = Record<string, never>;
+
+export type GetSyncPartnersOutput = { partners: SyncPartnerInfo[]; debug_info: SyncPartnersDebugInfo };
 
 /**
  * Types of groups that can appear in a space
@@ -3061,6 +3070,10 @@ export type PairCancelInput = { session_id: string };
 
 export type PairCancelOutput = { cancelled: boolean };
 
+export type PairConfirmProxyInput = { session_id: string; accepted: boolean };
+
+export type PairConfirmProxyOutput = { success: boolean; error: string | null };
+
 export type PairGenerateInput = Record<string, never>;
 
 export type PairGenerateOutput = { code: string; session_id: string; expires_at: string; 
@@ -3084,6 +3097,10 @@ export type PairJoinOutput = { paired_device_id: string; device_name: string };
 export type PairStatusOutput = { sessions: PairingSessionSummary[] };
 
 export type PairStatusQueryInput = null;
+
+export type PairVouchInput = { session_id: string; target_device_ids: string[] };
+
+export type PairVouchOutput = { success: boolean; pending_count: number };
 
 /**
  * Information about a paired device
@@ -3206,6 +3223,11 @@ bytes_completed: number | null;
  * Total bytes to process (if applicable)
  */
 total_bytes: number | null };
+
+/**
+ * Proxy pairing configuration output
+ */
+export type ProxyPairingConfigOutput = { auto_accept_vouched: boolean; auto_vouch_to_all: boolean; vouch_signature_max_age: number; vouch_response_timeout: number; vouch_queue_retry_limit: number };
 
 /**
  * Proxy/sidecar generation policy (video scrubbing)
@@ -3892,6 +3914,10 @@ performance: PerformanceSnapshot;
  */
 errors: ErrorSnapshot };
 
+export type SyncPartnerInfo = { device_uuid: string; device_name: string; is_paired: boolean };
+
+export type SyncPartnersDebugInfo = { total_devices: number; sync_enabled_devices: number; paired_devices: number; final_sync_partners: number; device_details: DeviceDebugInfo[] };
+
 /**
  * State metrics snapshot
  */
@@ -4198,7 +4224,27 @@ job_logging_enabled?: boolean | null;
 /**
  * Whether to include debug logs in job logs
  */
-job_logging_include_debug?: boolean | null };
+job_logging_include_debug?: boolean | null; 
+/**
+ * Automatically accept vouches from trusted devices
+ */
+proxy_pairing_auto_accept_vouched?: boolean | null; 
+/**
+ * Automatically vouch new devices to all paired devices
+ */
+proxy_pairing_auto_vouch_to_all?: boolean | null; 
+/**
+ * Maximum age of vouch signatures in seconds
+ */
+proxy_pairing_vouch_signature_max_age?: number | null; 
+/**
+ * Timeout for proxy confirmation in seconds
+ */
+proxy_pairing_vouch_response_timeout?: number | null; 
+/**
+ * Maximum retries for queued vouches
+ */
+proxy_pairing_vouch_queue_retry_limit?: number | null };
 
 /**
  * Output for update app configuration action
@@ -4676,6 +4722,18 @@ volume_id: string;
  * Whether the operation was successful
  */
 success: boolean };
+
+export type VouchState = { device_id: string; device_name: string; status: VouchStatus; updated_at: string; reason: string | null };
+
+export type VouchStatus = "Selected" | "Queued" | "Waiting" | "Accepted" | "Rejected" | "Unreachable";
+
+export type VouchingSession = { id: string; vouchee_device_id: string; vouchee_device_name: string; voucher_device_id: string; created_at: string; state: VouchingSessionState; vouches: VouchState[] };
+
+export type VouchingSessionInput = { session_id: string };
+
+export type VouchingSessionOutput = { session: VouchingSession | null };
+
+export type VouchingSessionState = "Pending" | "InProgress" | "Completed";
 // ===== API Type Unions =====
 
 export type CoreAction =
@@ -4690,8 +4748,10 @@ export type CoreAction =
   |  { type: 'models.whisper.download'; input: DownloadWhisperModelInput; output: DownloadWhisperModelOutput }
   |  { type: 'network.device.revoke'; input: DeviceRevokeInput; output: DeviceRevokeOutput }
   |  { type: 'network.pair.cancel'; input: PairCancelInput; output: PairCancelOutput }
+  |  { type: 'network.pair.confirmProxy'; input: PairConfirmProxyInput; output: PairConfirmProxyOutput }
   |  { type: 'network.pair.generate'; input: PairGenerateInput; output: PairGenerateOutput }
   |  { type: 'network.pair.join'; input: PairJoinInput; output: PairJoinOutput }
+  |  { type: 'network.pair.vouch'; input: PairVouchInput; output: PairVouchOutput }
   |  { type: 'network.spacedrop.send'; input: SpacedropSendInput; output: SpacedropSendOutput }
   |  { type: 'network.start'; input: NetworkStartInput; output: NetworkStartOutput }
   |  { type: 'network.stop'; input: NetworkStopInput; output: NetworkStopOutput }
@@ -4759,6 +4819,7 @@ export type CoreQuery =
   |  { type: 'models.whisper.list'; input: ListWhisperModelsInput; output: ListWhisperModelsOutput }
   |  { type: 'network.devices.list'; input: ListPairedDevicesInput; output: ListPairedDevicesOutput }
   |  { type: 'network.pair.status'; input: PairStatusQueryInput; output: PairStatusOutput }
+  |  { type: 'network.pair.vouching_session'; input: VouchingSessionInput; output: VouchingSessionOutput }
   |  { type: 'network.status'; input: NetworkStatusQueryInput; output: NetworkStatus }
   |  { type: 'network.sync_setup.discover'; input: DiscoverRemoteLibrariesInput; output: DiscoverRemoteLibrariesOutput }
 ;
@@ -4788,6 +4849,7 @@ export type LibraryQuery =
   |  { type: 'sync.activity'; input: GetSyncActivityInput; output: GetSyncActivityOutput }
   |  { type: 'sync.eventLog'; input: GetSyncEventLogInput; output: GetSyncEventLogOutput }
   |  { type: 'sync.metrics'; input: GetSyncMetricsInput; output: GetSyncMetricsOutput }
+  |  { type: 'sync.partners'; input: GetSyncPartnersInput; output: GetSyncPartnersOutput }
   |  { type: 'tags.search'; input: SearchTagsInput; output: SearchTagsOutput }
   |  { type: 'test.ping'; input: PingInput; output: PingOutput }
   |  { type: 'volumes.list'; input: VolumeListQueryInput; output: VolumeListOutput }
@@ -4808,8 +4870,10 @@ export const WIRE_METHODS = {
     'models.whisper.download': 'action:models.whisper.download.input',
     'network.device.revoke': 'action:network.device.revoke.input',
     'network.pair.cancel': 'action:network.pair.cancel.input',
+    'network.pair.confirmProxy': 'action:network.pair.confirmProxy.input',
     'network.pair.generate': 'action:network.pair.generate.input',
     'network.pair.join': 'action:network.pair.join.input',
+    'network.pair.vouch': 'action:network.pair.vouch.input',
     'network.spacedrop.send': 'action:network.spacedrop.send.input',
     'network.start': 'action:network.start.input',
     'network.stop': 'action:network.stop.input',
@@ -4877,6 +4941,7 @@ export const WIRE_METHODS = {
     'models.whisper.list': 'query:models.whisper.list',
     'network.devices.list': 'query:network.devices.list',
     'network.pair.status': 'query:network.pair.status',
+    'network.pair.vouching_session': 'query:network.pair.vouching_session',
     'network.status': 'query:network.status',
     'network.sync_setup.discover': 'query:network.sync_setup.discover',
   },
@@ -4906,6 +4971,7 @@ export const WIRE_METHODS = {
     'sync.activity': 'query:sync.activity',
     'sync.eventLog': 'query:sync.eventLog',
     'sync.metrics': 'query:sync.metrics',
+    'sync.partners': 'query:sync.partners',
     'tags.search': 'query:tags.search',
     'test.ping': 'query:test.ping',
     'volumes.list': 'query:volumes.list',
