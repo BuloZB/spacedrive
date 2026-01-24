@@ -316,7 +316,7 @@ function ConnectionBadge({method, online, current, icon: customIcon, color: cust
 
 	const state = current ? 'Current' : online ? method : 'Offline';
 	const config = configs[state];
-	const Icon = customIcon || config.icon || null;
+	const Icon = customIcon || config?.icon || null;
 	const dotColor = customColor || config.color || 'bg-ink-dull';
 
 	return (
