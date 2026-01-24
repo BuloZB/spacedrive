@@ -391,6 +391,61 @@ impl MessagingProtocolHandler {
 								device_id,
 								library.id()
 							);
+
+							// Send RegisterDeviceRequest back to register ourselves with the new device
+							let context_clone = context.clone();
+							let sender_device_id = device_id;
+							tokio::spawn(async move {
+								// Get our device info
+								if let Ok(our_device) = context_clone.device_manager.to_device() {
+									// Get our slug for this library
+									if let Some(lib_id) = library_id {
+										if let Ok(our_slug) = context_clone.device_manager.slug_for_library(lib_id) {
+											// Get networking
+											if let Some(networking) = context_clone.get_networking().await {
+												let our_register_request = LibraryMessage::RegisterDeviceRequest {
+													request_id: Uuid::new_v4(),
+													library_id,
+													device_id: our_device.id,
+													device_name: our_device.name,
+													device_slug: our_slug,
+													os_name: our_device.os.to_string(),
+													os_version: our_device.os_version,
+													hardware_model: our_device.hardware_model,
+													cpu_model: our_device.cpu_model,
+													cpu_architecture: our_device.cpu_architecture,
+													cpu_cores_physical: our_device.cpu_cores_physical,
+													cpu_cores_logical: our_device.cpu_cores_logical,
+													cpu_frequency_mhz: our_device.cpu_frequency_mhz,
+													memory_total_bytes: our_device.memory_total_bytes,
+													form_factor: our_device.form_factor.map(|f| f.to_string()),
+													manufacturer: our_device.manufacturer,
+													gpu_models: our_device.gpu_models,
+													boot_disk_type: our_device.boot_disk_type,
+													boot_disk_capacity_bytes: our_device.boot_disk_capacity_bytes,
+													swap_total_bytes: our_device.swap_total_bytes,
+												};
+
+												// Send to the device that just registered with us
+												if let Err(e) = networking
+													.send_library_request(sender_device_id, our_register_request)
+													.await
+												{
+													tracing::warn!(
+														"Failed to send bidirectional RegisterDeviceRequest: {}",
+														e
+													);
+												} else {
+													tracing::info!(
+														"Sent RegisterDeviceRequest back to {} for bidirectional registration",
+														sender_device_id
+													);
+												}
+											}
+										}
+									}
+								}
+							});
 						}
 						Err(e) => {
 							success = false;
@@ -406,64 +461,6 @@ impl MessagingProtocolHandler {
 					success,
 					message: error_msg.clone(),
 				});
-
-				// If successful, proactively send RegisterDeviceRequest back to register ourselves
-				// This eliminates the need for the sender to pre-create stubs
-				if success {
-					let context_clone = context.clone();
-					let sender_device_id = device_id;
-					tokio::spawn(async move {
-						// Get our device info
-						if let Ok(our_device) = context_clone.device_manager.to_device() {
-							// Get our slug for this library
-							if let Some(lib_id) = library_id {
-								if let Ok(our_slug) = context_clone.device_manager.slug_for_library(lib_id) {
-									// Get networking
-									if let Some(networking) = context_clone.get_networking().await {
-										let our_register_request = LibraryMessage::RegisterDeviceRequest {
-											request_id: Uuid::new_v4(),
-											library_id,
-											device_id: our_device.id,
-											device_name: our_device.name,
-											device_slug: our_slug,
-											os_name: our_device.os.to_string(),
-											os_version: our_device.os_version,
-											hardware_model: our_device.hardware_model,
-											cpu_model: our_device.cpu_model,
-											cpu_architecture: our_device.cpu_architecture,
-											cpu_cores_physical: our_device.cpu_cores_physical,
-											cpu_cores_logical: our_device.cpu_cores_logical,
-											cpu_frequency_mhz: our_device.cpu_frequency_mhz,
-											memory_total_bytes: our_device.memory_total_bytes,
-											form_factor: our_device.form_factor.map(|f| f.to_string()),
-											manufacturer: our_device.manufacturer,
-											gpu_models: our_device.gpu_models,
-											boot_disk_type: our_device.boot_disk_type,
-											boot_disk_capacity_bytes: our_device.boot_disk_capacity_bytes,
-											swap_total_bytes: our_device.swap_total_bytes,
-										};
-
-										// Send to the device that just registered with us
-										if let Err(e) = networking
-											.send_library_request(sender_device_id, our_register_request)
-											.await
-										{
-											tracing::warn!(
-												"Failed to send bidirectional RegisterDeviceRequest: {}",
-												e
-											);
-										} else {
-											tracing::info!(
-												"Sent RegisterDeviceRequest back to {} for bidirectional registration",
-												sender_device_id
-											);
-										}
-									}
-								}
-							}
-						}
-					});
-				}
 
 				serde_json::to_vec(&response).map_err(|e| NetworkingError::Serialization(e))
 			}
