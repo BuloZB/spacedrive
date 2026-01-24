@@ -15,8 +15,18 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Install Rust (GitHub-hosted runners only)
-      if: ${{ runner.environment != 'self-hosted' }}
+    - name: Check if Rust is already installed
+      id: check-rust
+      shell: bash
+      run: |
+        if command -v rustc &> /dev/null && command -v rustup &> /dev/null; then
+          echo "installed=true" >> $GITHUB_OUTPUT
+        else
+          echo "installed=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Install Rust
+      if: steps.check-rust.outputs.installed == 'false'
       id: toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
