@@ -259,6 +259,15 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify native deps were downloaded
+        if: runner.os == 'Linux'
+        run: |
+          echo "Checking apps/.deps directory:"
+          ls -la apps/.deps/ || echo "Directory doesn't exist"
+          echo "Checking apps/.deps/lib directory:"
+          ls -la apps/.deps/lib/ || echo "lib/ subdirectory doesn't exist - creating empty dir"
+          mkdir -p apps/.deps/lib
+
       - name: Build
         working-directory: apps/tauri
         run: |

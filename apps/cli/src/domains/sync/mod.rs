@@ -24,10 +24,14 @@ pub enum SyncCmd {
 
 	/// Export sync event log
 	Events(SyncEventsArgs),
+
+	/// Show computed sync partners for this library
+	Partners,
 }
 
 pub async fn run(ctx: &Context, cmd: SyncCmd) -> Result<()> {
 	match cmd {
+		SyncCmd::Partners => show_partners(ctx).await?,
 		SyncCmd::Events(args) => export_events(ctx, args).await?,
 		SyncCmd::Metrics(args) => {
 			// Parse time filters
@@ -589,4 +593,96 @@ fn format_events_markdown(
 	}
 
 	output
+}
+
+async fn show_partners(ctx: &Context) -> Result<()> {
+	let library_id = ctx.library_id.ok_or_else(|| {
+		anyhow::anyhow!("No library selected. Use 'sd library switch' to select a library first.")
+	})?;
+
+	// Create input for the operation
+	let input = sd_core::ops::sync::get_sync_partners::GetSyncPartnersInput {};
+
+	let json_response = ctx.core.query(&input, Some(library_id)).await?;
+	let output: sd_core::ops::sync::get_sync_partners::GetSyncPartnersOutput =
+		serde_json::from_value(json_response)?;
+
+	println!("\n{}", "Sync Partners for Current Library".bold());
+	println!("{}", "═".repeat(60));
+	println!();
+
+	if output.partners.is_empty() {
+		println!("  {} No connected sync partners found", "●".red());
+		println!();
+		println!("  Possible reasons:");
+		println!("  - No other devices paired with this device");
+		println!("  - Paired devices are not in this library's devices table");
+		println!("  - Paired devices do not have sync_enabled=true");
+		println!();
+	} else {
+		println!("  {} {} sync partner(s) available", "●".green(), output.partners.len());
+		println!();
+
+		let mut table = Table::new();
+		table
+			.load_preset(UTF8_FULL)
+			.set_content_arrangement(ContentArrangement::Dynamic)
+			.set_header(Row::from(vec![
+				Cell::new("Device UUID").add_attribute(Attribute::Bold),
+				Cell::new("Name").add_attribute(Attribute::Bold),
+				Cell::new("Status").add_attribute(Attribute::Bold),
+			]));
+
+		for partner in &output.partners {
+			table.add_row(vec![
+				partner.device_uuid.to_string(),
+				partner.device_name.clone(),
+				if partner.is_paired {
+					"✓ Paired".green().to_string()
+				} else {
+					"○ Not Paired".dark_grey().to_string()
+				},
+			]);
+		}
+
+		println!("{}", table);
+		println!();
+	}
+
+	// Show debug info
+	println!("{}", "Library Membership Debug".dark_grey().bold());
+	println!("{}", "─".repeat(60).dark_grey());
+	println!();
+	println!("  Total devices in library: {}", output.debug_info.total_devices);
+	println!("  Devices with sync_enabled: {}", output.debug_info.sync_enabled_devices);
+	println!("  Devices with NodeId mapping: {}", output.debug_info.paired_devices);
+	println!("  Final sync partners: {}", output.debug_info.final_sync_partners);
+	println!();
+
+	if !output.debug_info.device_details.is_empty() {
+		let mut debug_table = Table::new();
+		debug_table
+			.load_preset(UTF8_FULL)
+			.set_content_arrangement(ContentArrangement::Dynamic)
+			.set_header(Row::from(vec![
+				Cell::new("Device").add_attribute(Attribute::Bold).fg(Color::DarkGrey),
+				Cell::new("Sync Enabled").add_attribute(Attribute::Bold).fg(Color::DarkGrey),
+				Cell::new("Has NodeId").add_attribute(Attribute::Bold).fg(Color::DarkGrey),
+				Cell::new("NodeId").add_attribute(Attribute::Bold).fg(Color::DarkGrey),
+			]));
+
+		for device in &output.debug_info.device_details {
+			debug_table.add_row(vec![
+				Cell::new(&device.name).fg(Color::DarkGrey),
+				Cell::new(if device.sync_enabled { "✓" } else { "✗" }).fg(Color::DarkGrey),
+				Cell::new(if device.has_node_id { "✓" } else { "✗" }).fg(Color::DarkGrey),
+				Cell::new(device.node_id.as_deref().unwrap_or("-")).fg(Color::DarkGrey),
+			]);
+		}
+
+		println!("{}", debug_table);
+		println!();
+	}
+
+	Ok(())
 }

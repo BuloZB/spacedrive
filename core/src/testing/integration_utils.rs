@@ -87,7 +87,7 @@ pub struct TestEnvironment {
 
 impl TestEnvironment {
 	/// Create a new test environment with the given name
-	pub fn new(test_name: impl Into<String>) -> Result<Self, Box<dyn std::error::Error>> {
+	pub fn new(test_name: impl Into<String>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
 		let test_name = test_name.into();
 		let test_root = PathBuf::from("test_data");
 		let test_data_dir = test_root.join(&test_name);
@@ -107,7 +107,7 @@ impl TestEnvironment {
 	}
 
 	/// Clean the test environment (remove all data)
-	pub fn clean(&self) -> Result<(), Box<dyn std::error::Error>> {
+	pub fn clean(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		if self.test_data_dir.exists() {
 			std::fs::remove_dir_all(&self.test_data_dir)?;
 			info!("Cleaned test environment: {}", self.test_data_dir.display());
@@ -225,7 +225,7 @@ impl TestConfigBuilder {
 	}
 
 	/// Build and save the AppConfig to the data directory
-	pub async fn build_and_save(self) -> Result<AppConfig, Box<dyn std::error::Error>> {
+	pub async fn build_and_save(self) -> Result<AppConfig, Box<dyn std::error::Error + Send + Sync>> {
 		let config = self.build();
 
 		// Ensure the data directory exists
@@ -260,9 +260,9 @@ impl TestConfigBuilder {
 pub fn initialize_test_tracing(
 	test_env: &TestEnvironment,
 	rust_log_override: Option<&str>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 	static INIT: Once = Once::new();
-	let mut result: Result<(), Box<dyn std::error::Error>> = Ok(());
+	let mut result: Result<(), Box<dyn std::error::Error + Send + Sync>> = Ok(());
 
 	INIT.call_once(|| {
 		// Set up environment filter with detailed logging for tests
@@ -318,7 +318,7 @@ pub struct IntegrationTestSetup {
 
 impl IntegrationTestSetup {
 	/// Create a new integration test setup with default configuration
-	pub async fn new(test_name: impl Into<String>) -> Result<Self, Box<dyn std::error::Error>> {
+	pub async fn new(test_name: impl Into<String>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
 		let environment = TestEnvironment::new(test_name)?;
 
 		// Clean any existing data
@@ -345,7 +345,7 @@ impl IntegrationTestSetup {
 	pub async fn with_config<F>(
 		test_name: impl Into<String>,
 		config_builder: F,
-	) -> Result<Self, Box<dyn std::error::Error>>
+	) -> Result<Self, Box<dyn std::error::Error + Send + Sync>>
 	where
 		F: FnOnce(TestConfigBuilder) -> TestConfigBuilder,
 	{
@@ -374,7 +374,7 @@ impl IntegrationTestSetup {
 	pub async fn with_tracing(
 		test_name: impl Into<String>,
 		rust_log_override: &str,
-	) -> Result<Self, Box<dyn std::error::Error>> {
+	) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
 		let environment = TestEnvironment::new(test_name)?;
 
 		// Clean any existing data
@@ -411,7 +411,7 @@ impl IntegrationTestSetup {
 	///
 	/// This method ensures that the custom AppConfig settings from the test setup
 	/// are properly applied when initializing the Core.
-	pub async fn create_core(&self) -> Result<crate::Core, Box<dyn std::error::Error>> {
+	pub async fn create_core(&self) -> Result<crate::Core, Box<dyn std::error::Error + Send + Sync>> {
 		info!(
 			"Creating Core with test configuration from: {}",
 			self.data_dir().display()
@@ -448,7 +448,7 @@ impl IntegrationTestSetup {
 	}
 
 	/// Clean up the test environment
-	pub fn cleanup(self) -> Result<(), Box<dyn std::error::Error>> {
+	pub fn cleanup(self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		self.environment.clean()
 	}
 }
