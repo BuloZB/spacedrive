@@ -10,7 +10,7 @@ pub async fn start_default_server(
 	socket_addr: String,
 	data_dir: PathBuf,
 	enable_networking: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 	// Initialize basic tracing with file logging first
 	initialize_tracing_with_file_logging(&data_dir)?;
 
@@ -59,7 +59,7 @@ pub async fn start_default_server(
 /// Supports multi-stream logging with per-stream filters
 fn initialize_tracing_with_file_logging(
 	data_dir: &PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 	use crate::config::AppConfig;
 	use crate::infra::event::log_emitter::LogEventLayer;
 	use std::sync::Once;
@@ -69,7 +69,7 @@ fn initialize_tracing_with_file_logging(
 	};
 
 	static INIT: Once = Once::new();
-	let mut result: Result<(), Box<dyn std::error::Error>> = Ok(());
+	let mut result: Result<(), Box<dyn std::error::Error + Send + Sync>> = Ok(());
 
 	INIT.call_once(|| {
 		// Ensure logs directory exists

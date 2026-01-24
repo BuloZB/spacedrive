@@ -392,48 +392,77 @@ impl SyncService {
 
 						DeviceSyncState::Ready => {
 							// Check for connected partners and catch up if watermarks are outdated
+							// FIX: Iterate ALL partners and check per-peer watermarks from sync.db
 							match peer_sync.network().get_connected_sync_partners(
 								peer_sync.library_id(),
 								peer_sync.db(),
 							).await {
 								Ok(partners) if !partners.is_empty() => {
-									// Check if we need to catch up
-									let our_device = match entities::device::Entity::find()
-										.filter(entities::device::Column::Uuid.eq(peer_sync.device_id()))
-										.one(peer_sync.db().as_ref())
-										.await
-									{
-										Ok(Some(device)) => device,
-										Ok(None) => continue,
-										Err(e) => {
-											debug!("Failed to query device record: {}", e);
-											continue;
-										}
-									};
-
 									// Check if real-time sync is active (lock mechanism)
 									// If real-time broadcasts are happening, skip catch-up to prevent duplication
 									let realtime_active = peer_sync.is_realtime_active().await;
-
-									// Trigger catch-up if:
-									// - Real-time is NOT active (60+ seconds since last broadcast), AND
-									// - We haven't synced recently (fallback time check)
-									let should_catch_up = if realtime_active {
+									if realtime_active {
 										debug!("Skipping catch-up - real-time sync is active (lock mechanism)");
-										false
-									} else if let Some(last_sync) = our_device.last_sync_at {
-										let time_since_sync = chrono::Utc::now().signed_duration_since(last_sync);
-										time_since_sync.num_seconds() > 60
-									} else {
-										true
-									};
+										continue;
+									}
 
-									// Check if we should retry based on exponential backoff
-									if should_catch_up && retry_state.should_retry() {
+									// Iterate each partner individually (FIX: was only checking partners[0])
+									for partner_id in partners {
+										// Query per-peer watermarks from sync.db
+										let peer_watermarks = peer_sync
+											.get_all_watermarks_for_peer(partner_id)
+											.await
+											.unwrap_or_default();
+
+										// Determine if we need to sync with this peer
+										let needs_sync = if peer_watermarks.is_empty() {
+											// NEW PEER - never synced with them before
+											info!(peer = %partner_id, "Detected new peer, no watermarks exist - initiating sync");
+											true
+										} else {
+											// EXISTING PEER - check if watermarks are stale
+											let oldest_watermark = peer_watermarks.iter()
+												.map(|(_, ts)| *ts)
+												.min()
+												.unwrap();
+
+											let time_since_sync = chrono::Utc::now().signed_duration_since(oldest_watermark);
+
+											if time_since_sync.num_seconds() > 60 {
+												debug!(
+													peer = %partner_id,
+													time_since_sync_secs = time_since_sync.num_seconds(),
+													"Peer watermarks stale, needs catch-up"
+												);
+												true
+											} else {
+												debug!(
+													peer = %partner_id,
+													time_since_sync_secs = time_since_sync.num_seconds(),
+													"Peer watermarks up to date"
+												);
+												false
+											}
+										};
+
+										if !needs_sync {
+											continue; // Skip to next partner
+										}
+
+										// Check if we should retry based on exponential backoff
+										if !retry_state.should_retry() {
+											debug!(
+												peer = %partner_id,
+												"Skipping sync - in backoff period"
+											);
+											continue;
+										}
+
 										// Check if we should escalate to full backfill after repeated failures
 										if retry_state.should_escalate() {
 											warn!(
 												failures = retry_state.consecutive_failures,
+												peer = %partner_id,
 												"Too many catch-up failures, escalating to full backfill"
 											);
 											retry_state.record_success(); // Reset retry state
@@ -449,20 +478,23 @@ impl SyncService {
 												"Sync state transition"
 											);
 											backfill_attempted = false; // Allow backfill to run again
-											continue; // Skip to next iteration
+											break; // Exit partner loop, will restart as Uninitialized
 										}
 
-										// Get current watermarks from sync.db
-										let (state_watermark, shared_watermark) = peer_sync.get_watermarks().await;
+										// Get watermarks for this specific peer (oldest across resource types)
+										let state_watermark = peer_watermarks.iter()
+											.map(|(_, ts)| *ts)
+											.min();
+
+										// Get shared watermark from sync.db
+										let (_, shared_watermark) = peer_sync.get_watermarks().await;
 
 										info!(
-											"Triggering incremental catch-up since watermarks: state={:?}, shared={:?}",
-											state_watermark,
-											shared_watermark
+											peer = %partner_id,
+											state_watermark = ?state_watermark,
+											shared_watermark = ?shared_watermark,
+											"Triggering incremental catch-up with peer"
 										);
-
-										// Pick first partner for catch-up
-										let catch_up_peer = partners[0];
 
 										// Transition to CatchingUp state
 										{
@@ -472,22 +504,22 @@ impl SyncService {
 											info!(
 												from_state = ?old_state,
 												to_state = ?DeviceSyncState::CatchingUp { buffered_count: 0 },
+												peer = %partner_id,
 												reason = "incremental_catchup",
 												"Sync state transition"
 											);
 										}
 
 										// Perform incremental catch-up using watermarks
-										// Convert HLC to string for API
 										let shared_watermark_str = shared_watermark.map(|hlc| hlc.to_string());
 
 										match backfill_manager.catch_up_from_peer(
-											catch_up_peer,
+											partner_id,
 											state_watermark,
 											shared_watermark_str,
 										).await {
 											Ok(()) => {
-												info!("Incremental catch-up completed");
+												info!(peer = %partner_id, "Incremental catch-up completed");
 												retry_state.record_success();
 												// Transition back to Ready
 												let old_state = peer_sync.state().await;
@@ -496,12 +528,13 @@ impl SyncService {
 												info!(
 													from_state = ?old_state,
 													to_state = ?DeviceSyncState::Ready,
+													peer = %partner_id,
 													reason = "catchup_completed",
 													"Sync state transition"
 												);
 											}
 											Err(e) => {
-												warn!("Incremental catch-up failed: {}", e);
+												warn!(peer = %partner_id, error = %e, "Incremental catch-up failed");
 												retry_state.record_failure();
 												// Transition back to Ready even on error
 												let old_state = peer_sync.state().await;
@@ -510,11 +543,16 @@ impl SyncService {
 												info!(
 													from_state = ?old_state,
 													to_state = ?DeviceSyncState::Ready,
+													peer = %partner_id,
 													reason = "catchup_failed_but_continuing",
 													"Sync state transition"
 												);
 											}
 										}
+
+										// Only process one peer per iteration to avoid overwhelming
+										// Other peers will be caught up in subsequent loop iterations
+										break;
 									}
 								}
 								Ok(_) => {}

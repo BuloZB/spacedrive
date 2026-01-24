@@ -80,7 +80,7 @@ pub struct Core {
 
 impl Core {
 	/// Initialize a new Core instance with custom data directory
-	pub async fn new(data_dir: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
+	pub async fn new(data_dir: PathBuf) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
 		Self::new_with_config(data_dir, None, None).await
 	}
 
@@ -90,7 +90,7 @@ impl Core {
 		data_dir: PathBuf,
 		config: Option<AppConfig>,
 		system_device_name: Option<String>,
-	) -> Result<Self, Box<dyn std::error::Error>> {
+	) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
 		info!("Initializing Spacedrive at {:?}", data_dir);
 
 		// Load or create app config
@@ -330,7 +330,9 @@ impl Core {
 						// Set event bus for device registry to emit ResourceChanged events
 						networking.set_event_bus(context.events.clone()).await;
 						// Set library manager for device registry to query complete device data
-						networking.set_library_manager(Arc::downgrade(&context.libraries().await)).await;
+						networking
+							.set_library_manager(Arc::downgrade(&context.libraries().await))
+							.await;
 						info!("Networking service registered in context");
 
 						// Initialize sync service on already-loaded libraries
@@ -479,7 +481,7 @@ impl Core {
 	}
 
 	/// Initialize networking using master key
-	pub async fn init_networking(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+	pub async fn init_networking(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		self.init_networking_with_logger(Arc::new(service::network::SilentLogger))
 			.await
 	}
@@ -488,7 +490,7 @@ impl Core {
 	pub async fn init_networking_with_logger(
 		&mut self,
 		logger: Arc<dyn service::network::NetworkLogger>,
-	) -> Result<(), Box<dyn std::error::Error>> {
+	) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		logger.info("Initializing networking...").await;
 
 		// Check if networking is already initialized
@@ -517,16 +519,27 @@ impl Core {
 		if let Some(networking_service) = self.services.networking() {
 			// Register default protocol handlers only if networking was just initialized
 			// (if networking was already initialized during Core::new(), protocols are already registered)
-			if !already_initialized {
-				logger.info("Registering protocol handlers...").await;
-				self.register_default_protocols(&networking_service).await?;
-			} else {
-				logger
-					.info("Protocol handlers already registered during initialization")
-					.await;
-			}
+		if !already_initialized {
+			logger.info("Registering protocol handlers...").await;
+			self.register_default_protocols(&networking_service).await?;
+		} else {
+			logger
+				.info("Protocol handlers already registered during initialization")
+				.await;
 
-			// Set up event bridge to integrate with core event system (only if not already done)
+			// Reload protocol configs even when networking is already initialized
+			// This allows tests and runtime config changes to take effect
+			logger.info("Reloading protocol configs from disk...").await;
+			if let Err(e) = reload_protocol_configs(&networking_service, &self.config.read().await.data_dir).await {
+				logger
+					.warn(&format!("Failed to reload some protocol configs: {}", e))
+					.await;
+			} else {
+				logger.info("Protocol configs reloaded successfully").await;
+			}
+		}
+
+		// Set up event bridge to integrate with core event system (only if not already done)
 			if !already_initialized {
 				let event_bridge = NetworkEventBridge::new(
 					networking_service.subscribe_events(),
@@ -543,7 +556,9 @@ impl Core {
 			// Set event bus for device registry to emit ResourceChanged events
 			networking_service.set_event_bus(self.events.clone()).await;
 			// Set library manager for device registry to query complete device data
-			networking_service.set_library_manager(Arc::downgrade(&self.context.libraries().await)).await;
+			networking_service
+				.set_library_manager(Arc::downgrade(&self.context.libraries().await))
+				.await;
 		}
 
 		logger.info("Networking initialized successfully").await;
@@ -554,7 +569,7 @@ impl Core {
 	async fn register_default_protocols(
 		&self,
 		networking: &service::network::NetworkingService,
-	) -> Result<(), Box<dyn std::error::Error>> {
+	) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		let data_dir = self.config.read().await.data_dir.clone();
 		register_default_protocol_handlers(networking, data_dir, self.context.clone()).await
 	}
@@ -573,7 +588,7 @@ impl Core {
 	}
 
 	/// Shutdown the core gracefully
-	pub async fn shutdown(&self) -> Result<(), Box<dyn std::error::Error>> {
+	pub async fn shutdown(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		info!("Shutting down Spacedrive Core...");
 
 		// Networking service is stopped by services.stop_all()
@@ -609,7 +624,7 @@ async fn register_default_protocol_handlers(
 	networking: &service::network::NetworkingService,
 	data_dir: PathBuf,
 	context: Arc<CoreContext>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 	let logger = std::sync::Arc::new(service::network::utils::logging::ConsoleLogger);
 
 	// Get command sender for the pairing handler's state machine
@@ -630,6 +645,23 @@ async fn register_default_protocol_handlers(
 		),
 	);
 
+	// Inject event bus for proxy pairing events
+	pairing_handler.set_event_bus(context.events.clone()).await;
+
+	// Load proxy pairing config from app config
+	if let Ok(app_config) = crate::config::AppConfig::load_from(&context.data_dir) {
+		pairing_handler
+			.set_proxy_config(app_config.proxy_pairing)
+			.await;
+	}
+
+	// Initialize vouching queue for proxy pairing
+	if let Err(e) = pairing_handler.init_vouching_queue(data_dir.clone()).await {
+		logger
+			.warn(&format!("Failed to initialize vouching queue: {}", e))
+			.await;
+	}
+
 	// Try to load persisted sessions, but don't fail if there's an error
 	if let Err(e) = pairing_handler.load_persisted_sessions().await {
 		logger
@@ -647,6 +679,11 @@ async fn register_default_protocol_handlers(
 
 	// Start cleanup task for expired sessions
 	service::network::protocol::PairingProtocolHandler::start_cleanup_task(pairing_handler.clone());
+
+	// Start vouching queue processor for proxy pairing
+	service::network::protocol::PairingProtocolHandler::start_vouching_queue_task(
+		pairing_handler.clone(),
+	);
 
 	let mut messaging_handler = service::network::protocol::MessagingProtocolHandler::new(
 		networking.device_registry(),
@@ -704,6 +741,39 @@ async fn register_default_protocol_handlers(
 	// where incoming connections arrive before handlers are ready.
 	// 50ms is imperceptible to users but sufficient for async task scheduling.
 	tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+	Ok(())
+}
+
+/// Reload configuration for all protocol handlers
+/// This is called when networking is already initialized but config has changed
+async fn reload_protocol_configs(
+	networking: &service::network::NetworkingService,
+	data_dir: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+	let app_config = crate::config::AppConfig::load_from(&data_dir.to_path_buf())?;
+	let registry = networking.protocol_registry();
+	let guard = registry.read().await;
+
+	// Reload proxy pairing config
+	if let Some(handler) = guard.get_handler("pairing") {
+		if let Some(pairing_handler) = handler
+			.as_any()
+			.downcast_ref::<crate::service::network::protocol::PairingProtocolHandler>()
+		{
+			pairing_handler
+				.set_proxy_config(app_config.proxy_pairing)
+				.await;
+		}
+	}
+
+	// Future: Add config reloading for other protocol handlers here
+	// Example:
+	// if let Some(handler) = guard.get_handler("file_transfer") {
+	//     if let Some(ft_handler) = handler.as_any().downcast_ref::<FileTransferProtocolHandler>() {
+	//         ft_handler.set_config(app_config.file_transfer).await;
+	//     }
+	// }
 
 	Ok(())
 }

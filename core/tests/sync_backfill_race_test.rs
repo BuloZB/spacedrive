@@ -97,7 +97,9 @@ impl BackfillRaceHarness {
 		register_device(&library_alice, device_bob_id, "Bob").await?;
 		register_device(&library_bob, device_alice_id, "Alice").await?;
 
-		// Set Alice's last_sync_at (she's synced), leave Bob's as None (needs backfill)
+		// NOTE: set_all_devices_synced is deprecated - last_sync_at no longer controls sync
+		// Bob will be detected as a new peer based on missing watermarks in sync.db
+		#[allow(deprecated)]
 		set_all_devices_synced(&library_alice).await?;
 
 		tracing::info!(

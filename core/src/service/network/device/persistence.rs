@@ -7,8 +7,21 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use uuid::Uuid;
 use tracing::info;
+use uuid::Uuid;
+
+/// Pairing type for a device relationship
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PairingType {
+	Direct,
+	Proxied,
+}
+
+impl Default for PairingType {
+	fn default() -> Self {
+		Self::Direct
+	}
+}
 
 /// Persisted paired device data (plain data structure)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +35,12 @@ pub struct PersistedPairedDevice {
 	/// Cached relay URL for reconnection optimization (discovered via pkarr or connection)
 	#[serde(default)]
 	pub relay_url: Option<String>,
+	#[serde(default)]
+	pub pairing_type: PairingType,
+	#[serde(default)]
+	pub vouched_by: Option<Uuid>,
+	#[serde(default)]
+	pub vouched_at: Option<DateTime<Utc>>,
 }
 
 /// Trust level for persistent connections
@@ -42,6 +61,7 @@ impl Default for TrustLevel {
 }
 
 /// Device persistence manager
+#[derive(Clone)]
 pub struct DevicePersistence {
 	key_manager: Arc<KeyManager>,
 }
@@ -164,6 +184,9 @@ impl DevicePersistence {
 		device_info: DeviceInfo,
 		session_keys: SessionKeys,
 		relay_url: Option<String>,
+		pairing_type: PairingType,
+		vouched_by: Option<Uuid>,
+		vouched_at: Option<DateTime<Utc>>,
 	) -> Result<()> {
 		let mut devices = self.load_paired_devices().await?;
 
@@ -175,6 +198,9 @@ impl DevicePersistence {
 			connection_attempts: 0,
 			trust_level: TrustLevel::Trusted,
 			relay_url,
+			pairing_type,
+			vouched_by,
+			vouched_at,
 		};
 
 		devices.insert(device_id, paired_device);
@@ -214,6 +240,15 @@ impl DevicePersistence {
 		}
 
 		Ok(())
+	}
+
+	/// Get a single paired device by ID
+	pub async fn get_paired_device(
+		&self,
+		device_id: Uuid,
+	) -> Result<Option<PersistedPairedDevice>> {
+		let mut devices = self.load_paired_devices().await?;
+		Ok(devices.remove(&device_id))
 	}
 
 	/// Remove a paired device
@@ -383,7 +418,15 @@ mod tests {
 
 		// Add paired device
 		persistence
-			.add_paired_device(device_id, device_info.clone(), session_keys.clone(), None)
+			.add_paired_device(
+				device_id,
+				device_info.clone(),
+				session_keys.clone(),
+				None,
+				PairingType::Direct,
+				None,
+				None,
+			)
 			.await
 			.unwrap();
 
@@ -407,7 +450,15 @@ mod tests {
 		let session_keys = SessionKeys::from_shared_secret(vec![1, 2, 3, 4]);
 
 		persistence
-			.add_paired_device(device_id, device_info, session_keys, None)
+			.add_paired_device(
+				device_id,
+				device_info,
+				session_keys,
+				None,
+				PairingType::Direct,
+				None,
+				None,
+			)
 			.await
 			.unwrap();
 
@@ -425,7 +476,15 @@ mod tests {
 		let session_keys = SessionKeys::from_shared_secret(vec![1, 2, 3, 4]);
 
 		persistence
-			.add_paired_device(device_id, device_info, session_keys, None)
+			.add_paired_device(
+				device_id,
+				device_info,
+				session_keys,
+				None,
+				PairingType::Direct,
+				None,
+				None,
+			)
 			.await
 			.unwrap();
 
@@ -450,7 +509,15 @@ mod tests {
 
 		// Add device (this will encrypt and save)
 		persistence
-			.add_paired_device(device_id, device_info.clone(), session_keys.clone(), None)
+			.add_paired_device(
+				device_id,
+				device_info.clone(),
+				session_keys.clone(),
+				None,
+				PairingType::Direct,
+				None,
+				None,
+			)
 			.await
 			.unwrap();
 

@@ -2,7 +2,7 @@ import { SpacedriveProvider, type SpacedriveClient } from "./contexts/Spacedrive
 import { ServerProvider } from "./contexts/ServerContext";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { RouterProvider } from "react-router-dom";
-import { Dialogs, Toaster } from "@sd/ui";
+import { Dialogs, Toaster, TooltipProvider } from "@sd/ui";
 import { ShellLayout } from "./ShellLayout";
 import { explorerRoutes } from "./router";
 import { useDaemonStatus } from "./hooks/useDaemonStatus";
@@ -83,24 +83,26 @@ export function Shell({ client }: ShellProps) {
 	return (
 		<SpacedriveProvider client={client}>
 			<ServerProvider>
-				{isTauri ? (
-					// Tauri: Wait for daemon connection before rendering content
-					<ShellWithDaemonCheck />
-				) : (
-					// Web: Render immediately (daemon connection handled differently)
-					<>
-						<TabManagerProvider routes={explorerRoutes}>
-							<TabKeyboardHandler />
-							<ShellWithTabs />
-						</TabManagerProvider>
-						<Dialogs />
-						<Toaster />
-						<ReactQueryDevtools
-							initialIsOpen={false}
-							buttonPosition="bottom-right"
-						/>
-					</>
-				)}
+				<TooltipProvider>
+					{isTauri ? (
+						// Tauri: Wait for daemon connection before rendering content
+						<ShellWithDaemonCheck />
+					) : (
+						// Web: Render immediately (daemon connection handled differently)
+						<>
+							<TabManagerProvider routes={explorerRoutes}>
+								<TabKeyboardHandler />
+								<ShellWithTabs />
+							</TabManagerProvider>
+							<Dialogs />
+							<Toaster />
+							<ReactQueryDevtools
+								initialIsOpen={false}
+								buttonPosition="bottom-right"
+							/>
+						</>
+					)}
+				</TooltipProvider>
 			</ServerProvider>
 		</SpacedriveProvider>
 	);

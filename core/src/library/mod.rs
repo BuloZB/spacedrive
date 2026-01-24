@@ -192,6 +192,43 @@ impl Library {
 				.map_err(|e| LibraryError::Other(format!("Failed to start sync service: {}", e)))?;
 		}
 
+		// Ensure current device is synced as shared resource (one-time migration)
+		// This handles the transition from device-owned to shared sync for existing devices
+		self.ensure_device_synced_as_shared(device_id).await?;
+
+		Ok(())
+	}
+
+	/// Ensure the current device is synced as a shared resource
+	/// This is called once during sync initialization to handle migration from device-owned to shared sync
+	async fn ensure_device_synced_as_shared(&self, device_id: Uuid) -> Result<()> {
+		use crate::infra::db::entities;
+		use crate::infra::sync::ChangeType;
+		use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+		// Find the current device in the database
+		let device = entities::device::Entity::find()
+			.filter(entities::device::Column::Uuid.eq(device_id))
+			.one(self.db().conn())
+			.await
+			.map_err(|e| LibraryError::Other(format!("Failed to query device: {}", e)))?;
+
+		if let Some(device_model) = device {
+			// Sync the device record as a shared resource
+			// This ensures it will propagate to all other devices in the library
+			self.sync_model(&device_model, ChangeType::Insert)
+				.await
+				.map_err(|e| {
+					LibraryError::Other(format!("Failed to sync device as shared resource: {}", e))
+				})?;
+
+			info!(
+				"Synced device {} as shared resource for library {}",
+				device_id,
+				self.id()
+			);
+		}
+
 		Ok(())
 	}
 

@@ -85,9 +85,6 @@ pub struct Device {
 	/// Whether sync is enabled for this device
 	pub sync_enabled: bool,
 
-	/// Last time this device synced
-	pub last_sync_at: Option<DateTime<Utc>>,
-
 	/// When this device was first added
 	pub created_at: DateTime<Utc>,
 
@@ -116,25 +113,66 @@ pub struct Device {
 /// Network connection method for a device
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Type)]
 pub enum ConnectionMethod {
-	/// Direct peer-to-peer connection (mDNS/local network)
-	Direct,
-	/// Connection via relay server
-	Relay,
-	/// Mixed connection (both direct and relay)
-	Mixed,
+	/// Direct connection on local network (mDNS/same subnet)
+	/// Fastest option - wire speed, no internet required
+	LocalNetwork,
+	/// Direct UDP connection over internet (NAT traversal)
+	/// Fast, but requires internet. Uses no relay bandwidth.
+	DirectInternet,
+	/// Connection proxied through relay server
+	/// Reliable fallback. Relay hosts the bandwidth.
+	RelayProxy,
 }
 
 impl ConnectionMethod {
 	/// Convert from Iroh's ConnectionType
+	///
+	/// For Mixed connections (UDP + relay simultaneously), we report the
+	/// Direct path since that's what Iroh is attempting to use primarily.
 	pub fn from_iroh_connection_type(conn_type: iroh::endpoint::ConnectionType) -> Option<Self> {
 		use iroh::endpoint::ConnectionType;
 		match conn_type {
-			ConnectionType::Direct(_) => Some(Self::Direct),
-			ConnectionType::Relay(_) => Some(Self::Relay),
-			ConnectionType::Mixed(_, _) => Some(Self::Mixed),
+			ConnectionType::Direct(addr) => {
+				if is_local_address(&addr) {
+					Some(Self::LocalNetwork)
+				} else {
+					Some(Self::DirectInternet)
+				}
+			}
+			ConnectionType::Relay(_) => Some(Self::RelayProxy),
+			// Mixed means both UDP and relay are active, but UDP is preferred
+			// Report the UDP path since that's what Iroh will use when confirmed
+			ConnectionType::Mixed(addr, _relay) => {
+				if is_local_address(&addr) {
+					Some(Self::LocalNetwork)
+				} else {
+					Some(Self::DirectInternet)
+				}
+			}
 			ConnectionType::None => None,
 		}
 	}
+}
+
+/// Check if a socket address is a local/private network address
+fn is_local_address(addr: &std::net::SocketAddr) -> bool {
+	match addr.ip() {
+		std::net::IpAddr::V4(ipv4) => {
+			ipv4.is_private() // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+				|| ipv4.is_loopback() // 127.0.0.0/8
+				|| ipv4.is_link_local() // 169.254.0.0/16
+		}
+		std::net::IpAddr::V6(ipv6) => {
+			ipv6.is_loopback() // ::1
+				|| ipv6.is_unicast_link_local() // fe80::/10
+				|| is_ipv6_unique_local(&ipv6) // fc00::/7
+		}
+	}
+}
+
+/// Check if IPv6 address is in unique local range (fc00::/7)
+fn is_ipv6_unique_local(ipv6: &std::net::Ipv6Addr) -> bool {
+	matches!(ipv6.segments()[0] & 0xfe00, 0xfc00)
 }
 
 /// Operating system types
@@ -206,7 +244,6 @@ impl Device {
 			is_online: true,
 			last_seen_at: now,
 			sync_enabled: true,
-			last_sync_at: None,
 			created_at: now,
 			updated_at: now,
 			// Ephemeral fields
@@ -316,7 +353,6 @@ impl Device {
 			is_online: is_connected,
 			last_seen_at: info.last_seen,
 			sync_enabled: true,
-			last_sync_at: None,
 			created_at: info.last_seen,
 			updated_at: info.last_seen,
 			// Ephemeral fields
@@ -1143,7 +1179,6 @@ impl From<Device> for entities::device::ActiveModel {
 			capabilities: Set(device.capabilities),
 			created_at: Set(device.created_at),
 			sync_enabled: Set(device.sync_enabled),
-			last_sync_at: Set(device.last_sync_at),
 			updated_at: Set(device.updated_at),
 		}
 	}
@@ -1183,7 +1218,6 @@ impl TryFrom<entities::device::Model> for Device {
 			is_online: model.is_online,
 			last_seen_at: model.last_seen_at,
 			sync_enabled: model.sync_enabled,
-			last_sync_at: model.last_sync_at,
 			created_at: model.created_at,
 			updated_at: model.updated_at,
 			// Ephemeral fields - set by caller based on context

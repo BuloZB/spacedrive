@@ -1,14 +1,16 @@
 //! Update app configuration action
 
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use specta::Type;
+use tracing::info;
+
 use crate::{
 	config::AppConfig,
 	context::CoreContext,
 	infra::action::{error::ActionError, CoreAction, ValidationResult},
 };
-use serde::{Deserialize, Serialize};
-use specta::Type;
-use std::sync::Arc;
-use tracing::info;
 
 /// Input for updating app configuration
 /// All fields are optional for partial updates
@@ -53,6 +55,26 @@ pub struct UpdateAppConfigInput {
 	/// Whether to include debug logs in job logs
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub job_logging_include_debug: Option<bool>,
+
+	/// Automatically accept vouches from trusted devices
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub proxy_pairing_auto_accept_vouched: Option<bool>,
+
+	/// Automatically vouch new devices to all paired devices
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub proxy_pairing_auto_vouch_to_all: Option<bool>,
+
+	/// Maximum age of vouch signatures in seconds
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub proxy_pairing_vouch_signature_max_age: Option<u64>,
+
+	/// Timeout for proxy confirmation in seconds
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub proxy_pairing_vouch_response_timeout: Option<u64>,
+
+	/// Maximum retries for queued vouches
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub proxy_pairing_vouch_queue_retry_limit: Option<u32>,
 }
 
 /// Output for update app configuration action
@@ -81,10 +103,7 @@ impl CoreAction for UpdateAppConfigAction {
 		Ok(Self { input })
 	}
 
-	async fn validate(
-		&self,
-		_context: Arc<CoreContext>,
-	) -> Result<ValidationResult, ActionError> {
+	async fn validate(&self, _context: Arc<CoreContext>) -> Result<ValidationResult, ActionError> {
 		// Validate log level
 		if let Some(ref level) = self.input.log_level {
 			let valid_levels = ["trace", "debug", "info", "warn", "error"];
@@ -102,7 +121,9 @@ impl CoreAction for UpdateAppConfigAction {
 
 		// Validate theme
 		if let Some(ref theme) = self.input.theme {
-			let valid_themes = ["system", "light", "dark", "midnight", "noir", "slate", "nord", "mocha"];
+			let valid_themes = [
+				"system", "light", "dark", "midnight", "noir", "slate", "nord", "mocha",
+			];
 			if !valid_themes.contains(&theme.to_lowercase().as_str()) {
 				return Err(ActionError::Validation {
 					field: "theme".to_string(),
@@ -120,7 +141,35 @@ impl CoreAction for UpdateAppConfigAction {
 			if lang.len() != 2 || !lang.chars().all(|c| c.is_ascii_lowercase()) {
 				return Err(ActionError::Validation {
 					field: "language".to_string(),
-					message: "Language must be a 2-letter ISO 639-1 code (e.g., 'en', 'de')".to_string(),
+					message: "Language must be a 2-letter ISO 639-1 code (e.g., 'en', 'de')"
+						.to_string(),
+				});
+			}
+		}
+
+		if let Some(max_age) = self.input.proxy_pairing_vouch_signature_max_age {
+			if max_age == 0 {
+				return Err(ActionError::Validation {
+					field: "proxy_pairing_vouch_signature_max_age".to_string(),
+					message: "Signature max age must be greater than 0".to_string(),
+				});
+			}
+		}
+
+		if let Some(timeout) = self.input.proxy_pairing_vouch_response_timeout {
+			if timeout == 0 {
+				return Err(ActionError::Validation {
+					field: "proxy_pairing_vouch_response_timeout".to_string(),
+					message: "Response timeout must be greater than 0".to_string(),
+				});
+			}
+		}
+
+		if let Some(retry_limit) = self.input.proxy_pairing_vouch_queue_retry_limit {
+			if retry_limit == 0 {
+				return Err(ActionError::Validation {
+					field: "proxy_pairing_vouch_queue_retry_limit".to_string(),
+					message: "Retry limit must be greater than 0".to_string(),
 				});
 			}
 		}
@@ -211,6 +260,41 @@ impl CoreAction for UpdateAppConfigAction {
 			}
 		}
 
+		if let Some(auto_accept_vouched) = self.input.proxy_pairing_auto_accept_vouched {
+			if config.proxy_pairing.auto_accept_vouched != auto_accept_vouched {
+				config.proxy_pairing.auto_accept_vouched = auto_accept_vouched;
+				changes.push("proxy_pairing_auto_accept_vouched");
+			}
+		}
+
+		if let Some(auto_vouch_to_all) = self.input.proxy_pairing_auto_vouch_to_all {
+			if config.proxy_pairing.auto_vouch_to_all != auto_vouch_to_all {
+				config.proxy_pairing.auto_vouch_to_all = auto_vouch_to_all;
+				changes.push("proxy_pairing_auto_vouch_to_all");
+			}
+		}
+
+		if let Some(max_age) = self.input.proxy_pairing_vouch_signature_max_age {
+			if config.proxy_pairing.vouch_signature_max_age != max_age {
+				config.proxy_pairing.vouch_signature_max_age = max_age;
+				changes.push("proxy_pairing_vouch_signature_max_age");
+			}
+		}
+
+		if let Some(timeout) = self.input.proxy_pairing_vouch_response_timeout {
+			if config.proxy_pairing.vouch_response_timeout != timeout {
+				config.proxy_pairing.vouch_response_timeout = timeout;
+				changes.push("proxy_pairing_vouch_response_timeout");
+			}
+		}
+
+		if let Some(retry_limit) = self.input.proxy_pairing_vouch_queue_retry_limit {
+			if config.proxy_pairing.vouch_queue_retry_limit != retry_limit {
+				config.proxy_pairing.vouch_queue_retry_limit = retry_limit;
+				changes.push("proxy_pairing_vouch_queue_retry_limit");
+			}
+		}
+
 		if changes.is_empty() {
 			return Ok(UpdateAppConfigOutput {
 				success: true,
@@ -223,11 +307,26 @@ impl CoreAction for UpdateAppConfigAction {
 			.save()
 			.map_err(|e| ActionError::Internal(format!("Failed to save config: {}", e)))?;
 
+		if let Some(networking) = context.get_networking().await {
+			let registry = networking.protocol_registry();
+			let guard = registry.read().await;
+			if let Some(handler) = guard.get_handler("pairing") {
+				if let Some(pairing) = handler
+					.as_any()
+					.downcast_ref::<crate::service::network::protocol::PairingProtocolHandler>(
+				) {
+					pairing.set_proxy_config(config.proxy_pairing.clone()).await;
+				}
+			}
+		}
+
 		// Emit config change events for each changed field
 		for field in &changes {
-			context.events.emit(crate::infra::event::Event::ConfigChanged {
-				field: field.to_string(),
-			});
+			context
+				.events
+				.emit(crate::infra::event::Event::ConfigChanged {
+					field: field.to_string(),
+				});
 		}
 
 		info!(

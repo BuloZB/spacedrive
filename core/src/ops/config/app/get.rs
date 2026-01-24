@@ -1,13 +1,15 @@
 //! Get app configuration query
 
+use std::{path::PathBuf, sync::Arc};
+
+use serde::{Deserialize, Serialize};
+use specta::Type;
+
 use crate::{
 	config::{AppConfig, JobLoggingConfig, LoggingConfig, Preferences, ServiceConfig},
 	context::CoreContext,
 	infra::query::{CoreQuery, QueryError, QueryResult},
 };
-use serde::{Deserialize, Serialize};
-use specta::Type;
-use std::{path::PathBuf, sync::Arc};
 
 /// Input for getting app configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -39,6 +41,9 @@ pub struct AppConfigOutput {
 
 	/// Daemon logging configuration
 	pub logging: LoggingConfigOutput,
+
+	/// Proxy pairing configuration
+	pub proxy_pairing: ProxyPairingConfigOutput,
 }
 
 /// User preferences output
@@ -73,6 +78,16 @@ pub struct LoggingConfigOutput {
 	pub main_filter: String,
 }
 
+/// Proxy pairing configuration output
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ProxyPairingConfigOutput {
+	pub auto_accept_vouched: bool,
+	pub auto_vouch_to_all: bool,
+	pub vouch_signature_max_age: u64,
+	pub vouch_response_timeout: u64,
+	pub vouch_queue_retry_limit: u32,
+}
+
 impl From<&AppConfig> for AppConfigOutput {
 	fn from(config: &AppConfig) -> Self {
 		Self {
@@ -99,6 +114,13 @@ impl From<&AppConfig> for AppConfigOutput {
 			},
 			logging: LoggingConfigOutput {
 				main_filter: config.logging.main_filter.clone(),
+			},
+			proxy_pairing: ProxyPairingConfigOutput {
+				auto_accept_vouched: config.proxy_pairing.auto_accept_vouched,
+				auto_vouch_to_all: config.proxy_pairing.auto_vouch_to_all,
+				vouch_signature_max_age: config.proxy_pairing.vouch_signature_max_age,
+				vouch_response_timeout: config.proxy_pairing.vouch_response_timeout,
+				vouch_queue_retry_limit: config.proxy_pairing.vouch_queue_retry_limit,
 			},
 		}
 	}

@@ -230,6 +230,18 @@ impl MessagingProtocolHandler {
 				os_name,
 				os_version,
 				hardware_model,
+				cpu_model,
+				cpu_architecture,
+				cpu_cores_physical,
+				cpu_cores_logical,
+				cpu_frequency_mhz,
+				memory_total_bytes,
+				form_factor,
+				manufacturer,
+				gpu_models,
+				boot_disk_type,
+				boot_disk_capacity_bytes,
+				swap_total_bytes,
 			} => {
 				// Get context
 				let context = self.context.as_ref().ok_or_else(|| {
@@ -269,9 +281,43 @@ impl MessagingProtocolHandler {
 						.await;
 
 					match existing {
-						Ok(Some(_)) => {
-							// Already registered, skip
-							continue;
+						Ok(Some(existing_device)) => {
+							// Device exists (from pre-registration) - update with full hardware
+							let mut device_model: entities::device::ActiveModel = existing_device.into();
+
+							// Update all fields with data from message
+							device_model.name = Set(device_name.clone());
+							device_model.slug = Set(device_slug.clone());
+							device_model.os = Set(os_name.clone());
+							device_model.os_version = Set(os_version.clone());
+							device_model.hardware_model = Set(hardware_model.clone());
+							device_model.cpu_model = Set(cpu_model.clone());
+							device_model.cpu_architecture = Set(cpu_architecture.clone());
+							device_model.cpu_cores_physical = Set(cpu_cores_physical);
+							device_model.cpu_cores_logical = Set(cpu_cores_logical);
+							device_model.cpu_frequency_mhz = Set(cpu_frequency_mhz);
+							device_model.memory_total_bytes = Set(memory_total_bytes);
+							device_model.form_factor = Set(form_factor.clone());
+							device_model.manufacturer = Set(manufacturer.clone());
+							device_model.gpu_models = Set(gpu_models.clone().map(|g| serde_json::json!(g)));
+							device_model.boot_disk_type = Set(boot_disk_type.clone());
+							device_model.boot_disk_capacity_bytes = Set(boot_disk_capacity_bytes);
+							device_model.swap_total_bytes = Set(swap_total_bytes);
+							device_model.is_online = Set(false);
+							device_model.last_seen_at = Set(Utc::now());
+							device_model.updated_at = Set(Utc::now());
+
+							if let Err(e) = device_model.update(db.conn()).await {
+								success = false;
+								error_msg = Some(format!("Failed to update device: {}", e));
+								break;
+							}
+
+							tracing::info!(
+								"Updated existing device {} in library {} with full hardware specs",
+								device_id,
+								library.id()
+							);
 						}
 						Ok(None) => {
 							// Get existing slugs for collision detection
@@ -300,7 +346,7 @@ impl MessagingProtocolHandler {
 								);
 							}
 
-							// Register remote device
+							// Register remote device with full hardware specs
 							let device_model = entities::device::ActiveModel {
 								id: sea_orm::ActiveValue::NotSet,
 								uuid: Set(device_id),
@@ -309,19 +355,18 @@ impl MessagingProtocolHandler {
 								os: Set(os_name.clone()),
 								os_version: Set(os_version.clone()),
 								hardware_model: Set(hardware_model.clone()),
-								// Hardware specs - not available for remote devices
-								cpu_model: Set(None),
-								cpu_architecture: Set(None),
-								cpu_cores_physical: Set(None),
-								cpu_cores_logical: Set(None),
-								cpu_frequency_mhz: Set(None),
-								memory_total_bytes: Set(None),
-								form_factor: Set(None),
-								manufacturer: Set(None),
-								gpu_models: Set(None),
-								boot_disk_type: Set(None),
-								boot_disk_capacity_bytes: Set(None),
-								swap_total_bytes: Set(None),
+								cpu_model: Set(cpu_model.clone()),
+								cpu_architecture: Set(cpu_architecture.clone()),
+								cpu_cores_physical: Set(cpu_cores_physical),
+								cpu_cores_logical: Set(cpu_cores_logical),
+								cpu_frequency_mhz: Set(cpu_frequency_mhz),
+								memory_total_bytes: Set(memory_total_bytes),
+								form_factor: Set(form_factor.clone()),
+								manufacturer: Set(manufacturer.clone()),
+								gpu_models: Set(gpu_models.clone().map(|g| serde_json::json!(g))),
+								boot_disk_type: Set(boot_disk_type.clone()),
+								boot_disk_capacity_bytes: Set(boot_disk_capacity_bytes),
+								swap_total_bytes: Set(swap_total_bytes),
 								network_addresses: Set(serde_json::json!([])),
 								is_online: Set(false),
 								last_seen_at: Set(Utc::now()),
@@ -331,8 +376,7 @@ impl MessagingProtocolHandler {
 									"volume_detection": true
 								})),
 								created_at: Set(Utc::now()),
-								sync_enabled: Set(true), // Enable sync for registered devices
-								last_sync_at: Set(None),
+								sync_enabled: Set(true),
 								updated_at: Set(Utc::now()),
 							};
 
@@ -341,6 +385,67 @@ impl MessagingProtocolHandler {
 								error_msg = Some(format!("Failed to register device: {}", e));
 								break;
 							}
+
+							tracing::info!(
+								"Registered device {} in library {} with full hardware specs",
+								device_id,
+								library.id()
+							);
+
+							// Send RegisterDeviceRequest back to register ourselves with the new device
+							let context_clone = context.clone();
+							let sender_device_id = device_id;
+							tokio::spawn(async move {
+								// Get our device info
+								if let Ok(our_device) = context_clone.device_manager.to_device() {
+									// Get our slug for this library
+									if let Some(lib_id) = library_id {
+										if let Ok(our_slug) = context_clone.device_manager.slug_for_library(lib_id) {
+											// Get networking
+											if let Some(networking) = context_clone.get_networking().await {
+												let our_register_request = LibraryMessage::RegisterDeviceRequest {
+													request_id: Uuid::new_v4(),
+													library_id,
+													device_id: our_device.id,
+													device_name: our_device.name,
+													device_slug: our_slug,
+													os_name: our_device.os.to_string(),
+													os_version: our_device.os_version,
+													hardware_model: our_device.hardware_model,
+													cpu_model: our_device.cpu_model,
+													cpu_architecture: our_device.cpu_architecture,
+													cpu_cores_physical: our_device.cpu_cores_physical,
+													cpu_cores_logical: our_device.cpu_cores_logical,
+													cpu_frequency_mhz: our_device.cpu_frequency_mhz,
+													memory_total_bytes: our_device.memory_total_bytes,
+													form_factor: our_device.form_factor.map(|f| f.to_string()),
+													manufacturer: our_device.manufacturer,
+													gpu_models: our_device.gpu_models,
+													boot_disk_type: our_device.boot_disk_type,
+													boot_disk_capacity_bytes: our_device.boot_disk_capacity_bytes,
+													swap_total_bytes: our_device.swap_total_bytes,
+												};
+
+												// Send to the device that just registered with us
+												if let Err(e) = networking
+													.send_library_request(sender_device_id, our_register_request)
+													.await
+												{
+													tracing::warn!(
+														"Failed to send bidirectional RegisterDeviceRequest: {}",
+														e
+													);
+												} else {
+													tracing::info!(
+														"Sent RegisterDeviceRequest back to {} for bidirectional registration",
+														sender_device_id
+													);
+												}
+											}
+										}
+									}
+								}
+							});
 						}
 						Err(e) => {
 							success = false;
@@ -350,10 +455,11 @@ impl MessagingProtocolHandler {
 					}
 				}
 
+				// Send response confirming registration
 				let response = Message::Library(LibraryMessage::RegisterDeviceResponse {
 					request_id,
 					success,
-					message: error_msg,
+					message: error_msg.clone(),
 				});
 
 				serde_json::to_vec(&response).map_err(|e| NetworkingError::Serialization(e))
@@ -373,6 +479,21 @@ impl MessagingProtocolHandler {
 				requesting_device_id,
 				requesting_device_name,
 				requesting_device_slug,
+				requesting_device_os,
+				requesting_device_os_version,
+				requesting_device_hardware_model,
+				requesting_device_cpu_model,
+				requesting_device_cpu_architecture,
+				requesting_device_cpu_cores_physical,
+				requesting_device_cpu_cores_logical,
+				requesting_device_cpu_frequency_mhz,
+				requesting_device_memory_total_bytes,
+				requesting_device_form_factor,
+				requesting_device_manufacturer,
+				requesting_device_gpu_models,
+				requesting_device_boot_disk_type,
+				requesting_device_boot_disk_capacity_bytes,
+				requesting_device_swap_total_bytes,
 			} => {
 				tracing::info!(
 					"Received CreateSharedLibraryRequest: {} ({}) from device {} (slug: {})",
@@ -406,8 +527,7 @@ impl MessagingProtocolHandler {
 				}
 
 				// Create library with specific UUID
-				// Note: We pass the requesting device info so it can be pre-registered
-				// before ensure_device_registered runs for the current device
+				// Pre-register the requesting device with full hardware specs
 				match library_manager
 					.create_library_with_id_and_initial_device(
 						library_id,
@@ -416,6 +536,21 @@ impl MessagingProtocolHandler {
 						requesting_device_id,
 						requesting_device_name,
 						requesting_device_slug,
+						requesting_device_os,
+						requesting_device_os_version,
+						requesting_device_hardware_model,
+						requesting_device_cpu_model,
+						requesting_device_cpu_architecture,
+						requesting_device_cpu_cores_physical,
+						requesting_device_cpu_cores_logical,
+						requesting_device_cpu_frequency_mhz,
+						requesting_device_memory_total_bytes,
+						requesting_device_form_factor,
+						requesting_device_manufacturer,
+						requesting_device_gpu_models,
+						requesting_device_boot_disk_type,
+						requesting_device_boot_disk_capacity_bytes,
+						requesting_device_swap_total_bytes,
 						context.clone(),
 					)
 					.await

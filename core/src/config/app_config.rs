@@ -37,6 +37,10 @@ pub struct AppConfig {
 	/// Daemon logging configuration with multi-stream support
 	#[serde(default)]
 	pub logging: LoggingConfig,
+
+	/// Proxy pairing configuration
+	#[serde(default)]
+	pub proxy_pairing: ProxyPairingConfig,
 }
 
 /// Configuration for core services
@@ -134,6 +138,33 @@ pub struct LoggingConfig {
 	pub streams: Vec<LogStreamConfig>,
 }
 
+/// Proxy pairing configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProxyPairingConfig {
+	/// Automatically accept vouches from trusted devices
+	pub auto_accept_vouched: bool,
+	/// Automatically vouch new devices to all paired devices
+	pub auto_vouch_to_all: bool,
+	/// Maximum age of vouch signatures in seconds
+	pub vouch_signature_max_age: u64,
+	/// Timeout for proxy confirmation in seconds
+	pub vouch_response_timeout: u64,
+	/// Maximum retries for queued vouches
+	pub vouch_queue_retry_limit: u32,
+}
+
+impl Default for ProxyPairingConfig {
+	fn default() -> Self {
+		Self {
+			auto_accept_vouched: true,
+			auto_vouch_to_all: false,
+			vouch_signature_max_age: 300,
+			vouch_response_timeout: 60,
+			vouch_queue_retry_limit: 5,
+		}
+	}
+}
+
 impl Default for LoggingConfig {
 	fn default() -> Self {
 		Self {
@@ -210,6 +241,7 @@ impl AppConfig {
 			job_logging: JobLoggingConfig::default(),
 			services: ServiceConfig::default(),
 			logging: LoggingConfig::default(),
+			proxy_pairing: ProxyPairingConfig::default(),
 		}
 	}
 
@@ -273,7 +305,7 @@ impl Migrate for AppConfig {
 	}
 
 	fn target_version() -> u32 {
-		4 // Updated schema version for multi-stream logging
+		5 // Added proxy pairing configuration
 	}
 
 	fn migrate(&mut self) -> Result<()> {
@@ -301,7 +333,13 @@ impl Migrate for AppConfig {
 				self.version = 4;
 				Ok(())
 			}
-			4 => Ok(()), // Already at target version
+			4 => {
+				// Migration from v4 to v5: Add proxy pairing configuration
+				self.proxy_pairing = ProxyPairingConfig::default();
+				self.version = 5;
+				Ok(())
+			}
+			5 => Ok(()), // Already at target version
 			v => Err(anyhow!("Unknown config version: {}", v)),
 		}
 	}
