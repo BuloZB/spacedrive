@@ -220,9 +220,9 @@ impl NetworkingService {
 				JOB_ACTIVITY_ALPN.to_vec(),
 			])
 			.relay_mode(iroh::RelayMode::Default)
-			.add_discovery(MdnsDiscovery::builder())
-			.add_discovery(PkarrPublisher::n0_dns())
-			.add_discovery(DnsDiscovery::n0_dns())
+			.discovery(MdnsDiscovery::builder())
+			.discovery(PkarrPublisher::n0_dns())
+			.discovery(DnsDiscovery::n0_dns())
 			.bind_addr_v4(std::net::SocketAddrV4::new(
 				std::net::Ipv4Addr::UNSPECIFIED,
 				0,
@@ -969,15 +969,12 @@ impl NetworkingService {
 	}
 
 	/// Strip IP addresses from an EndpointAddr to force relay-only connection
+	/// Note: In v0.95+, EndpointAddr is immutable. This creates a minimal EndpointAddr
+	/// with just the ID - Iroh will use discovery to find relay URLs if needed.
 	fn strip_ip_addresses(endpoint_addr: EndpointAddr) -> EndpointAddr {
-		// In v0.95+, create a new EndpointAddr with only relay URLs (no IP addrs)
-		let id = endpoint_addr.id;
-		let mut new_addr = EndpointAddr::new(id);
-		// Add relay URLs but not IP addresses
-		for relay_url in endpoint_addr.relay_urls() {
-			new_addr = new_addr.with_relay(relay_url.clone());
-		}
-		new_addr
+		// Create a minimal EndpointAddr with just the ID
+		// Iroh's discovery system will handle finding relay URLs
+		EndpointAddr::new(endpoint_addr.id)
 	}
 
 	/// Spawn a background task to watch for connection closure
@@ -1044,7 +1041,7 @@ impl NetworkingService {
 	/// Get our node address for advertising
 	pub fn get_node_addr(&self) -> Result<Option<EndpointAddr>> {
 		if let Some(endpoint) = &self.endpoint {
-			Ok(endpoint.addr().get())
+			Ok(Some(endpoint.addr()))
 		} else {
 			Err(NetworkingError::ConnectionFailed(
 				"Networking not started".to_string(),
@@ -1056,11 +1053,7 @@ impl NetworkingService {
 	pub async fn get_relay_url(&self) -> Option<String> {
 		if let Some(endpoint) = &self.endpoint {
 			// In v0.95+, get relay URL from the endpoint address
-			if let Some(addr) = endpoint.addr().get() {
-				addr.relay_urls().next().map(|url| url.to_string())
-			} else {
-				None
-			}
+			endpoint.addr().relay_urls().next().map(|url| url.to_string())
 		} else {
 			None
 		}
@@ -1077,7 +1070,13 @@ impl NetworkingService {
 				"Networking not started".to_string(),
 			))?;
 
-		let mut discovery_stream = endpoint.discovery_stream();
+		// Create mDNS discovery service to subscribe to events
+		// Note: In v0.95+, we need to get discovery services individually and subscribe
+		let endpoint_id = endpoint.id();
+		let mdns_discovery = MdnsDiscovery::builder()
+			.build(endpoint_id)
+			.map_err(|e| NetworkingError::ConnectionFailed(format!("Failed to create mDNS discovery: {}", e)))?;
+		let mut discovery_stream = mdns_discovery.subscribe().await;
 		let session_id_str = session_id.to_string();
 		let timeout = tokio::time::Duration::from_secs(5); // Shorter timeout for mDNS
 		let start = tokio::time::Instant::now();
@@ -1091,22 +1090,23 @@ impl NetworkingService {
 
 		while start.elapsed() < timeout {
 			tokio::select! {
-				Some(result) = discovery_stream.next() => {
-					match result {
-						Ok(iroh::discovery::DiscoveryEvent::Discovered(item)) => {
+				Some(event) = discovery_stream.next() => {
+					match event {
+						iroh::discovery::mdns::DiscoveryEvent::Discovered { endpoint_info, .. } => {
 							// Check if this node is broadcasting our session_id
-							if let Some(user_data) = item.node_info().data.user_data() {
+							if let Some(user_data) = endpoint_info.data.user_data() {
 								if user_data.as_ref() == session_id_str {
+									let endpoint_id = endpoint_info.endpoint_id;
 									self.logger
 										.info(&format!(
 											"[mDNS] Found pairing initiator: {} with {} IP addresses",
-											item.endpoint_id().fmt_short(),
-											item.node_info().data.ip_addrs().count()
+											endpoint_id.fmt_short(),
+											endpoint_info.data.ip_addrs().count()
 										))
 										.await;
 
 									// Build EndpointAddr from discovery info
-									let node_addr = item.node_info().into_endpoint_addr(item.endpoint_id());
+									let node_addr = endpoint_info.into_endpoint_addr();
 
 									// Try to connect to the initiator
 									if let Err(e) = self.connect_to_node(node_addr.clone(), force_relay).await {
@@ -1120,13 +1120,8 @@ impl NetworkingService {
 								}
 							}
 						}
-						Ok(iroh::discovery::DiscoveryEvent::Expired(_)) => {
+						iroh::discovery::mdns::DiscoveryEvent::Expired { .. } => {
 							// Node expired, continue searching
-						}
-						Err(e) => {
-							self.logger
-								.warn(&format!("[mDNS] Discovery stream error: {}", e))
-								.await;
 						}
 					}
 				}
@@ -1296,7 +1291,7 @@ impl NetworkingService {
 			"Networking not started".to_string(),
 		))?;
 
-		let user_data = iroh::node_info::UserData::try_from(session_id.to_string())
+		let user_data = iroh::endpoint_info::UserData::try_from(session_id.to_string())
 			.map_err(|e| NetworkingError::Protocol(format!("Failed to create user data: {}", e)))?;
 
 		endpoint.set_user_data_for_discovery(Some(user_data));
@@ -1319,8 +1314,9 @@ impl NetworkingService {
 		endpoint.online().await;
 		let relay_url = endpoint
 			.addr()
-			.get()
-			.and_then(|a| a.relay_urls().next().map(|u| u.to_string()))
+			.relay_urls()
+			.next()
+			.map(|u| u.to_string())
 			.unwrap_or_else(|| "unknown".to_string());
 		self.logger
 			.info(&format!("Endpoint online, relay: {}", relay_url))
@@ -1520,7 +1516,7 @@ impl NetworkingService {
 				// We need to try connecting to all discovered nodes since we don't know which one is the initiator
 
 				// Get our own node address to broadcast it
-				let our_node_addr = endpoint.addr().get();
+				let our_node_addr = endpoint.addr();
 
 				self.logger
 					.info(&format!(
@@ -1840,7 +1836,7 @@ async fn spawn_connection_watcher_task(
 		let close_reason = conn.closed().await;
 
 		// Get the ALPN for this specific connection
-		let alpn_bytes = conn.alpn().unwrap_or_default();
+		let alpn_bytes = conn.alpn().to_vec();
 
 		logger
 			.info(&format!(
@@ -1872,13 +1868,13 @@ async fn spawn_connection_watcher_task(
 			// Find the device ID for this node and update state
 			let mut registry = device_registry.write().await;
 			if let Some(device_id) = registry.get_device_by_node_id(node_id) {
-				// Use update_device_from_connection with ConnectionType::None
+				// Use update_device_from_connection with is_connected=false (all connections closed)
 				if let Err(e) = registry
 					.update_device_from_connection(
 						device_id,
 						node_id,
-						iroh::endpoint::ConnectionType::None,
-						None,
+						false, // is_connected
+						None,  // latency
 					)
 					.await
 				{

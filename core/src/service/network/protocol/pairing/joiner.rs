@@ -185,9 +185,7 @@ impl PairingProtocolHandler {
 			let relay_url = self
 				.endpoint
 				.as_ref()
-				.and_then(|ep| ep.addr().get())
-				.and_then(|addr| addr.relay_urls().next())
-				.map(|r| r.to_string());
+				.and_then(|ep| ep.addr().relay_urls().next().map(|r| r.to_string()));
 
 			// Complete pairing in device registry
 			{

@@ -200,20 +200,12 @@ impl NetworkingEventLoop {
 
 	/// Handle an incoming connection
 	async fn handle_connection(&self, conn: Connection) {
-		// Extract the remote node ID from the connection
-		let remote_node_id = match conn.remote_id() {
-			Ok(key) => key,
-			Err(e) => {
-				self.logger
-					.error(&format!("Failed to get remote node ID: {}", e))
-					.await;
-				return;
-			}
-		};
+		// Extract the remote node ID from the connection (now infallible in v0.95+)
+		let remote_node_id = conn.remote_id();
 
 		// Track the connection (keyed by node_id and alpn)
 		{
-			let alpn_bytes = conn.alpn().unwrap_or_default();
+			let alpn_bytes = conn.alpn().to_vec();
 			let mut connections = self.active_connections.write().await;
 			connections.insert((remote_node_id, alpn_bytes), conn.clone());
 		}
@@ -292,7 +284,7 @@ impl NetworkingEventLoop {
 			// Only remove connection if it's actually closed
 			if conn.close_reason().is_some() {
 				let mut connections = active_connections.write().await;
-				let alpn_bytes = conn.alpn().unwrap_or_default();
+				let alpn_bytes = conn.alpn().to_vec();
 				connections.remove(&(remote_node_id, alpn_bytes));
 				logger
 					.info(&format!(
@@ -356,7 +348,7 @@ impl NetworkingEventLoop {
 					}
 
 					// Route to handler based on ALPN
-					let alpn_bytes = conn.alpn().unwrap_or_default();
+					let alpn_bytes = conn.alpn().to_vec();
 
 					if alpn_bytes == MESSAGING_ALPN {
 						let registry = protocol_registry.read().await;
@@ -443,7 +435,7 @@ impl NetworkingEventLoop {
 							logger.debug(&format!("Accepted unidirectional stream from {}", remote_node_id)).await;
 
 							// Get ALPN to determine which protocol handler to use
-							let alpn_bytes = conn.alpn().unwrap_or_default();
+							let alpn_bytes = conn.alpn().to_vec();
 							let registry = protocol_registry.read().await;
 
 							// Route based on ALPN
@@ -646,7 +638,7 @@ impl NetworkingEventLoop {
 
 			EventLoopCommand::TrackOutboundConnection { node_id, conn } => {
 				// Add outbound connection to active connections map
-				let alpn_bytes = conn.alpn().unwrap_or_default();
+				let alpn_bytes = conn.alpn().to_vec();
 				{
 					let mut connections = self.active_connections.write().await;
 					connections.insert((node_id, alpn_bytes.clone()), conn.clone());
@@ -738,7 +730,7 @@ impl NetworkingEventLoop {
 		};
 
 		// Create node address (Iroh will use existing connection if available)
-		let node_addr = NodeAddr::new(node_id);
+		let node_addr = EndpointAddr::new(node_id);
 
 		// Connect with specific ALPN
 		self.logger
@@ -760,7 +752,7 @@ impl NetworkingEventLoop {
 				// Track the connection
 				{
 					let mut connections = self.active_connections.write().await;
-					let alpn_bytes = conn.alpn().unwrap_or_default();
+					let alpn_bytes = conn.alpn().to_vec();
 					connections.insert((node_id, alpn_bytes), conn.clone());
 				}
 

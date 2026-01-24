@@ -17,11 +17,14 @@ pub struct NetworkIdentity {
 impl NetworkIdentity {
 	/// Create a new random network identity
 	pub async fn new() -> Result<Self> {
-		let secret_key = SecretKey::generate(&mut rand::thread_rng());
-		let node_id = secret_key.public();
+		// Generate random bytes for the secret key
+		use rand::RngCore;
+		let mut ed25519_seed = [0u8; 32];
+		rand::thread_rng().fill_bytes(&mut ed25519_seed);
 
-		// Generate Ed25519 seed for backward compatibility
-		let ed25519_seed = rand::random();
+		// Create Iroh secret key from random bytes
+		let secret_key = SecretKey::from_bytes(&ed25519_seed);
+		let node_id = secret_key.public();
 
 		Ok(Self {
 			secret_key,

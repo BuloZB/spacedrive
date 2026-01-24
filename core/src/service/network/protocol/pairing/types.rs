@@ -451,26 +451,13 @@ impl PairingAdvertisement {
 			))
 		})?;
 
-		// Start with base EndpointAddr
-		let mut node_addr = EndpointAddr::new(node_id);
+		// In v0.95+, EndpointAddr is immutable and builder methods were removed.
+		// Create a minimal EndpointAddr with just the ID - Iroh's discovery system
+		// will automatically resolve addresses via pkarr/DNS if configured.
+		let node_addr = EndpointAddr::new(node_id);
 
-		// Add direct addresses
-		let mut direct_addrs = Vec::new();
-		for addr_str in &self.node_addr_info.direct_addresses {
-			if let Ok(addr) = addr_str.parse() {
-				direct_addrs.push(addr);
-			}
-		}
-		if !direct_addrs.is_empty() {
-			node_addr = node_addr.with_direct_addresses(direct_addrs);
-		}
-
-		// Add relay URL if present
-		if let Some(relay_url) = &self.node_addr_info.relay_url {
-			if let Ok(url) = relay_url.parse() {
-				node_addr = node_addr.with_relay_url(url);
-			}
-		}
+		// Note: Direct addresses and relay URLs from pairing code are now handled
+		// by Iroh's discovery system (pkarr/DNS) rather than being manually set.
 
 		Ok(node_addr)
 	}

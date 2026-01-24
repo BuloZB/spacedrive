@@ -154,14 +154,16 @@ impl LibraryQuery for ListLibraryDevicesQuery {
 				// Query Iroh directly for actual connection status and method
 				let (is_actually_connected, connection_method) = if let Some(ep) = endpoint {
 					// Get node ID for this device
-					let node_id = registry.get_node_id_for_device(device_id);
-					if let Some(node_id) = node_id {
-						// Query Iroh for connection info
-						if let Some(remote_info) = ep.remote_info(node_id) {
-							let conn_method = crate::domain::device::ConnectionMethod::from_iroh_connection_type(remote_info.conn_type);
-							let is_connected = conn_method.is_some();
+					if let Some(node_id) = registry.get_node_id_for_device(device_id) {
+						// Use conn_type() API (replaces remote_info() removed in v0.93+)
+						if let Some(conn_type_watcher) = ep.conn_type(node_id) {
+							// Get current connection type from watcher (implements Deref)
+							let conn_type = *conn_type_watcher;
+							let conn_method = crate::domain::device::ConnectionMethod::from_iroh_connection_type(conn_type);
+							let is_connected = !matches!(conn_type, iroh::endpoint::ConnectionType::None);
 							(is_connected, conn_method)
 						} else {
+							// No address information exists for this endpoint (never connected)
 							(false, None)
 						}
 					} else {
