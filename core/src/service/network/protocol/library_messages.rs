@@ -27,6 +27,19 @@ pub enum LibraryMessage {
 		os_name: String,
 		os_version: Option<String>,
 		hardware_model: Option<String>,
+		// Hardware specifications
+		cpu_model: Option<String>,
+		cpu_architecture: Option<String>,
+		cpu_cores_physical: Option<u32>,
+		cpu_cores_logical: Option<u32>,
+		cpu_frequency_mhz: Option<i64>,
+		memory_total_bytes: Option<i64>,
+		form_factor: Option<String>,
+		manufacturer: Option<String>,
+		gpu_models: Option<Vec<String>>,
+		boot_disk_type: Option<String>,
+		boot_disk_capacity_bytes: Option<i64>,
+		swap_total_bytes: Option<i64>,
 	},
 
 	/// Response to device registration
@@ -46,6 +59,22 @@ pub enum LibraryMessage {
 		requesting_device_id: Uuid,
 		requesting_device_name: String,
 		requesting_device_slug: String,
+		requesting_device_os: String,
+		requesting_device_os_version: Option<String>,
+		requesting_device_hardware_model: Option<String>,
+		// Requesting device hardware specifications
+		requesting_device_cpu_model: Option<String>,
+		requesting_device_cpu_architecture: Option<String>,
+		requesting_device_cpu_cores_physical: Option<u32>,
+		requesting_device_cpu_cores_logical: Option<u32>,
+		requesting_device_cpu_frequency_mhz: Option<i64>,
+		requesting_device_memory_total_bytes: Option<i64>,
+		requesting_device_form_factor: Option<String>,
+		requesting_device_manufacturer: Option<String>,
+		requesting_device_gpu_models: Option<Vec<String>>,
+		requesting_device_boot_disk_type: Option<String>,
+		requesting_device_boot_disk_capacity_bytes: Option<i64>,
+		requesting_device_swap_total_bytes: Option<i64>,
 	},
 
 	/// Response to library creation request

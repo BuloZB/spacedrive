@@ -230,6 +230,21 @@ impl LibraryManager {
 		initial_device_id: Uuid,
 		initial_device_name: String,
 		initial_device_slug: String,
+		initial_device_os: String,
+		initial_device_os_version: Option<String>,
+		initial_device_hardware_model: Option<String>,
+		initial_device_cpu_model: Option<String>,
+		initial_device_cpu_architecture: Option<String>,
+		initial_device_cpu_cores_physical: Option<u32>,
+		initial_device_cpu_cores_logical: Option<u32>,
+		initial_device_cpu_frequency_mhz: Option<i64>,
+		initial_device_memory_total_bytes: Option<i64>,
+		initial_device_form_factor: Option<String>,
+		initial_device_manufacturer: Option<String>,
+		initial_device_gpu_models: Option<Vec<String>>,
+		initial_device_boot_disk_type: Option<String>,
+		initial_device_boot_disk_capacity_bytes: Option<i64>,
+		initial_device_swap_total_bytes: Option<i64>,
 		context: Arc<CoreContext>,
 	) -> Result<Arc<Library>> {
 		let name = name.into();
@@ -293,22 +308,21 @@ impl LibraryManager {
 			uuid: Set(initial_device_id),
 			name: Set(initial_device_name),
 			slug: Set(initial_device_slug),
-			os: Set("Desktop".to_string()),
-			os_version: Set(None),
-			hardware_model: Set(None),
-			// Hardware specs - not available for pre-registered devices
-			cpu_model: Set(None),
-			cpu_architecture: Set(None),
-			cpu_cores_physical: Set(None),
-			cpu_cores_logical: Set(None),
-			cpu_frequency_mhz: Set(None),
-			memory_total_bytes: Set(None),
-			form_factor: Set(None),
-			manufacturer: Set(None),
-			gpu_models: Set(None),
-			boot_disk_type: Set(None),
-			boot_disk_capacity_bytes: Set(None),
-			swap_total_bytes: Set(None),
+			os: Set(initial_device_os),
+			os_version: Set(initial_device_os_version),
+			hardware_model: Set(initial_device_hardware_model),
+			cpu_model: Set(initial_device_cpu_model),
+			cpu_architecture: Set(initial_device_cpu_architecture),
+			cpu_cores_physical: Set(initial_device_cpu_cores_physical),
+			cpu_cores_logical: Set(initial_device_cpu_cores_logical),
+			cpu_frequency_mhz: Set(initial_device_cpu_frequency_mhz),
+			memory_total_bytes: Set(initial_device_memory_total_bytes),
+			form_factor: Set(initial_device_form_factor),
+			manufacturer: Set(initial_device_manufacturer),
+			gpu_models: Set(initial_device_gpu_models.map(|g| serde_json::json!(g))),
+			boot_disk_type: Set(initial_device_boot_disk_type),
+			boot_disk_capacity_bytes: Set(initial_device_boot_disk_capacity_bytes),
+			swap_total_bytes: Set(initial_device_swap_total_bytes),
 			network_addresses: Set(serde_json::json!([])),
 			is_online: Set(false),
 			last_seen_at: Set(Utc::now()),
@@ -320,7 +334,6 @@ impl LibraryManager {
 			created_at: Set(Utc::now()),
 			updated_at: Set(Utc::now()),
 			sync_enabled: Set(true),
-			last_sync_at: Set(None),
 		};
 
 		initial_device_model
@@ -1018,13 +1031,25 @@ impl LibraryManager {
 		use sea_orm::ActiveValue::Set;
 
 		if let Some(existing_device) = existing {
-			// Update existing device to pick up any changes (e.g., renamed device)
+			// Update existing device to pick up any changes (e.g., renamed device, hardware upgrades)
 			let mut device_model: entities::device::ActiveModel = existing_device.into();
 
-			// Update fields that may have changed
+			// Update all fields including hardware specs (self-healing for NULL stubs)
 			device_model.name = Set(device.name.clone());
 			device_model.os_version = Set(device.os_version);
 			device_model.hardware_model = Set(device.hardware_model);
+			device_model.cpu_model = Set(device.cpu_model);
+			device_model.cpu_architecture = Set(device.cpu_architecture);
+			device_model.cpu_cores_physical = Set(device.cpu_cores_physical);
+			device_model.cpu_cores_logical = Set(device.cpu_cores_logical);
+			device_model.cpu_frequency_mhz = Set(device.cpu_frequency_mhz);
+			device_model.memory_total_bytes = Set(device.memory_total_bytes);
+			device_model.form_factor = Set(device.form_factor.map(|f| f.to_string()));
+			device_model.manufacturer = Set(device.manufacturer);
+			device_model.gpu_models = Set(device.gpu_models.map(|g| serde_json::json!(g)));
+			device_model.boot_disk_type = Set(device.boot_disk_type);
+			device_model.boot_disk_capacity_bytes = Set(device.boot_disk_capacity_bytes);
+			device_model.swap_total_bytes = Set(device.swap_total_bytes);
 			device_model.is_online = Set(true);
 			device_model.last_seen_at = Set(Utc::now());
 			device_model.updated_at = Set(Utc::now());
@@ -1121,7 +1146,6 @@ impl LibraryManager {
 				})),
 				created_at: Set(device.created_at),
 				sync_enabled: Set(true), // Enable sync by default for this device
-				last_sync_at: Set(None),
 				updated_at: Set(Utc::now()),
 			};
 

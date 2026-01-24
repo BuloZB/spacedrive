@@ -54,7 +54,7 @@ impl RpcServer {
 		}
 	}
 
-	pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+	pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		tracing::info!("Starting RPC server...");
 		let listener = TcpListener::bind(&self.socket_addr).await?;
 		tracing::info!("RPC server bound to: {}", self.socket_addr);
@@ -132,7 +132,7 @@ impl RpcServer {
 	}
 
 	/// Start the event broadcaster that forwards core events to subscribed connections
-	async fn start_event_broadcaster(&self) -> Result<(), Box<dyn std::error::Error>> {
+	async fn start_event_broadcaster(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		let core = self.core.clone();
 
 		// Make the core's LogBus globally available to the LogEventLayer

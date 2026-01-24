@@ -396,21 +396,19 @@ impl PeerSync {
 		Ok(())
 	}
 
-	/// Mark backfill complete by updating last_sync_at and persisting shared watermark
+	/// Mark backfill complete by persisting shared watermark
 	///
 	/// Note: Per-resource watermarks are now tracked automatically as data is received.
-	/// This method updates the last_sync_at timestamp and persists the shared watermark.
+	/// This method persists the shared watermark (HLC) to survive restarts.
+	/// The legacy last_sync_at column is no longer written - per-peer watermarks in
+	/// sync.db are the source of truth for sync progress.
 	pub async fn set_initial_watermarks(
 		&self,
 		peer: Uuid,
 		_final_state_checkpoint: Option<String>,
 		max_shared_hlc: Option<crate::infra::sync::HLC>,
 	) -> Result<()> {
-		use crate::infra::db::entities;
 		use crate::infra::sync::PeerWatermarkStore;
-		use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
-
-		let now = chrono::Utc::now();
 
 		// Update shared watermark (HLC generator) if we received shared data
 		if let Some(hlc) = max_shared_hlc {
@@ -433,24 +431,13 @@ impl PeerSync {
 			);
 		}
 
-		// Update last_sync_at to mark backfill complete
-		let device = entities::device::Entity::find()
-			.filter(entities::device::Column::Uuid.eq(self.device_id))
-			.one(self.db.as_ref())
-			.await
-			.map_err(|e| anyhow::anyhow!("Failed to query device: {}", e))?
-			.ok_or_else(|| anyhow::anyhow!("Device not found: {}", self.device_id))?;
-
-		let mut device_active: entities::device::ActiveModel = device.into();
-		device_active.last_sync_at = Set(Some(now));
-
-		device_active
-			.update(self.db.as_ref())
-			.await
-			.map_err(|e| anyhow::anyhow!("Failed to update last_sync_at: {}", e))?;
+		// NOTE: last_sync_at is no longer written here.
+		// Per-peer watermarks in sync.db (device_resource_watermarks table) are the
+		// authoritative source of sync progress. This fixes the 3-device sync bug
+		// where a global last_sync_at timestamp couldn't detect NEW peers.
 
 		info!(
-			last_sync_at = %now,
+			peer = %peer,
 			"Backfill complete, per-resource watermarks tracked in sync.db"
 		);
 

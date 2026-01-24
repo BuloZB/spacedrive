@@ -23,7 +23,7 @@ Sync uses two protocols based on data ownership:
 
 | Data Type      | Ownership    | Sync Method     | Conflict Resolution |
 | -------------- | ------------ | --------------- | ------------------- |
-| Devices        | Device-owned | State broadcast | None needed         |
+| Devices        | Shared       | HLC-ordered log | Last write wins     |
 | Locations      | Device-owned | State broadcast | None needed         |
 | Files/Folders  | Device-owned | State broadcast | None needed         |
 | Volumes        | Device-owned | State broadcast | None needed         |
@@ -42,7 +42,6 @@ Spacedrive recognizes that some data naturally belongs to specific devices.
 
 Only the device with physical access can modify:
 
-- **Devices**: Device identity and metadata
 - **Locations**: Filesystem paths like `/Users/alice/Photos`
 - **Entries**: Files and folders within those locations
 - **Volumes**: Physical drives and mount points
@@ -51,6 +50,7 @@ Only the device with physical access can modify:
 
 Any device can create or modify:
 
+- **Devices**: Library membership - all devices automatically discover each other
 - **Tags**: Labels applied to files, with hierarchy support
 - **Collections**: Groups of files
 - **User Metadata**: Notes, ratings, custom fields
@@ -1424,19 +1424,19 @@ This reduces network overhead during rapid operations (e.g., bulk tagging).
 
 ### Currently Syncing
 
-**Device-Owned Models (4):**
+**Device-Owned Models (3):**
 
 | Model | Table | Dependencies | FK Mappings | Features |
 | ----- | ----- | ------------ | ----------- | -------- |
-| Device | `devices` | None | None | Root model |
 | Volume | `volumes` | `device` | `device_id → devices` | with_deletion |
 | Location | `locations` | `volume` | `volume_id → volumes`, `entry_id → entries` | with_deletion |
 | Entry | `entries` | `volume`, `content_identity`, `user_metadata` | `volume_id → volumes`, `parent_id → entries`, `metadata_id → user_metadata`, `content_id → content_identities` | with_deletion, with_rebuild |
 
-**Shared Models (15):**
+**Shared Models (16):**
 
 | Model | Table | Dependencies | FK Mappings | Features |
 | ----- | ----- | ------------ | ----------- | -------- |
+| Device | `devices` | None | None | Library membership |
 | Tag | `tag` | None | None | - |
 | TagRelationship | `tag_relationship` | `tag` | `parent_tag_id → tag`, `child_tag_id → tag` | with_rebuild |
 | Collection | `collection` | None | None | - |

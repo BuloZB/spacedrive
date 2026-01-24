@@ -57,22 +57,22 @@ impl TestConfigBuilder {
 			}],
 		};
 
-	let config = sd_core::config::AppConfig {
-		version: 4,
-		logging: logging_config,
-		data_dir: self.data_dir.clone(),
-		log_level: "debug".to_string(),
-		telemetry_enabled: false,
-		preferences: sd_core::config::Preferences::default(),
-		job_logging: sd_core::config::JobLoggingConfig::default(),
-		services: sd_core::config::ServiceConfig {
-			networking_enabled: false,
-			volume_monitoring_enabled: false,
-			fs_watcher_enabled: false,
-			statistics_listener_enabled: false,
-		},
-		proxy_pairing: sd_core::config::app_config::ProxyPairingConfig::default(),
-	};
+		let config = sd_core::config::AppConfig {
+			version: 4,
+			logging: logging_config,
+			data_dir: self.data_dir.clone(),
+			log_level: "debug".to_string(),
+			telemetry_enabled: false,
+			preferences: sd_core::config::Preferences::default(),
+			job_logging: sd_core::config::JobLoggingConfig::default(),
+			services: sd_core::config::ServiceConfig {
+				networking_enabled: false,
+				volume_monitoring_enabled: false,
+				fs_watcher_enabled: false,
+				statistics_listener_enabled: false,
+			},
+			proxy_pairing: sd_core::config::app_config::ProxyPairingConfig::default(),
+		};
 
 		config.save()?;
 		Ok(config)
@@ -151,7 +151,6 @@ pub async fn register_device(
 		created_at: Set(Utc::now()),
 		updated_at: Set(Utc::now()),
 		sync_enabled: Set(true),
-		last_sync_at: Set(None),
 	};
 
 	// Check if device already exists
@@ -213,19 +212,22 @@ pub async fn create_test_volume(
 }
 
 /// Set all devices in a library to "synced" state (prevents auto-backfill)
-pub async fn set_all_devices_synced(library: &Arc<Library>) -> anyhow::Result<()> {
-	use chrono::Utc;
-	use sea_orm::ActiveValue;
-
-	for device in entities::device::Entity::find()
-		.all(library.db().conn())
-		.await?
-	{
-		let mut active: entities::device::ActiveModel = device.into();
-		active.last_sync_at = ActiveValue::Set(Some(Utc::now()));
-		active.update(library.db().conn()).await?;
-	}
-
+///
+/// NOTE: This function is now a no-op for the legacy last_sync_at column.
+/// The Ready state logic now uses per-peer watermarks in sync.db instead.
+/// For tests that need to prevent auto-backfill, set sync state directly to Ready
+/// via `peer_sync.set_state_for_test(DeviceSyncState::Ready)` and create
+/// watermark entries using the ResourceWatermarkStore.
+#[deprecated(
+	note = "last_sync_at is no longer used for sync decisions. Use set_peer_watermarks_for_test instead."
+)]
+pub async fn set_all_devices_synced(_library: &Arc<Library>) -> anyhow::Result<()> {
+	// No-op: last_sync_at is no longer written or read.
+	// Per-peer watermarks in sync.db are now the source of truth.
+	// Tests should use set_peer_watermarks_for_test() to create watermarks.
+	tracing::warn!(
+		"set_all_devices_synced is deprecated - last_sync_at is no longer used for sync decisions"
+	);
 	Ok(())
 }
 
@@ -466,7 +468,9 @@ pub async fn add_and_index_location(
 	path: &str,
 	name: &str,
 ) -> anyhow::Result<Uuid> {
-	use sd_core::location::{create_location, manager::update_location_volume_id, IndexMode, LocationCreateArgs};
+	use sd_core::location::{
+		create_location, manager::update_location_volume_id, IndexMode, LocationCreateArgs,
+	};
 
 	tracing::info!(path = %path, name = %name, "Creating location and indexing");
 
@@ -534,13 +538,7 @@ pub async fn add_and_index_location(
 		};
 
 		// Update location and root entry with volume_id
-		update_location_volume_id(
-			library.db().conn(),
-			location_db_id,
-			entry_id,
-			volume_id,
-		)
-		.await?;
+		update_location_volume_id(library.db().conn(), location_db_id, entry_id, volume_id).await?;
 
 		tracing::info!(
 			location_uuid = %location_uuid,
@@ -916,8 +914,11 @@ impl TwoDeviceHarnessBuilder {
 		register_device(&library_alice, device_bob_id, "Bob").await?;
 		register_device(&library_bob, device_alice_id, "Alice").await?;
 
-		// Set last_sync_at to prevent auto-backfill
+		// NOTE: set_all_devices_synced is deprecated - auto-backfill is now controlled
+		// by per-peer watermarks in sync.db, not last_sync_at
+		#[allow(deprecated)]
 		set_all_devices_synced(&library_alice).await?;
+		#[allow(deprecated)]
 		set_all_devices_synced(&library_bob).await?;
 
 		tracing::info!(

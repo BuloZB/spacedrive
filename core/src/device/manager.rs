@@ -345,7 +345,6 @@ impl DeviceManager {
 			is_online: true,
 			last_seen_at: chrono::Utc::now(),
 			sync_enabled: true,
-			last_sync_at: None,
 			created_at: chrono::Utc::now(),
 			updated_at: chrono::Utc::now(),
 			// Ephemeral fields

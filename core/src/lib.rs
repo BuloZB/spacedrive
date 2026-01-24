@@ -80,7 +80,7 @@ pub struct Core {
 
 impl Core {
 	/// Initialize a new Core instance with custom data directory
-	pub async fn new(data_dir: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
+	pub async fn new(data_dir: PathBuf) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
 		Self::new_with_config(data_dir, None, None).await
 	}
 
@@ -90,7 +90,7 @@ impl Core {
 		data_dir: PathBuf,
 		config: Option<AppConfig>,
 		system_device_name: Option<String>,
-	) -> Result<Self, Box<dyn std::error::Error>> {
+	) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
 		info!("Initializing Spacedrive at {:?}", data_dir);
 
 		// Load or create app config
@@ -481,7 +481,7 @@ impl Core {
 	}
 
 	/// Initialize networking using master key
-	pub async fn init_networking(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+	pub async fn init_networking(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		self.init_networking_with_logger(Arc::new(service::network::SilentLogger))
 			.await
 	}
@@ -490,7 +490,7 @@ impl Core {
 	pub async fn init_networking_with_logger(
 		&mut self,
 		logger: Arc<dyn service::network::NetworkLogger>,
-	) -> Result<(), Box<dyn std::error::Error>> {
+	) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		logger.info("Initializing networking...").await;
 
 		// Check if networking is already initialized
@@ -569,7 +569,7 @@ impl Core {
 	async fn register_default_protocols(
 		&self,
 		networking: &service::network::NetworkingService,
-	) -> Result<(), Box<dyn std::error::Error>> {
+	) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		let data_dir = self.config.read().await.data_dir.clone();
 		register_default_protocol_handlers(networking, data_dir, self.context.clone()).await
 	}
@@ -588,7 +588,7 @@ impl Core {
 	}
 
 	/// Shutdown the core gracefully
-	pub async fn shutdown(&self) -> Result<(), Box<dyn std::error::Error>> {
+	pub async fn shutdown(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		info!("Shutting down Spacedrive Core...");
 
 		// Networking service is stopped by services.stop_all()
@@ -624,7 +624,7 @@ async fn register_default_protocol_handlers(
 	networking: &service::network::NetworkingService,
 	data_dir: PathBuf,
 	context: Arc<CoreContext>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 	let logger = std::sync::Arc::new(service::network::utils::logging::ConsoleLogger);
 
 	// Get command sender for the pairing handler's state machine
@@ -750,7 +750,7 @@ async fn register_default_protocol_handlers(
 async fn reload_protocol_configs(
 	networking: &service::network::NetworkingService,
 	data_dir: &std::path::Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 	let app_config = crate::config::AppConfig::load_from(&data_dir.to_path_buf())?;
 	let registry = networking.protocol_registry();
 	let guard = registry.read().await;
