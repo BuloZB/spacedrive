@@ -130,10 +130,8 @@ hound      = "3.5"  # WAV file reading
 rubato     = "0.16" # Audio resampling to 16kHz
 
 # Networking
-# Iroh P2P networking with iOS support (using Oscar's patches)
-iroh = { git = "https://github.com/n0-computer/iroh", rev = "e0c5091008d42f4c577f72b1085dfb26c28bd56f", features = [
-	"discovery-local-network"
-] }
+# Iroh P2P networking
+iroh = { version = "0.95.1", features = ["discovery-local-network"] }
 
 # Serialization for protocols
 serde_cbor = "0.11"
@@ -249,7 +247,5 @@ tempfile          = "3.14"
 
 # Patches for iOS compatibility
 [patch.crates-io]
-# https://github.com/n0-computer/iroh/pull/3409
-iroh = { git = "https://github.com/n0-computer/iroh", rev = "e0c5091008d42f4c577f72b1085dfb26c28bd56f" }
 # https://github.com/shellrow/netdev/pull/125
 netdev = { git = "https://github.com/shellrow/netdev", rev = "b6ef275d2a72143b3c7d5845ee2f5a70b0e97771" }

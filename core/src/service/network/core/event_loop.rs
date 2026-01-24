@@ -11,8 +11,8 @@ use crate::service::network::{
 	NetworkingError, Result,
 };
 use iroh::endpoint::Connection;
-use iroh::NodeId;
-use iroh::{Endpoint, NodeAddr};
+use iroh::EndpointId;
+use iroh::{Endpoint, EndpointAddr};
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{broadcast, mpsc, RwLock};
@@ -24,15 +24,15 @@ pub enum EventLoopCommand {
 	// Connection management
 	ConnectionEstablished {
 		device_id: Uuid,
-		node_id: NodeId,
+		node_id: EndpointId,
 	},
 	ConnectionLost {
 		device_id: Uuid,
-		node_id: NodeId,
+		node_id: EndpointId,
 		reason: String,
 	},
 	TrackOutboundConnection {
-		node_id: NodeId,
+		node_id: EndpointId,
 		conn: Connection,
 	},
 
@@ -43,7 +43,7 @@ pub enum EventLoopCommand {
 		data: Vec<u8>,
 	},
 	SendMessageToNode {
-		node_id: NodeId,
+		node_id: EndpointId,
 		protocol: String,
 		data: Vec<u8>,
 	},
@@ -81,11 +81,11 @@ pub struct NetworkingEventLoop {
 	/// Our network identity
 	identity: NetworkIdentity,
 
-	/// Active connections tracker (keyed by NodeId and ALPN)
-	active_connections: Arc<RwLock<std::collections::HashMap<(NodeId, Vec<u8>), Connection>>>,
+	/// Active connections tracker (keyed by EndpointId and ALPN)
+	active_connections: Arc<RwLock<std::collections::HashMap<(EndpointId, Vec<u8>), Connection>>>,
 
 	/// Nodes that already have connection watchers spawned (to prevent duplicates)
-	watched_nodes: Arc<RwLock<std::collections::HashSet<NodeId>>>,
+	watched_nodes: Arc<RwLock<std::collections::HashSet<EndpointId>>>,
 
 	/// Logger for event loop operations
 	logger: Arc<dyn NetworkLogger>,
@@ -99,7 +99,7 @@ impl NetworkingEventLoop {
 		device_registry: Arc<RwLock<DeviceRegistry>>,
 		event_sender: broadcast::Sender<NetworkEvent>,
 		identity: NetworkIdentity,
-		active_connections: Arc<RwLock<std::collections::HashMap<(NodeId, Vec<u8>), Connection>>>,
+		active_connections: Arc<RwLock<std::collections::HashMap<(EndpointId, Vec<u8>), Connection>>>,
 		logger: Arc<dyn NetworkLogger>,
 	) -> Self {
 		let (command_tx, command_rx) = mpsc::unbounded_channel();
@@ -201,7 +201,7 @@ impl NetworkingEventLoop {
 	/// Handle an incoming connection
 	async fn handle_connection(&self, conn: Connection) {
 		// Extract the remote node ID from the connection
-		let remote_node_id = match conn.remote_node_id() {
+		let remote_node_id = match conn.remote_id() {
 			Ok(key) => key,
 			Err(e) => {
 				self.logger
@@ -318,7 +318,7 @@ impl NetworkingEventLoop {
 		device_registry: Arc<RwLock<DeviceRegistry>>,
 		event_sender: broadcast::Sender<NetworkEvent>,
 		command_sender: mpsc::UnboundedSender<EventLoopCommand>,
-		remote_node_id: NodeId,
+		remote_node_id: EndpointId,
 		logger: Arc<dyn NetworkLogger>,
 	) {
 		loop {
@@ -706,7 +706,7 @@ impl NetworkingEventLoop {
 	}
 
 	/// Send a message to a specific node
-	async fn send_to_node(&self, node_id: NodeId, protocol: &str, data: Vec<u8>) {
+	async fn send_to_node(&self, node_id: EndpointId, protocol: &str, data: Vec<u8>) {
 		self.logger
 			.debug(&format!(
 				"Sending {} message to {} ({} bytes)",
@@ -894,41 +894,35 @@ impl NetworkingEventLoop {
 		}
 	}
 
-	/// Update DeviceRegistry connection states based on Iroh's remote_info
+	/// Update DeviceRegistry connection states based on tracked connections and latency
 	///
 	/// This monitors Iroh connections and updates the DeviceRegistry state accordingly.
 	/// Devices transition to Connected when Iroh reports an active connection, and back
 	/// to Paired when the connection is lost. This is cosmetic only - sync routing uses
 	/// is_node_connected() which queries Iroh directly.
 	async fn update_connection_states(&self) {
-		// Get all remote info from Iroh
-		let remote_infos: Vec<_> = self.endpoint.remote_info_iter().collect();
-
 		// Lock registry for updates
 		let mut registry = self.device_registry.write().await;
 
-		// Track which node IDs Iroh reports as connected
-		let mut connected_node_ids = std::collections::HashSet::new();
+		// Get all tracked connections
+		let active_connections = self.active_connections.read().await;
+		let connected_node_ids: std::collections::HashSet<EndpointId> = active_connections
+			.keys()
+			.map(|(node_id, _alpn)| *node_id)
+			.collect();
 
-		// Update devices that Iroh reports as connected
-		for remote_info in remote_infos {
-			// Check if this is an active connection
-			let is_connected =
-				!matches!(remote_info.conn_type, iroh::endpoint::ConnectionType::None);
+		// Update devices that we have active connections to
+		for node_id in &connected_node_ids {
+			// Check if connection is still alive via latency
+			let latency = self.endpoint.latency(*node_id);
+			let is_connected = latency.is_some();
 
 			if is_connected {
-				connected_node_ids.insert(remote_info.node_id);
-
 				// Find device for this node
-				if let Some(device_id) = registry.get_device_by_node_id(remote_info.node_id) {
+				if let Some(device_id) = registry.get_device_by_node_id(*node_id) {
 					// Update to Connected state if not already
 					if let Err(e) = registry
-						.update_device_from_connection(
-							device_id,
-							remote_info.node_id,
-							remote_info.conn_type,
-							remote_info.latency,
-						)
+						.update_device_from_connection(device_id, *node_id, true, latency)
 						.await
 					{
 						self.logger
@@ -942,30 +936,28 @@ impl NetworkingEventLoop {
 			}
 		}
 
-		// Check devices that are marked as Connected in registry but NOT in Iroh's list
+		// Check devices that are marked as Connected in registry but no longer have active connections
 		// These devices have silently disconnected and need to be transitioned back to Paired
 		let all_devices = registry.get_all_devices();
 		for (device_id, state) in all_devices {
 			if let crate::service::network::device::DeviceState::Connected { info, .. } = state {
 				// Get the node_id for this device
-				if let Ok(node_id) = info.network_fingerprint.node_id.parse::<NodeId>() {
-					// If this node is NOT in Iroh's connected list, it's stale
-					if !connected_node_ids.contains(&node_id) {
+				if let Ok(node_id) = info.network_fingerprint.node_id.parse::<EndpointId>() {
+					// Check if this node still has an active connection
+					let has_active_connection = connected_node_ids.contains(&node_id)
+						&& self.endpoint.latency(node_id).is_some();
+
+					if !has_active_connection {
 						self.logger
 							.info(&format!(
-								"Device {} ({}) is marked Connected but not in Iroh's connection list - transitioning to Paired",
+								"Device {} ({}) is marked Connected but has no active connection - transitioning to Paired",
 								device_id, info.device_name
 							))
 							.await;
 
-						// Transition to Paired state via update_device_from_connection with None conn_type
+						// Transition to Paired state
 						if let Err(e) = registry
-							.update_device_from_connection(
-								device_id,
-								node_id,
-								iroh::endpoint::ConnectionType::None,
-								None,
-							)
+							.update_device_from_connection(device_id, node_id, false, None)
 							.await
 						{
 							self.logger
@@ -985,7 +977,7 @@ impl NetworkingEventLoop {
 	///
 	/// This provides instant reactivity when connections drop, instead of waiting
 	/// for the 10-second polling interval in update_connection_states().
-	async fn spawn_connection_watcher(&self, conn: Connection, node_id: NodeId) {
+	async fn spawn_connection_watcher(&self, conn: Connection, node_id: EndpointId) {
 		super::spawn_connection_watcher_task(
 			conn,
 			node_id,

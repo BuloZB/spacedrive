@@ -9,7 +9,7 @@ use crate::device::DeviceManager;
 use crate::infra::event::EventBus;
 use crate::service::network::{utils::logging::NetworkLogger, NetworkingError, Result};
 use chrono::{DateTime, Utc};
-use iroh::{NodeAddr, NodeId};
+use iroh::{EndpointAddr, EndpointId};
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -23,7 +23,7 @@ pub struct DeviceRegistry {
 	devices: HashMap<Uuid, DeviceState>,
 
 	/// Map of node ID to device ID for quick lookup
-	node_to_device: HashMap<NodeId, Uuid>,
+	node_to_device: HashMap<EndpointId, Uuid>,
 
 	/// Map of session ID to device ID for pairing lookup
 	session_to_device: HashMap<Uuid, Uuid>,
@@ -225,7 +225,7 @@ impl DeviceRegistry {
 				.device_info
 				.network_fingerprint
 				.node_id
-				.parse::<NodeId>()
+				.parse::<EndpointId>()
 			{
 				self.node_to_device.insert(node_id, device_id);
 				self.logger
@@ -266,7 +266,7 @@ impl DeviceRegistry {
 	}
 
 	/// Add a discovered node
-	pub fn add_discovered_node(&mut self, device_id: Uuid, node_id: NodeId, node_addr: NodeAddr) {
+	pub fn add_discovered_node(&mut self, device_id: Uuid, node_id: EndpointId, node_addr: EndpointAddr) {
 		let state = DeviceState::Discovered {
 			node_id,
 			node_addr,
@@ -281,9 +281,9 @@ impl DeviceRegistry {
 	pub fn start_pairing(
 		&mut self,
 		device_id: Uuid,
-		node_id: NodeId,
+		node_id: EndpointId,
 		session_id: Uuid,
-		node_addr: NodeAddr,
+		node_addr: EndpointAddr,
 	) -> Result<()> {
 		let state = DeviceState::Pairing {
 			node_id,
@@ -321,7 +321,7 @@ impl DeviceRegistry {
 		let node_id = info
 			.network_fingerprint
 			.node_id
-			.parse::<NodeId>()
+			.parse::<EndpointId>()
 			.map_err(|e| {
 				NetworkingError::Protocol(format!("Invalid node ID in network fingerprint: {}", e))
 			})?;
@@ -534,7 +534,7 @@ impl DeviceRegistry {
 	}
 
 	/// Get device ID by peer ID
-	pub fn get_device_by_node(&self, node_id: NodeId) -> Option<Uuid> {
+	pub fn get_device_by_node(&self, node_id: EndpointId) -> Option<Uuid> {
 		self.node_to_device.get(&node_id).copied()
 	}
 
@@ -587,7 +587,7 @@ impl DeviceRegistry {
 				| DeviceState::Connected { info, .. }
 				| DeviceState::Disconnected { info, .. } => {
 					// Extract node ID from network fingerprint and clean up mapping
-					if let Ok(node_id) = info.network_fingerprint.node_id.parse::<iroh::NodeId>() {
+					if let Ok(node_id) = info.network_fingerprint.node_id.parse::<iroh::EndpointId>() {
 						self.node_to_device.remove(&node_id);
 					}
 				}
@@ -616,7 +616,7 @@ impl DeviceRegistry {
 	}
 
 	/// Get peer ID for a device
-	pub fn get_node_by_device(&self, device_id: Uuid) -> Option<NodeId> {
+	pub fn get_node_by_device(&self, device_id: Uuid) -> Option<EndpointId> {
 		// Look through node_to_device map in reverse
 		for (node_id, &dev_id) in &self.node_to_device {
 			if dev_id == device_id {
@@ -629,7 +629,7 @@ impl DeviceRegistry {
 	}
 
 	/// Get node ID for a device (alias for get_node_by_device)
-	pub fn get_node_id_for_device(&self, device_id: Uuid) -> Option<NodeId> {
+	pub fn get_node_id_for_device(&self, device_id: Uuid) -> Option<EndpointId> {
 		self.get_node_by_device(device_id)
 	}
 
@@ -639,32 +639,26 @@ impl DeviceRegistry {
 	/// directly to get real-time connection state, rather than relying on cached state.
 	///
 	/// Returns true if:
-	/// - Device UUID is mapped to a NodeId
-	/// - Iroh reports an active connection (Direct, Relay, or Mixed)
-	/// - Connection type is not None
+	/// - Device UUID is mapped to an EndpointId
+	/// - Iroh reports latency for the connection (indicating active connection)
 	pub fn is_node_connected(&self, endpoint: &iroh::Endpoint, device_id: Uuid) -> bool {
-		// Get NodeId for this device
+		// Get EndpointId for this device
 		let node_id = match self.get_node_id_for_device(device_id) {
 			Some(id) => id,
 			None => return false,
 		};
 
-		// Query Iroh for current connection state
-		match endpoint.remote_info(node_id) {
-			Some(remote_info) => {
-				// Check if connection type indicates an active connection
-				!matches!(remote_info.conn_type, iroh::endpoint::ConnectionType::None)
-			}
-			None => false,
-		}
+		// Query Iroh for current connection state via latency
+		// latency() returns Some if there's an active connection
+		endpoint.latency(node_id).is_some()
 	}
 
 	/// Get device UUID from node ID
-	pub fn get_device_by_node_id(&self, node_id: NodeId) -> Option<Uuid> {
+	pub fn get_device_by_node_id(&self, node_id: EndpointId) -> Option<Uuid> {
 		self.node_to_device.get(&node_id).copied()
 	}
 
-	/// Update device connection state from Iroh RemoteInfo
+	/// Update device connection state based on connection status
 	///
 	/// This is called by the connection monitor to update DeviceRegistry state
 	/// based on Iroh's actual connection state. This is cosmetic only - sync
@@ -672,8 +666,8 @@ impl DeviceRegistry {
 	pub async fn update_device_from_connection(
 		&mut self,
 		device_id: Uuid,
-		node_id: NodeId,
-		conn_type: iroh::endpoint::ConnectionType,
+		node_id: EndpointId,
+		is_connected: bool,
 		latency: Option<std::time::Duration>,
 	) -> Result<()> {
 		// Update node-to-device mapping
@@ -686,7 +680,7 @@ impl DeviceRegistry {
 		};
 
 		// Determine if we should be in Connected state
-		let should_be_connected = !matches!(conn_type, iroh::endpoint::ConnectionType::None);
+		let should_be_connected = is_connected;
 
 		match current_state {
 			DeviceState::Paired {
@@ -788,7 +782,7 @@ impl DeviceRegistry {
 	}
 
 	/// Get all currently connected peer IDs
-	pub fn get_connected_nodes(&self) -> Vec<NodeId> {
+	pub fn get_connected_nodes(&self) -> Vec<EndpointId> {
 		self.node_to_device.keys().cloned().collect()
 	}
 
@@ -883,7 +877,7 @@ impl DeviceRegistry {
 	}
 
 	/// Set a device as connected with its node ID
-	pub async fn set_device_connected(&mut self, device_id: Uuid, node_id: NodeId) -> Result<()> {
+	pub async fn set_device_connected(&mut self, device_id: Uuid, node_id: EndpointId) -> Result<()> {
 		// Update the node_to_device mapping
 		self.node_to_device.insert(node_id, device_id);
 

@@ -11,7 +11,7 @@ pub mod sync;
 
 use crate::service::network::{NetworkingError, Result};
 use async_trait::async_trait;
-use iroh::NodeId;
+use iroh::EndpointId;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -38,7 +38,7 @@ pub trait ProtocolHandler: Send + Sync {
 		&self,
 		send: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
 		recv: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
-		remote_node_id: NodeId,
+		remote_node_id: EndpointId,
 	);
 
 	/// Allow downcasting to concrete type for specialized methods
@@ -51,7 +51,7 @@ pub trait ProtocolHandler: Send + Sync {
 	async fn handle_response(
 		&self,
 		from_device: Uuid,
-		from_node: NodeId,
+		from_node: EndpointId,
 		response_data: Vec<u8>,
 	) -> Result<()>;
 

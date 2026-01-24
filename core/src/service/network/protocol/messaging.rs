@@ -3,7 +3,7 @@
 use super::{library_messages::LibraryMessage, ProtocolEvent, ProtocolHandler};
 use crate::service::network::{utils, NetworkingError, Result};
 use async_trait::async_trait;
-use iroh::{endpoint::Connection, Endpoint, NodeAddr, NodeId};
+use iroh::{endpoint::Connection, Endpoint, EndpointAddr, EndpointId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -21,8 +21,8 @@ pub struct MessagingProtocolHandler {
 	/// Endpoint for creating and managing connections
 	endpoint: Option<Endpoint>,
 
-	/// Cached connections to remote nodes (keyed by NodeId and ALPN)
-	connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+	/// Cached connections to remote nodes (keyed by EndpointId and ALPN)
+	connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 }
 
 /// Basic message types
@@ -67,7 +67,7 @@ impl MessagingProtocolHandler {
 	pub fn new(
 		device_registry: Arc<RwLock<crate::service::network::device::DeviceRegistry>>,
 		endpoint: Option<Endpoint>,
-		active_connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+		active_connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 	) -> Self {
 		Self {
 			context: None,
@@ -649,7 +649,7 @@ impl MessagingProtocolHandler {
 	/// Uses cached connections and creates new streams (Iroh best practice)
 	pub async fn send_library_message(
 		&self,
-		node_id: NodeId,
+		node_id: EndpointId,
 		message: LibraryMessage,
 	) -> Result<LibraryMessage> {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -755,7 +755,7 @@ impl ProtocolHandler for MessagingProtocolHandler {
 		&self,
 		mut send: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
 		mut recv: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
-		remote_node_id: NodeId,
+		remote_node_id: EndpointId,
 	) {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -906,7 +906,7 @@ impl ProtocolHandler for MessagingProtocolHandler {
 	async fn handle_response(
 		&self,
 		_from_device: Uuid,
-		_from_node: NodeId,
+		_from_node: EndpointId,
 		_response_data: Vec<u8>,
 	) -> Result<()> {
 		// Messaging protocol handles responses in handle_request

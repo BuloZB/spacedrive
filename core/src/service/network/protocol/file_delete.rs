@@ -8,7 +8,7 @@ use crate::{
 	service::network::{NetworkingError, Result},
 };
 use async_trait::async_trait;
-use iroh::NodeId;
+use iroh::EndpointId;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -245,7 +245,7 @@ impl super::ProtocolHandler for FileDeleteProtocolHandler {
 		&self,
 		mut send: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
 		mut recv: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
-		_remote_node_id: NodeId,
+		_remote_node_id: EndpointId,
 	) {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -321,7 +321,7 @@ impl super::ProtocolHandler for FileDeleteProtocolHandler {
 	async fn handle_response(
 		&self,
 		_from_device: Uuid,
-		_from_node: NodeId,
+		_from_node: EndpointId,
 		_response_data: Vec<u8>,
 	) -> Result<()> {
 		// File delete responses are handled by RemoteDeleteStrategy
