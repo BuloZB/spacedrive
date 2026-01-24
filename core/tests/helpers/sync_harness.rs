@@ -57,22 +57,22 @@ impl TestConfigBuilder {
 			}],
 		};
 
-	let config = sd_core::config::AppConfig {
-		version: 4,
-		logging: logging_config,
-		data_dir: self.data_dir.clone(),
-		log_level: "debug".to_string(),
-		telemetry_enabled: false,
-		preferences: sd_core::config::Preferences::default(),
-		job_logging: sd_core::config::JobLoggingConfig::default(),
-		services: sd_core::config::ServiceConfig {
-			networking_enabled: false,
-			volume_monitoring_enabled: false,
-			fs_watcher_enabled: false,
-			statistics_listener_enabled: false,
-		},
-		proxy_pairing: sd_core::config::app_config::ProxyPairingConfig::default(),
-	};
+		let config = sd_core::config::AppConfig {
+			version: 4,
+			logging: logging_config,
+			data_dir: self.data_dir.clone(),
+			log_level: "debug".to_string(),
+			telemetry_enabled: false,
+			preferences: sd_core::config::Preferences::default(),
+			job_logging: sd_core::config::JobLoggingConfig::default(),
+			services: sd_core::config::ServiceConfig {
+				networking_enabled: false,
+				volume_monitoring_enabled: false,
+				fs_watcher_enabled: false,
+				statistics_listener_enabled: false,
+			},
+			proxy_pairing: sd_core::config::app_config::ProxyPairingConfig::default(),
+		};
 
 		config.save()?;
 		Ok(config)
@@ -468,7 +468,9 @@ pub async fn add_and_index_location(
 	path: &str,
 	name: &str,
 ) -> anyhow::Result<Uuid> {
-	use sd_core::location::{create_location, manager::update_location_volume_id, IndexMode, LocationCreateArgs};
+	use sd_core::location::{
+		create_location, manager::update_location_volume_id, IndexMode, LocationCreateArgs,
+	};
 
 	tracing::info!(path = %path, name = %name, "Creating location and indexing");
 
@@ -536,13 +538,7 @@ pub async fn add_and_index_location(
 		};
 
 		// Update location and root entry with volume_id
-		update_location_volume_id(
-			library.db().conn(),
-			location_db_id,
-			entry_id,
-			volume_id,
-		)
-		.await?;
+		update_location_volume_id(library.db().conn(), location_db_id, entry_id, volume_id).await?;
 
 		tracing::info!(
 			location_uuid = %location_uuid,

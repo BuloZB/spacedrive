@@ -136,7 +136,7 @@ impl SessionKeys {
 			send_key: send_key.to_vec(),
 			receive_key: receive_key.to_vec(),
 			created_at: Utc::now(),
-			expires_at: Some(Utc::now() + chrono::Duration::hours(24)), // 24 hour expiry
+			expires_at: None, // Disabled: paired devices don't expire (can re-enable for key rotation)
 		}
 	}
 

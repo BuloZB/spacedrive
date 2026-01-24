@@ -354,10 +354,9 @@ impl LibrarySyncSetupAction {
 					.ok_or_else(|| ActionError::Internal("Networking not available".to_string()))?;
 
 				// Get full device information including hardware specs
-				let local_device = context
-					.device_manager
-					.to_device()
-					.map_err(|e| ActionError::Internal(format!("Failed to get device info: {}", e)))?;
+				let local_device = context.device_manager.to_device().map_err(|e| {
+					ActionError::Internal(format!("Failed to get device info: {}", e))
+				})?;
 
 				// Get library-specific slug (uses override if set, otherwise global slug)
 				let local_device_slug = context
