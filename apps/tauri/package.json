@@ -14,10 +14,10 @@
 		"build:daemon:release": "cargo build --release --bin sd-daemon --manifest-path ../../Cargo.toml",
 		"preview": "vite preview",
 		"typecheck": "tsc -b",
-		"tauri": "bunx tauri",
-		"tauri:dev": "bunx tauri dev",
-		"tauri:dev:no-watch": "bunx tauri dev --no-watch",
-		"tauri:build": "bunx tauri build && ./scripts/fix-daemon-entitlements.sh ../../target/release/bundle/macos/Spacedrive.app || true"
+		"tauri": "tauri",
+		"tauri:dev": "tauri dev",
+		"tauri:dev:no-watch": "tauri dev --no-watch",
+		"tauri:build": "tauri build && ./scripts/fix-daemon-entitlements.sh ../../target/release/bundle/macos/Spacedrive.app || true"
 	},
 	"dependencies": {
 		"@phosphor-icons/react": "^2.1.0",

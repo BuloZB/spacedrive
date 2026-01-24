@@ -130,6 +130,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           target: ${{ matrix.settings.target }}
 
+      - name: Configure APT for ARM cross-compilation
+        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo sed -i 's|http://archive.ubuntu.com/ubuntu|http://ports.ubuntu.com/ubuntu-ports|g' /etc/apt/sources.list
+          sudo sed -i 's|http://security.ubuntu.com/ubuntu|http://ports.ubuntu.com/ubuntu-ports|g' /etc/apt/sources.list
+
       - name: Install cross-compilation tools (ARM)
         if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
         run: |
@@ -143,7 +150,6 @@ jobs:
       - name: Install cross OpenSSL (ARM)
         if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
         run: |
-          sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev:arm64
 
@@ -232,11 +238,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.settings.target }}
-
       - name: Install Apple API key
         if: ${{ runner.os == 'macOS' }}
         run: |
@@ -260,9 +261,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target: ${{ matrix.settings.target }}
-
-      - name: Install target
-        run: rustup target add ${{ matrix.settings.target }}
 
       - name: Setup Bun and dependencies
         uses: ./.github/actions/setup-bun
