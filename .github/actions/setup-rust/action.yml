@@ -15,12 +15,19 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Install Rust
+    - name: Install Rust (GitHub-hosted runners only)
+      if: ${{ runner.environment != 'self-hosted' }}
       id: toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ inputs.target }}
         components: clippy, rustfmt
+
+    - name: Verify Rust installation
+      shell: bash
+      run: |
+        rustc --version
+        rustup show
 
     - name: Cache Rust Dependencies
       if: ${{ inputs.restore-cache == 'true' }}
