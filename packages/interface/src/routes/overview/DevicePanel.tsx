@@ -3,7 +3,9 @@ import {
 	CaretRight,
 	Cpu,
 	HardDrive,
-	Memory
+	Memory,
+	WifiHigh,
+	WifiSlash
 } from '@phosphor-icons/react';
 import DatabaseIcon from '@sd/assets/icons/Database.png';
 import DriveAmazonS3Icon from '@sd/assets/icons/Drive-AmazonS3.png';
@@ -24,7 +26,7 @@ import type {
 	VolumeListOutput,
 	VolumeListQueryInput
 } from '@sd/ts-client';
-import {TopBarButton} from '@sd/ui';
+import {Tooltip, TopBarButton} from '@sd/ui';
 import clsx from 'clsx';
 import {useEffect, useRef, useState} from 'react';
 import Masonry from 'react-masonry-css';
@@ -267,24 +269,69 @@ export function DevicePanel({onLocationSelect}: DevicePanelProps = {}) {
 	);
 }
 
-interface ConnectionBadgeProps {
-	method: 'LocalNetwork' | 'DirectInternet' | 'RelayProxy';
+interface ConnectionBadgeConfig {
+	label: string;
+	description: string;
+	icon?: React.ComponentType<{className?: string}>;
+	color?: string;
 }
 
-function ConnectionBadge({method}: ConnectionBadgeProps) {
-	const labels = {
-		LocalNetwork: 'Local',
-		DirectInternet: 'Direct',
-		RelayProxy: 'Relay'
+interface ConnectionBadgeProps {
+	method: 'LocalNetwork' | 'DirectInternet' | 'RelayProxy';
+	online: boolean;
+	current: boolean;
+	icon?: React.ComponentType<{className?: string}>;
+	color?: string;
+}
+
+function ConnectionBadge({method, online, current, icon: customIcon, color: customColor}: ConnectionBadgeProps) {
+	const configs: Record<string, ConnectionBadgeConfig> = {
+		LocalNetwork: {
+			label: 'Local',
+			description: 'Connected via local network',
+			icon: WifiHigh,
+			color: 'bg-green-500'
+		},
+		DirectInternet: {
+			label: 'Direct',
+			description: 'Connected directly via internet',
+			color: 'bg-blue-500'
+		},
+		RelayProxy: {
+			label: 'Relay',
+			description: 'Connected via relay proxy',
+			color: 'bg-yellow-500'
+		},
+		Offline: {
+			label: 'Offline',
+			description: 'Device is currently offline',
+			icon: WifiSlash,
+			color: 'bg-ink-dull'
+		},
+		Current: {
+			label: 'This device',
+			description: 'This is your current device',
+		}
 	};
 
+	const state = current ? 'Current' : online ? method : 'Offline';
+	const config = configs[state];
+	const Icon = customIcon || config.icon || null;
+	const dotColor = customColor || config.color || 'bg-ink-dull';
+
 	return (
-		<div className="flex items-center gap-1.5">
-			<div className="bg-ink-dull size-2 rounded-full" />
-			<span className="text-ink-dull text-xs font-medium">
-				{labels[method]}
-			</span>
-		</div>
+		<Tooltip label={config.description}>
+			<div className="flex items-center gap-1.5">
+				{Icon ? (
+					<Icon className="size-3" />
+				) : !current && (
+					<div className={clsx('size-2 rounded-full', dotColor)} />
+				)}
+				<span className="text-ink-dull text-xs font-medium">
+					{config.label}
+				</span>
+			</div>
+		</Tooltip>
 	);
 }
 
@@ -362,17 +409,17 @@ function DeviceCard({
 								<h3 className="text-ink truncate text-base font-semibold">
 									{deviceName}
 								</h3>
-								{device?.connection_method && (
-									<ConnectionBadge
+								<ConnectionBadge
 										method={device.connection_method}
+										online={device.is_online}
+										current={device.is_current}
 									/>
-								)}
 							</div>
 							<p className="text-ink-dull text-sm">
 								{volumesLoading
 									? 'Loading volumes...'
 									: `${volumes.length} ${volumes.length === 1 ? 'volume' : 'volumes'}`}
-								{device?.is_online === false && ' • Offline'}
+								{/* {device?.is_online === false && ' • Offline'} */}
 							</p>
 						</div>
 					</div>
