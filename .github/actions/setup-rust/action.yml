@@ -41,6 +41,12 @@ runs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
         fi
 
+    - name: Add build target (self-hosted only)
+      if: ${{ inputs.target != '' && steps.check-rust.outputs.installed == 'true' }}
+      shell: bash
+      run: |
+        rustup target add ${{ inputs.target }}
+
     - name: Verify Rust installation
       shell: bash
       run: |
