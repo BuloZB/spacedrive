@@ -5,7 +5,6 @@
 //! entries. Processes entries in depth-first order (parents before children) within database
 //! transactions, preserving ephemeral UUIDs from prior browsing sessions and validating that
 //! indexing paths stay within location boundaries to prevent cross-location data corruption.
-
 use crate::{
 	infra::{
 		db::entities::{self, directory_paths, entry_closure},
@@ -519,9 +518,23 @@ pub async fn run_processing_phase(
 			};
 
 			#[cfg(windows)]
-			let inode = {
-				use std::os::windows::fs::MetadataExt;
-				metadata.file_index()
+			let inode: Option<u64> = {
+				use std::os::windows::io::AsRawHandle;
+				use windows_sys::Win32::Storage::FileSystem::{
+					GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+				};
+
+				// Open file to get handle for GetFileInformationByHandle
+				std::fs::File::open(location_root_path).ok().and_then(|file| {
+					let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+					let success =
+						unsafe { GetFileInformationByHandle(file.as_raw_handle() as isize, &mut info) };
+					if success != 0 {
+						Some(((info.nFileIndexHigh as u64) << 32) | (info.nFileIndexLow as u64))
+					} else {
+						None
+					}
+				})
 			};
 
 			#[cfg(not(any(unix, windows)))]
