@@ -161,6 +161,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev:arm64
 
+      - name: Install FFmpeg libraries (ARM)
+        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get install -y \
+            libavcodec-dev:arm64 \
+            libavformat-dev:arm64 \
+            libavutil-dev:arm64 \
+            libavfilter-dev:arm64 \
+            libavdevice-dev:arm64 \
+            libswscale-dev:arm64 \
+            libswresample-dev:arm64
+
       - name: Setup native dependencies
         run: cargo run -p xtask -- setup
 
