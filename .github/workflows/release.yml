@@ -298,11 +298,24 @@ jobs:
       - name: Verify native deps were downloaded
         if: runner.os == 'Linux'
         run: |
-          echo "Checking apps/.deps directory:"
-          ls -la apps/.deps/ || echo "Directory doesn't exist"
-          echo "Checking apps/.deps/lib directory:"
-          ls -la apps/.deps/lib/ || echo "lib/ subdirectory doesn't exist - creating empty dir"
-          mkdir -p apps/.deps/lib
+          echo "=== Native dependencies verification ==="
+          if [ ! -d "apps/.deps/lib" ]; then
+            echo "ERROR: apps/.deps/lib directory does not exist"
+            exit 1
+          fi
+
+          echo "Contents of apps/.deps/lib/:"
+          ls -lh apps/.deps/lib/ | head -20
+
+          SO_COUNT=$(find apps/.deps/lib/ -name "*.so*" | wc -l)
+          echo "Found $SO_COUNT .so files"
+
+          if [ "$SO_COUNT" -eq 0 ]; then
+            echo "ERROR: No .so files found in apps/.deps/lib/"
+            exit 1
+          fi
+
+          echo "✓ Native dependencies verified"
 
       - name: Build
         working-directory: apps/tauri

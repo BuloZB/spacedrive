@@ -79,7 +79,7 @@
           "libgtk-3-0"
         ],
         "files": {
-          "../../../apps/.deps/lib/": "/usr/lib/spacedrive/"
+          "../../.deps/lib/": "/usr/lib/spacedrive/"
         }
       }
     },
