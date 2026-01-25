@@ -71,10 +71,8 @@ impl LogSyncHandler {
 
 		// Emit resource event for UI reactivity (for insert/update changes)
 		if matches!(change_type, ChangeType::Insert | ChangeType::Update) {
-			let resource_manager = crate::domain::ResourceManager::new(
-				db.clone(),
-				self.peer_sync.event_bus().clone(),
-			);
+			let resource_manager =
+				crate::domain::ResourceManager::new(db.clone(), self.peer_sync.event_bus().clone());
 
 			if let Err(e) = resource_manager
 				.emit_resource_events(&model_type, vec![record_uuid])

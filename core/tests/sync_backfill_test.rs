@@ -53,7 +53,12 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 	let device_alice_id = core_alice.device.device_id()?;
 	let library_alice = core_alice
 		.libraries
-		.create_library_with_id(library_id, "Backfill Test Library", None, core_alice.context.clone())
+		.create_library_with_id(
+			library_id,
+			"Backfill Test Library",
+			None,
+			core_alice.context.clone(),
+		)
 		.await?;
 
 	let device_record = entities::device::Entity::find()
@@ -179,7 +184,12 @@ async fn test_initial_backfill_alice_indexes_first() -> anyhow::Result<()> {
 	let device_bob_id = core_bob.device.device_id()?;
 	let library_bob = core_bob
 		.libraries
-		.create_library_with_id(library_id, "Backfill Test Library", None, core_bob.context.clone())
+		.create_library_with_id(
+			library_id,
+			"Backfill Test Library",
+			None,
+			core_bob.context.clone(),
+		)
 		.await?;
 
 	register_device(&library_alice, device_bob_id, "Bob").await?;
@@ -414,7 +424,12 @@ async fn test_bidirectional_volume_sync() -> anyhow::Result<()> {
 	let device_alice_id = core_alice.device.device_id()?;
 	let library_alice = core_alice
 		.libraries
-		.create_library_with_id(library_id, "Volume Sync Test", None, core_alice.context.clone())
+		.create_library_with_id(
+			library_id,
+			"Volume Sync Test",
+			None,
+			core_alice.context.clone(),
+		)
 		.await?;
 
 	let core_bob = Core::new(temp_dir_bob.clone())
@@ -423,7 +438,12 @@ async fn test_bidirectional_volume_sync() -> anyhow::Result<()> {
 	let device_bob_id = core_bob.device.device_id()?;
 	let library_bob = core_bob
 		.libraries
-		.create_library_with_id(library_id, "Volume Sync Test", None, core_bob.context.clone())
+		.create_library_with_id(
+			library_id,
+			"Volume Sync Test",
+			None,
+			core_bob.context.clone(),
+		)
 		.await?;
 
 	register_device(&library_alice, device_bob_id, "Bob").await?;
@@ -634,7 +654,12 @@ async fn test_volume_resource_events_on_sync() -> anyhow::Result<()> {
 	let device_alice_id = core_alice.device.device_id()?;
 	let library_alice = core_alice
 		.libraries
-		.create_library_with_id(library_id, "Volume Event Test", None, core_alice.context.clone())
+		.create_library_with_id(
+			library_id,
+			"Volume Event Test",
+			None,
+			core_alice.context.clone(),
+		)
 		.await?;
 
 	let core_bob = Core::new(temp_dir_bob.clone())
@@ -643,7 +668,12 @@ async fn test_volume_resource_events_on_sync() -> anyhow::Result<()> {
 	let device_bob_id = core_bob.device.device_id()?;
 	let library_bob = core_bob
 		.libraries
-		.create_library_with_id(library_id, "Volume Event Test", None, core_bob.context.clone())
+		.create_library_with_id(
+			library_id,
+			"Volume Event Test",
+			None,
+			core_bob.context.clone(),
+		)
 		.await?;
 
 	register_device(&library_alice, device_bob_id, "Bob").await?;
@@ -683,17 +713,27 @@ async fn test_volume_resource_events_on_sync() -> anyhow::Result<()> {
 			tracing::debug!("Bob received event: {:?}", event);
 
 			match event {
-				Event::ResourceChangedBatch { resource_type, resources, .. } => {
+				Event::ResourceChangedBatch {
+					resource_type,
+					resources,
+					..
+				} => {
 					if resource_type == "volume" {
 						tracing::info!(
-							resource_count = if let serde_json::Value::Array(arr) = &resources { arr.len() } else { 0 },
+							resource_count = if let serde_json::Value::Array(arr) = &resources {
+								arr.len()
+							} else {
+								0
+							},
 							"Bob received ResourceChangedBatch for volumes"
 						);
 
 						// Check if Alice's volume is in the batch
 						if let serde_json::Value::Array(volume_array) = resources {
 							for volume_json in volume_array {
-								if let Some(uuid_str) = volume_json.get("id").and_then(|v| v.as_str()) {
+								if let Some(uuid_str) =
+									volume_json.get("id").and_then(|v| v.as_str())
+								{
 									if let Ok(volume_id) = Uuid::parse_str(uuid_str) {
 										if volume_id == alice_volume_uuid_clone {
 											tracing::info!(
@@ -709,7 +749,11 @@ async fn test_volume_resource_events_on_sync() -> anyhow::Result<()> {
 						}
 					}
 				}
-				Event::ResourceChanged { resource_type, resource, .. } => {
+				Event::ResourceChanged {
+					resource_type,
+					resource,
+					..
+				} => {
 					if resource_type == "volume" {
 						tracing::info!("Bob received single ResourceChanged for volume");
 
@@ -803,17 +847,16 @@ async fn test_volume_resource_events_on_sync() -> anyhow::Result<()> {
 	// Abort the listener task
 	event_listener.abort();
 
-	tracing::info!(
-		event_received = event_was_received,
-		"=== Test Result ==="
-	);
+	tracing::info!(event_received = event_was_received, "=== Test Result ===");
 
 	assert!(
 		event_was_received,
 		"Bob should have received a ResourceChanged event for Alice's volume during sync, but didn't"
 	);
 
-	tracing::info!("✅ Volume ResourceChanged event was emitted on the receiving device during sync");
+	tracing::info!(
+		"✅ Volume ResourceChanged event was emitted on the receiving device during sync"
+	);
 
 	Ok(())
 }

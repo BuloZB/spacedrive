@@ -40,7 +40,7 @@ impl CoreAction for PairJoinAction {
 
 		// If node_id provided separately, add it to enable relay fallback
 		if let Some(node_id_str) = &self.node_id {
-			let node_id: iroh::NodeId = node_id_str
+			let node_id: iroh::EndpointId = node_id_str
 				.parse()
 				.map_err(|e| ActionError::Internal(format!("Invalid node ID: {}", e)))?;
 			pairing_code = pairing_code.with_node_id(node_id);

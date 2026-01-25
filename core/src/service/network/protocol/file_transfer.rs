@@ -3,7 +3,7 @@
 use crate::service::network::utils::logging::NetworkLogger;
 use crate::service::network::{NetworkingError, Result};
 use async_trait::async_trait;
-use iroh::NodeId;
+use iroh::EndpointId;
 use serde::{Deserialize, Serialize};
 use std::{
 	collections::HashMap,
@@ -1429,7 +1429,7 @@ impl super::ProtocolHandler for FileTransferProtocolHandler {
 		&self,
 		mut send: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
 		mut recv: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
-		remote_node_id: NodeId,
+		remote_node_id: EndpointId,
 	) {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -1723,7 +1723,7 @@ impl super::ProtocolHandler for FileTransferProtocolHandler {
 	async fn handle_response(
 		&self,
 		from_device: Uuid,
-		_from_node: NodeId,
+		_from_node: EndpointId,
 		response_data: Vec<u8>,
 	) -> Result<()> {
 		// Deserialize the response

@@ -115,9 +115,9 @@ impl LibraryQuery for FileSearchQuery {
 
 				// Get actual total count for pagination
 				let total_count = self
-				.get_total_count(db.conn(), context.file_type_registry())
-				.await
-				.unwrap_or(0);
+					.get_total_count(db.conn(), context.file_type_registry())
+					.await
+					.unwrap_or(0);
 
 				// Create output with persistent index type
 				let output = FileSearchOutput::new_persistent(
@@ -867,7 +867,8 @@ impl FileSearchQuery {
 		// Get volume to find device info
 		let Some(volume) = crate::infra::db::entities::volume::Entity::find_by_id(volume_id)
 			.one(db)
-			.await? else {
+			.await?
+		else {
 			return Ok(None);
 		};
 
@@ -875,7 +876,8 @@ impl FileSearchQuery {
 		let Some(device) = crate::infra::db::entities::device::Entity::find()
 			.filter(crate::infra::db::entities::device::Column::Uuid.eq(volume.device_id))
 			.one(db)
-			.await? else {
+			.await?
+		else {
 			return Ok(None);
 		};
 
@@ -895,11 +897,7 @@ impl FileSearchQuery {
 			file,
 			score,
 			score_breakdown: crate::ops::search::output::ScoreBreakdown::new(
-				score,
-				None,
-				0.0,
-				0.0,
-				0.0,
+				score, None, 0.0, 0.0, 0.0,
 			),
 			highlights: Vec::new(),
 			matched_content: None,
@@ -951,10 +949,7 @@ impl FileSearchQuery {
 		// Execute query
 		let entries = query.all(db).await?;
 
-		tracing::info!(
-			"Fast search without FTS returned {} entries",
-			entries.len()
-		);
+		tracing::info!("Fast search without FTS returned {} entries", entries.len());
 
 		// Convert entries to FileSearchResult using helper
 		let mut results = Vec::new();

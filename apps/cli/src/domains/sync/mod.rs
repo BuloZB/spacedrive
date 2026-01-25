@@ -620,7 +620,11 @@ async fn show_partners(ctx: &Context) -> Result<()> {
 		println!("  - Paired devices do not have sync_enabled=true");
 		println!();
 	} else {
-		println!("  {} {} sync partner(s) available", "●".green(), output.partners.len());
+		println!(
+			"  {} {} sync partner(s) available",
+			"●".green(),
+			output.partners.len()
+		);
 		println!();
 
 		let mut table = Table::new();
@@ -653,10 +657,22 @@ async fn show_partners(ctx: &Context) -> Result<()> {
 	println!("{}", "Library Membership Debug".dark_grey().bold());
 	println!("{}", "─".repeat(60).dark_grey());
 	println!();
-	println!("  Total devices in library: {}", output.debug_info.total_devices);
-	println!("  Devices with sync_enabled: {}", output.debug_info.sync_enabled_devices);
-	println!("  Devices with NodeId mapping: {}", output.debug_info.paired_devices);
-	println!("  Final sync partners: {}", output.debug_info.final_sync_partners);
+	println!(
+		"  Total devices in library: {}",
+		output.debug_info.total_devices
+	);
+	println!(
+		"  Devices with sync_enabled: {}",
+		output.debug_info.sync_enabled_devices
+	);
+	println!(
+		"  Devices with NodeId mapping: {}",
+		output.debug_info.paired_devices
+	);
+	println!(
+		"  Final sync partners: {}",
+		output.debug_info.final_sync_partners
+	);
 	println!();
 
 	if !output.debug_info.device_details.is_empty() {
@@ -665,10 +681,18 @@ async fn show_partners(ctx: &Context) -> Result<()> {
 			.load_preset(UTF8_FULL)
 			.set_content_arrangement(ContentArrangement::Dynamic)
 			.set_header(Row::from(vec![
-				Cell::new("Device").add_attribute(Attribute::Bold).fg(Color::DarkGrey),
-				Cell::new("Sync Enabled").add_attribute(Attribute::Bold).fg(Color::DarkGrey),
-				Cell::new("Has NodeId").add_attribute(Attribute::Bold).fg(Color::DarkGrey),
-				Cell::new("NodeId").add_attribute(Attribute::Bold).fg(Color::DarkGrey),
+				Cell::new("Device")
+					.add_attribute(Attribute::Bold)
+					.fg(Color::DarkGrey),
+				Cell::new("Sync Enabled")
+					.add_attribute(Attribute::Bold)
+					.fg(Color::DarkGrey),
+				Cell::new("Has NodeId")
+					.add_attribute(Attribute::Bold)
+					.fg(Color::DarkGrey),
+				Cell::new("NodeId")
+					.add_attribute(Attribute::Bold)
+					.fg(Color::DarkGrey),
 			]));
 
 		for device in &output.debug_info.device_details {

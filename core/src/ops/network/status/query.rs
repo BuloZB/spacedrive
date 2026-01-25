@@ -30,9 +30,7 @@ impl CoreQuery for NetworkStatusQuery {
 		if let Some(net) = networking {
 			let node_id = net.node_id().to_string();
 			let addresses = if let Ok(Some(addr)) = net.get_node_addr() {
-				addr.direct_addresses()
-					.map(|a| a.to_string())
-					.collect::<Vec<_>>()
+				addr.ip_addrs().map(|a| a.to_string()).collect::<Vec<_>>()
 			} else {
 				Vec::new()
 			};

@@ -50,22 +50,22 @@ impl FileSyncTestSetup {
 
 		let temp_dir = TempDir::new()?;
 
-	let config = sd_core::config::AppConfig {
-		version: 3,
-		data_dir: temp_dir.path().to_path_buf(),
-		log_level: "info".to_string(),
-		telemetry_enabled: false,
-		preferences: sd_core::config::Preferences::default(),
-		job_logging: sd_core::config::JobLoggingConfig::default(),
-		services: sd_core::config::ServiceConfig {
-			networking_enabled: false,
-			volume_monitoring_enabled: false,
-			fs_watcher_enabled: false,
-			statistics_listener_enabled: false,
-		},
-		logging: sd_core::config::LoggingConfig::default(),
-		proxy_pairing: sd_core::config::app_config::ProxyPairingConfig::default(),
-	};
+		let config = sd_core::config::AppConfig {
+			version: 3,
+			data_dir: temp_dir.path().to_path_buf(),
+			log_level: "info".to_string(),
+			telemetry_enabled: false,
+			preferences: sd_core::config::Preferences::default(),
+			job_logging: sd_core::config::JobLoggingConfig::default(),
+			services: sd_core::config::ServiceConfig {
+				networking_enabled: false,
+				volume_monitoring_enabled: false,
+				fs_watcher_enabled: false,
+				statistics_listener_enabled: false,
+			},
+			logging: sd_core::config::LoggingConfig::default(),
+			proxy_pairing: sd_core::config::app_config::ProxyPairingConfig::default(),
+		};
 		config.save()?;
 
 		let core = Core::new(temp_dir.path().to_path_buf())

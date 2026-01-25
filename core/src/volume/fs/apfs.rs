@@ -337,8 +337,10 @@ pub fn containers_to_volumes(
 
 			// Create stable volume fingerprint for APFS volumes
 			// APFS volumes are always local system/primary volumes, use mount_point + device_id
-			let fingerprint =
-				crate::volume::types::VolumeFingerprint::from_primary_volume(mount_point, device_id);
+			let fingerprint = crate::volume::types::VolumeFingerprint::from_primary_volume(
+				mount_point,
+				device_id,
+			);
 
 			debug!(
 				"APFS_CONVERT: Generated fingerprint {} for volume '{}' (consumed: {} bytes)",
@@ -357,8 +359,7 @@ pub fn containers_to_volumes(
 
 			// Auto-track eligibility: Only Primary volume (Data volume on modern macOS)
 			let auto_track_eligible =
-				matches!(volume_type, crate::volume::types::VolumeType::Primary)
-					&& is_user_visible;
+				matches!(volume_type, crate::volume::types::VolumeType::Primary) && is_user_visible;
 
 			debug!(
 				"APFS_CONVERT: Volume '{}' classified as Type={:?}, user_visible={}, auto_track_eligible={}",

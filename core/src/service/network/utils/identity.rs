@@ -1,7 +1,7 @@
 //! Network identity management - node ID and key generation
 
 use crate::service::network::{NetworkingError, Result};
-use iroh::{NodeId, SecretKey};
+use iroh::{EndpointId, SecretKey};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -9,7 +9,7 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct NetworkIdentity {
 	secret_key: SecretKey,
-	node_id: NodeId,
+	node_id: EndpointId,
 	// Keep Ed25519 keypair for backward compatibility
 	ed25519_seed: [u8; 32],
 }
@@ -17,11 +17,14 @@ pub struct NetworkIdentity {
 impl NetworkIdentity {
 	/// Create a new random network identity
 	pub async fn new() -> Result<Self> {
-		let secret_key = SecretKey::generate(&mut rand::thread_rng());
-		let node_id = secret_key.public();
+		// Generate random bytes for the secret key
+		use rand::RngCore;
+		let mut ed25519_seed = [0u8; 32];
+		rand::thread_rng().fill_bytes(&mut ed25519_seed);
 
-		// Generate Ed25519 seed for backward compatibility
-		let ed25519_seed = rand::random();
+		// Create Iroh secret key from random bytes
+		let secret_key = SecretKey::from_bytes(&ed25519_seed);
+		let node_id = secret_key.public();
 
 		Ok(Self {
 			secret_key,
@@ -60,7 +63,7 @@ impl NetworkIdentity {
 	}
 
 	/// Get the node ID
-	pub fn node_id(&self) -> NodeId {
+	pub fn node_id(&self) -> EndpointId {
 		self.node_id
 	}
 

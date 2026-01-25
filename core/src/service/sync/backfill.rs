@@ -1026,7 +1026,10 @@ impl BackfillManager {
 									);
 
 									if let Err(e) = resource_manager
-										.emit_batch_resource_events(&model_type, applied_snapshot_uuids)
+										.emit_batch_resource_events(
+											&model_type,
+											applied_snapshot_uuids,
+										)
 										.await
 									{
 										warn!(
@@ -1082,20 +1085,26 @@ impl BackfillManager {
 								} else {
 									// FK error but can't extract UUID (raw SQLite error)
 									// Extract diagnostic information for troubleshooting
-									let fk_mappings = crate::infra::sync::registry::get_fk_mappings(&entry.model_type);
+									let fk_mappings = crate::infra::sync::registry::get_fk_mappings(
+										&entry.model_type,
+									);
 
 									// Extract UUID fields from entry data to show which FKs are present
-									let uuid_fields: Vec<String> = if let Some(obj) = entry.data.as_object() {
-										obj.keys()
-											.filter(|k| k.ends_with("_uuid"))
-											.map(|k| {
-												let value = obj.get(k).and_then(|v| v.as_str()).unwrap_or("null");
-												format!("{}={}", k, value)
-											})
-											.collect()
-									} else {
-										vec![]
-									};
+									let uuid_fields: Vec<String> =
+										if let Some(obj) = entry.data.as_object() {
+											obj.keys()
+												.filter(|k| k.ends_with("_uuid"))
+												.map(|k| {
+													let value = obj
+														.get(k)
+														.and_then(|v| v.as_str())
+														.unwrap_or("null");
+													format!("{}={}", k, value)
+												})
+												.collect()
+										} else {
+											vec![]
+										};
 
 									// Log comprehensive diagnostic information
 									tracing::info!(

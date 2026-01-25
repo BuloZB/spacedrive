@@ -14,7 +14,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use iroh::{endpoint::Connection, Endpoint, NodeId};
+use iroh::{endpoint::Connection, Endpoint, EndpointId};
 use serde::{Deserialize, Serialize};
 use std::{
 	collections::HashMap,
@@ -105,7 +105,7 @@ pub enum RemoteJobEvent {
 
 /// Subscription information for a remote device
 struct Subscription {
-	node_id: NodeId,
+	node_id: EndpointId,
 	event_tx: tokio::sync::mpsc::UnboundedSender<JobActivityMessage>,
 	library_filter: Option<Uuid>,
 	last_activity: DateTime<Utc>,
@@ -158,7 +158,7 @@ pub struct JobActivityProtocolHandler {
 	subscriptions: Arc<RwLock<HashMap<Uuid, Subscription>>>,
 
 	/// Cached connections (shared with NetworkingService)
-	connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+	connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 
 	/// Local device ID
 	device_id: Uuid,
@@ -176,7 +176,7 @@ impl JobActivityProtocolHandler {
 		event_bus: Arc<EventBus>,
 		device_registry: Arc<RwLock<DeviceRegistry>>,
 		endpoint: Option<Endpoint>,
-		connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+		connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 		device_id: Uuid,
 		library_id: Option<Uuid>,
 	) -> Self {
@@ -402,7 +402,7 @@ impl ProtocolHandler for JobActivityProtocolHandler {
 		&self,
 		mut send: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
 		mut recv: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
-		remote_node_id: NodeId,
+		remote_node_id: EndpointId,
 	) {
 		// Create channel for receiving events to send
 		let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -499,7 +499,7 @@ impl ProtocolHandler for JobActivityProtocolHandler {
 		Ok(Vec::new())
 	}
 
-	async fn handle_response(&self, _: Uuid, _: NodeId, _: Vec<u8>) -> Result<()> {
+	async fn handle_response(&self, _: Uuid, _: EndpointId, _: Vec<u8>) -> Result<()> {
 		Ok(())
 	}
 

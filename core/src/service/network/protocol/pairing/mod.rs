@@ -27,7 +27,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use blake3;
-use iroh::{endpoint::Connection, Endpoint, NodeAddr, NodeId, Watcher};
+use iroh::{endpoint::Connection, Endpoint, EndpointAddr, EndpointId, Watcher};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -78,8 +78,8 @@ pub struct PairingProtocolHandler {
 	/// Endpoint for creating and managing connections
 	endpoint: Option<Endpoint>,
 
-	/// Cached connections to remote nodes (keyed by NodeId and ALPN)
-	connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+	/// Cached connections to remote nodes (keyed by EndpointId and ALPN)
+	connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 
 	/// Event bus for emitting pairing events
 	event_bus: Arc<RwLock<Option<Arc<EventBus>>>>,
@@ -121,7 +121,7 @@ impl PairingProtocolHandler {
 			crate::service::network::core::event_loop::EventLoopCommand,
 		>,
 		endpoint: Option<Endpoint>,
-		active_connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+		active_connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 	) -> Self {
 		Self {
 			identity,
@@ -153,7 +153,7 @@ impl PairingProtocolHandler {
 		>,
 		data_dir: PathBuf,
 		endpoint: Option<Endpoint>,
-		active_connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+		active_connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 	) -> Self {
 		let persistence = Arc::new(PairingPersistence::new(data_dir));
 		Self {
@@ -1009,13 +1009,13 @@ impl PairingProtocolHandler {
 				NetworkingError::Protocol("Missing vouchee public key".to_string())
 			})?;
 			let secret = session.shared_secret.clone();
-			
+
 			self.log_debug(&format!(
 				"Vouching device {} with node_id: '{}'",
 				device_info.device_id, device_info.network_fingerprint.node_id
 			))
 			.await;
-			
+
 			(device_info, public_key, secret)
 		};
 
@@ -1302,7 +1302,7 @@ impl PairingProtocolHandler {
 		voucher_signature: Vec<u8>,
 		timestamp: chrono::DateTime<chrono::Utc>,
 		proxied_session_keys: SessionKeys,
-		remote_node_id: NodeId,
+		remote_node_id: EndpointId,
 	) -> Result<()> {
 		let proxy_config: ProxyPairingConfig = { self.proxy_config.read().await.clone() };
 
@@ -1435,27 +1435,27 @@ impl PairingProtocolHandler {
 			return Ok(());
 		}
 
-	if proxy_config.auto_accept_vouched && voucher_is_trusted {
-		{
-			self.log_info(&format!(
-				"Auto-accepting proxy pairing for device {} with node_id: '{}'",
-				vouchee_device_info.device_id, vouchee_device_info.network_fingerprint.node_id
-			))
-			.await;
+		if proxy_config.auto_accept_vouched && voucher_is_trusted {
+			{
+				self.log_info(&format!(
+					"Auto-accepting proxy pairing for device {} with node_id: '{}'",
+					vouchee_device_info.device_id, vouchee_device_info.network_fingerprint.node_id
+				))
+				.await;
 
-			let mut registry = self.device_registry.write().await;
-			registry
-				.complete_pairing(
-					vouchee_device_info.device_id,
-					vouchee_device_info.clone(),
-					proxied_session_keys.clone(),
-					None,
-					crate::service::network::device::PairingType::Proxied,
-					Some(voucher_device_id),
-					Some(chrono::Utc::now()),
-				)
-				.await?;
-		}
+				let mut registry = self.device_registry.write().await;
+				registry
+					.complete_pairing(
+						vouchee_device_info.device_id,
+						vouchee_device_info.clone(),
+						proxied_session_keys.clone(),
+						None,
+						crate::service::network::device::PairingType::Proxied,
+						Some(voucher_device_id),
+						Some(chrono::Utc::now()),
+					)
+					.await?;
+			}
 
 			let accepting_device_id = self.get_device_info().await?.device_id;
 			let response = PairingMessage::ProxyPairingResponse {
@@ -1541,7 +1541,7 @@ impl PairingProtocolHandler {
 
 	async fn send_proxy_pairing_rejection(
 		&self,
-		remote_node_id: NodeId,
+		remote_node_id: EndpointId,
 		session_id: Uuid,
 		reason: String,
 	) -> Result<()> {
@@ -1790,7 +1790,7 @@ impl PairingProtocolHandler {
 	async fn handle_pairing_message(
 		&self,
 		message: PairingMessage,
-		remote_node_id: NodeId,
+		remote_node_id: EndpointId,
 	) -> Result<Option<Vec<u8>>> {
 		match message {
 			PairingMessage::PairingRequest {
@@ -1892,7 +1892,7 @@ impl PairingProtocolHandler {
 	}
 
 	/// Get or create a device ID for a node
-	async fn get_device_id_for_node(&self, node_id: NodeId) -> Uuid {
+	async fn get_device_id_for_node(&self, node_id: EndpointId) -> Uuid {
 		let registry = self.device_registry.read().await;
 		registry.get_device_by_node(node_id).unwrap_or_else(|| {
 			// Generate a deterministic UUID from the node ID
@@ -1914,7 +1914,7 @@ impl PairingProtocolHandler {
 	pub async fn send_pairing_message_to_node(
 		&self,
 		endpoint: &Endpoint,
-		node_id: NodeId,
+		node_id: EndpointId,
 		message: &PairingMessage,
 	) -> Result<Option<PairingMessage>> {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -1985,7 +1985,7 @@ impl PairingProtocolHandler {
 		&self,
 		mut send: impl tokio::io::AsyncWrite + Unpin,
 		mut recv: impl tokio::io::AsyncRead + Unpin,
-		initiator_node_id: NodeId,
+		initiator_node_id: EndpointId,
 	) -> Result<Option<PairingMessage>> {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -2115,7 +2115,7 @@ impl PairingProtocolHandler {
 
 	pub async fn send_pairing_message_fire_and_forget(
 		&self,
-		node_id: NodeId,
+		node_id: EndpointId,
 		message: &PairingMessage,
 	) -> Result<()> {
 		let data = serde_json::to_vec(message).map_err(NetworkingError::Serialization)?;
@@ -2146,7 +2146,7 @@ impl ProtocolHandler for PairingProtocolHandler {
 		&self,
 		mut send: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
 		mut recv: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
-		remote_node_id: NodeId,
+		remote_node_id: EndpointId,
 	) {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -2359,7 +2359,7 @@ impl ProtocolHandler for PairingProtocolHandler {
 	async fn handle_response(
 		&self,
 		from_device: Uuid,
-		from_node: NodeId,
+		from_node: EndpointId,
 		response_data: Vec<u8>,
 	) -> Result<()> {
 		self.log_debug(&format!(

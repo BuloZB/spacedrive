@@ -99,9 +99,7 @@ fn display_event(event: &Event, args: &EventsMonitorArgs) {
 
 	// Determine output format (new format flag takes precedence over legacy flags)
 	let use_json_pretty = matches!(args.format, OutputFormat::JsonPretty) || args.pretty;
-	let use_json = matches!(args.format, OutputFormat::Json)
-		|| use_json_pretty
-		|| args.verbose;
+	let use_json = matches!(args.format, OutputFormat::Json) || use_json_pretty || args.verbose;
 
 	if use_json {
 		// JSON mode: show full JSON
@@ -441,25 +439,28 @@ fn summarize_event(event: &Event) -> String {
 			format!("Sync error: {}", message)
 		}
 
-	// Proxy pairing events
-	Event::ProxyPairingConfirmationRequired {
-		vouchee_device_name,
-		voucher_device_name,
-		..
-	} => {
-		format!(
-			"Proxy pairing confirmation required: {} vouched by {}",
-			vouchee_device_name, voucher_device_name
-		)
-	}
-	Event::ProxyPairingVouchingReady {
-		vouchee_device_id, ..
-	} => {
-		format!("Proxy pairing vouching ready for device {}", vouchee_device_id)
-	}
+		// Proxy pairing events
+		Event::ProxyPairingConfirmationRequired {
+			vouchee_device_name,
+			voucher_device_name,
+			..
+		} => {
+			format!(
+				"Proxy pairing confirmation required: {} vouched by {}",
+				vouchee_device_name, voucher_device_name
+			)
+		}
+		Event::ProxyPairingVouchingReady {
+			vouchee_device_id, ..
+		} => {
+			format!(
+				"Proxy pairing vouching ready for device {}",
+				vouchee_device_id
+			)
+		}
 
-	// Config events
-	Event::ConfigChanged { .. } => "Configuration changed".to_string(),
+		// Config events
+		Event::ConfigChanged { .. } => "Configuration changed".to_string(),
 
 		// Custom events
 		Event::Custom { event_type, data } => {
@@ -471,5 +472,4 @@ fn summarize_event(event: &Event) -> String {
 			format!("Configuration changed: {}", field)
 		}
 	}
-}
 }

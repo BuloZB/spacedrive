@@ -5,8 +5,8 @@ use crate::infra::query::{LibraryQuery, QueryError, QueryResult};
 use crate::infra::sync::NetworkTransport;
 use std::sync::Arc;
 
-use super::{GetSyncPartnersInput, GetSyncPartnersOutput};
 use super::output::{DeviceDebugInfo, SyncPartnerInfo, SyncPartnersDebugInfo};
+use super::{GetSyncPartnersInput, GetSyncPartnersOutput};
 
 /// Get computed sync partners for the current library
 pub struct GetSyncPartners {
@@ -27,7 +27,7 @@ impl LibraryQuery for GetSyncPartners {
 		session: crate::infra::api::SessionContext,
 	) -> QueryResult<Self::Output> {
 		use crate::infra::db::entities;
-		use sea_orm::{EntityTrait};
+		use sea_orm::EntityTrait;
 
 		// Get library from session
 		let library_id = session

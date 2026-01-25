@@ -8,7 +8,7 @@ use crate::service::network::{
 	utils::{get_or_create_connection, SilentLogger},
 	NetworkingError, Result,
 };
-use iroh::{endpoint::Connection, Endpoint, NodeId};
+use iroh::{endpoint::Connection, Endpoint, EndpointId};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -19,7 +19,7 @@ use uuid::Uuid;
 /// Client for subscribing to job activity from remote devices
 pub struct JobActivityClient {
 	endpoint: Endpoint,
-	connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+	connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 	remote_cache: Arc<RemoteJobCache>,
 	device_registry: Arc<RwLock<DeviceRegistry>>,
 }
@@ -27,7 +27,7 @@ pub struct JobActivityClient {
 impl JobActivityClient {
 	pub fn new(
 		endpoint: Endpoint,
-		connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+		connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 		remote_cache: Arc<RemoteJobCache>,
 		device_registry: Arc<RwLock<DeviceRegistry>>,
 	) -> Self {

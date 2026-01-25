@@ -481,7 +481,9 @@ impl Core {
 	}
 
 	/// Initialize networking using master key
-	pub async fn init_networking(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+	pub async fn init_networking(
+		&mut self,
+	) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		self.init_networking_with_logger(Arc::new(service::network::SilentLogger))
 			.await
 	}
@@ -519,27 +521,30 @@ impl Core {
 		if let Some(networking_service) = self.services.networking() {
 			// Register default protocol handlers only if networking was just initialized
 			// (if networking was already initialized during Core::new(), protocols are already registered)
-		if !already_initialized {
-			logger.info("Registering protocol handlers...").await;
-			self.register_default_protocols(&networking_service).await?;
-		} else {
-			logger
-				.info("Protocol handlers already registered during initialization")
-				.await;
-
-			// Reload protocol configs even when networking is already initialized
-			// This allows tests and runtime config changes to take effect
-			logger.info("Reloading protocol configs from disk...").await;
-			if let Err(e) = reload_protocol_configs(&networking_service, &self.config.read().await.data_dir).await {
-				logger
-					.warn(&format!("Failed to reload some protocol configs: {}", e))
-					.await;
+			if !already_initialized {
+				logger.info("Registering protocol handlers...").await;
+				self.register_default_protocols(&networking_service).await?;
 			} else {
-				logger.info("Protocol configs reloaded successfully").await;
-			}
-		}
+				logger
+					.info("Protocol handlers already registered during initialization")
+					.await;
 
-		// Set up event bridge to integrate with core event system (only if not already done)
+				// Reload protocol configs even when networking is already initialized
+				// This allows tests and runtime config changes to take effect
+				logger.info("Reloading protocol configs from disk...").await;
+				if let Err(e) =
+					reload_protocol_configs(&networking_service, &self.config.read().await.data_dir)
+						.await
+				{
+					logger
+						.warn(&format!("Failed to reload some protocol configs: {}", e))
+						.await;
+				} else {
+					logger.info("Protocol configs reloaded successfully").await;
+				}
+			}
+
+			// Set up event bridge to integrate with core event system (only if not already done)
 			if !already_initialized {
 				let event_bridge = NetworkEventBridge::new(
 					networking_service.subscribe_events(),
@@ -759,8 +764,8 @@ async fn reload_protocol_configs(
 	if let Some(handler) = guard.get_handler("pairing") {
 		if let Some(pairing_handler) = handler
 			.as_any()
-			.downcast_ref::<crate::service::network::protocol::PairingProtocolHandler>()
-		{
+			.downcast_ref::<crate::service::network::protocol::PairingProtocolHandler>(
+		) {
 			pairing_handler
 				.set_proxy_config(app_config.proxy_pairing)
 				.await;

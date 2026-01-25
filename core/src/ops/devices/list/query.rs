@@ -6,6 +6,7 @@ use crate::{
 	domain::Device,
 	infra::query::{LibraryQuery, QueryError, QueryResult},
 };
+use iroh::Watcher;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -154,14 +155,21 @@ impl LibraryQuery for ListLibraryDevicesQuery {
 				// Query Iroh directly for actual connection status and method
 				let (is_actually_connected, connection_method) = if let Some(ep) = endpoint {
 					// Get node ID for this device
-					let node_id = registry.get_node_id_for_device(device_id);
-					if let Some(node_id) = node_id {
-						// Query Iroh for connection info
-						if let Some(remote_info) = ep.remote_info(node_id) {
-							let conn_method = crate::domain::device::ConnectionMethod::from_iroh_connection_type(remote_info.conn_type);
-							let is_connected = conn_method.is_some();
+					if let Some(node_id) = registry.get_node_id_for_device(device_id) {
+						// Use conn_type() API (replaces remote_info() removed in v0.93+)
+						if let Some(mut conn_type_watcher) = ep.conn_type(node_id) {
+							// Get current connection type from watcher using the Watcher trait's get() method
+							let conn_type = conn_type_watcher.get();
+							// Check connection status first (before conn_type is moved)
+							let is_connected =
+								!matches!(conn_type, iroh::endpoint::ConnectionType::None);
+							let conn_method =
+								crate::domain::device::ConnectionMethod::from_iroh_connection_type(
+									conn_type,
+								);
 							(is_connected, conn_method)
 						} else {
+							// No address information exists for this endpoint (never connected)
 							(false, None)
 						}
 					} else {
@@ -187,6 +195,7 @@ impl LibraryQuery for ListLibraryDevicesQuery {
 
 					// Always update online/connected status based on current network state
 					// (database is_online column can be stale for remote devices)
+					// TODO: remove that column imo
 					existing.is_connected = is_actually_connected;
 					existing.is_online = is_actually_connected;
 					existing.connection_method = connection_method;
@@ -213,7 +222,8 @@ impl LibraryQuery for ListLibraryDevicesQuery {
 					}
 
 					// Convert network DeviceInfo to domain Device
-					let device = Device::from_network_info(&info, is_actually_connected, connection_method);
+					let device =
+						Device::from_network_info(&info, is_actually_connected, connection_method);
 					result.push(device);
 				}
 			}

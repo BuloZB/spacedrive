@@ -3,7 +3,7 @@
 use super::{DeviceInfo, SessionKeys};
 use crate::service::network::{NetworkingError, Result};
 use chrono::{DateTime, Utc};
-use iroh::NodeId;
+use iroh::EndpointId;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
@@ -12,7 +12,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct DeviceConnection {
 	/// The node ID of the remote device
-	pub node_id: NodeId,
+	pub node_id: EndpointId,
 
 	/// Device information
 	pub device_info: DeviceInfo,
@@ -63,7 +63,7 @@ pub struct OutgoingMessage {
 impl DeviceConnection {
 	/// Create a new device connection
 	pub fn new(
-		node_id: NodeId,
+		node_id: EndpointId,
 		device_info: DeviceInfo,
 		session_keys: SessionKeys,
 	) -> (Self, mpsc::UnboundedReceiver<OutgoingMessage>) {

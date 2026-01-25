@@ -688,7 +688,10 @@ async fn carol_transitive_sync_scenario() {
 		let tolerance = (alice_expected_count as f64 * 0.1) as i64;
 
 		if diff <= tolerance && carol_final_count > 10 {
-			println!("Carol: Sync complete! Received {} entries", carol_final_count);
+			println!(
+				"Carol: Sync complete! Received {} entries",
+				carol_final_count
+			);
 			break;
 		}
 
@@ -796,9 +799,12 @@ async fn test_transitive_sync_backfill() {
 	match result {
 		Ok(_) => {
 			println!("\n✅ TRANSITIVE SYNC BACKFILL TEST PASSED!");
-			println!("   ✅ Alice indexed {} entries",
+			println!(
+				"   ✅ Alice indexed {} entries",
 				std::fs::read_to_string(format!("{}/alice_entry_count.txt", TEST_DIR))
-					.unwrap_or_default().trim());
+					.unwrap_or_default()
+					.trim()
+			);
 			println!("   ✅ Alice paired with Bob (direct)");
 			println!("   ✅ Bob synced Alice's data");
 			println!("   ✅ Bob paired with Carol (direct)");

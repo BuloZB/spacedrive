@@ -3,7 +3,7 @@
 use super::{library_messages::LibraryMessage, ProtocolEvent, ProtocolHandler};
 use crate::service::network::{utils, NetworkingError, Result};
 use async_trait::async_trait;
-use iroh::{endpoint::Connection, Endpoint, NodeAddr, NodeId};
+use iroh::{endpoint::Connection, Endpoint, EndpointAddr, EndpointId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -21,8 +21,8 @@ pub struct MessagingProtocolHandler {
 	/// Endpoint for creating and managing connections
 	endpoint: Option<Endpoint>,
 
-	/// Cached connections to remote nodes (keyed by NodeId and ALPN)
-	connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+	/// Cached connections to remote nodes (keyed by EndpointId and ALPN)
+	connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 }
 
 /// Basic message types
@@ -67,7 +67,7 @@ impl MessagingProtocolHandler {
 	pub fn new(
 		device_registry: Arc<RwLock<crate::service::network::device::DeviceRegistry>>,
 		endpoint: Option<Endpoint>,
-		active_connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+		active_connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 	) -> Self {
 		Self {
 			context: None,
@@ -283,7 +283,8 @@ impl MessagingProtocolHandler {
 					match existing {
 						Ok(Some(existing_device)) => {
 							// Device exists (from pre-registration) - update with full hardware
-							let mut device_model: entities::device::ActiveModel = existing_device.into();
+							let mut device_model: entities::device::ActiveModel =
+								existing_device.into();
 
 							// Update all fields with data from message
 							device_model.name = Set(device_name.clone());
@@ -299,7 +300,8 @@ impl MessagingProtocolHandler {
 							device_model.memory_total_bytes = Set(memory_total_bytes);
 							device_model.form_factor = Set(form_factor.clone());
 							device_model.manufacturer = Set(manufacturer.clone());
-							device_model.gpu_models = Set(gpu_models.clone().map(|g| serde_json::json!(g)));
+							device_model.gpu_models =
+								Set(gpu_models.clone().map(|g| serde_json::json!(g)));
 							device_model.boot_disk_type = Set(boot_disk_type.clone());
 							device_model.boot_disk_capacity_bytes = Set(boot_disk_capacity_bytes);
 							device_model.swap_total_bytes = Set(swap_total_bytes);
@@ -400,35 +402,52 @@ impl MessagingProtocolHandler {
 								if let Ok(our_device) = context_clone.device_manager.to_device() {
 									// Get our slug for this library
 									if let Some(lib_id) = library_id {
-										if let Ok(our_slug) = context_clone.device_manager.slug_for_library(lib_id) {
+										if let Ok(our_slug) =
+											context_clone.device_manager.slug_for_library(lib_id)
+										{
 											// Get networking
-											if let Some(networking) = context_clone.get_networking().await {
-												let our_register_request = LibraryMessage::RegisterDeviceRequest {
-													request_id: Uuid::new_v4(),
-													library_id,
-													device_id: our_device.id,
-													device_name: our_device.name,
-													device_slug: our_slug,
-													os_name: our_device.os.to_string(),
-													os_version: our_device.os_version,
-													hardware_model: our_device.hardware_model,
-													cpu_model: our_device.cpu_model,
-													cpu_architecture: our_device.cpu_architecture,
-													cpu_cores_physical: our_device.cpu_cores_physical,
-													cpu_cores_logical: our_device.cpu_cores_logical,
-													cpu_frequency_mhz: our_device.cpu_frequency_mhz,
-													memory_total_bytes: our_device.memory_total_bytes,
-													form_factor: our_device.form_factor.map(|f| f.to_string()),
-													manufacturer: our_device.manufacturer,
-													gpu_models: our_device.gpu_models,
-													boot_disk_type: our_device.boot_disk_type,
-													boot_disk_capacity_bytes: our_device.boot_disk_capacity_bytes,
-													swap_total_bytes: our_device.swap_total_bytes,
-												};
+											if let Some(networking) =
+												context_clone.get_networking().await
+											{
+												let our_register_request =
+													LibraryMessage::RegisterDeviceRequest {
+														request_id: Uuid::new_v4(),
+														library_id,
+														device_id: our_device.id,
+														device_name: our_device.name,
+														device_slug: our_slug,
+														os_name: our_device.os.to_string(),
+														os_version: our_device.os_version,
+														hardware_model: our_device.hardware_model,
+														cpu_model: our_device.cpu_model,
+														cpu_architecture: our_device
+															.cpu_architecture,
+														cpu_cores_physical: our_device
+															.cpu_cores_physical,
+														cpu_cores_logical: our_device
+															.cpu_cores_logical,
+														cpu_frequency_mhz: our_device
+															.cpu_frequency_mhz,
+														memory_total_bytes: our_device
+															.memory_total_bytes,
+														form_factor: our_device
+															.form_factor
+															.map(|f| f.to_string()),
+														manufacturer: our_device.manufacturer,
+														gpu_models: our_device.gpu_models,
+														boot_disk_type: our_device.boot_disk_type,
+														boot_disk_capacity_bytes: our_device
+															.boot_disk_capacity_bytes,
+														swap_total_bytes: our_device
+															.swap_total_bytes,
+													};
 
 												// Send to the device that just registered with us
 												if let Err(e) = networking
-													.send_library_request(sender_device_id, our_register_request)
+													.send_library_request(
+														sender_device_id,
+														our_register_request,
+													)
 													.await
 												{
 													tracing::warn!(
@@ -649,7 +668,7 @@ impl MessagingProtocolHandler {
 	/// Uses cached connections and creates new streams (Iroh best practice)
 	pub async fn send_library_message(
 		&self,
-		node_id: NodeId,
+		node_id: EndpointId,
 		message: LibraryMessage,
 	) -> Result<LibraryMessage> {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -755,7 +774,7 @@ impl ProtocolHandler for MessagingProtocolHandler {
 		&self,
 		mut send: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
 		mut recv: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
-		remote_node_id: NodeId,
+		remote_node_id: EndpointId,
 	) {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -906,7 +925,7 @@ impl ProtocolHandler for MessagingProtocolHandler {
 	async fn handle_response(
 		&self,
 		_from_device: Uuid,
-		_from_node: NodeId,
+		_from_node: EndpointId,
 		_response_data: Vec<u8>,
 	) -> Result<()> {
 		// Messaging protocol handles responses in handle_request
