@@ -733,8 +733,9 @@ impl VolumeManager {
 						|| old_info.total_bytes_available != new_info.total_bytes_available
 						|| old_info.error_status != new_info.error_status
 					{
-						// Update the volume
+						// Update the volume - preserve existing ID for cache stability
 						let mut updated_volume = detected.clone();
+						updated_volume.id = existing.id;
 						updated_volume.update_info(new_info.clone());
 						current_volumes.insert(fingerprint.clone(), updated_volume.clone());
 
