@@ -33,11 +33,21 @@ runs:
         targets: ${{ inputs.target }}
         components: clippy, rustfmt
 
+    - name: Ensure rustup binaries are used
+      shell: bash
+      run: |
+        # Ensure rustup's cargo/rustc are in PATH before Homebrew's
+        if [ -d "$HOME/.cargo/bin" ]; then
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        fi
+
     - name: Verify Rust installation
       shell: bash
       run: |
         rustc --version
         rustup show
+        which rustc
+        which cargo
 
     - name: Cache Rust Dependencies
       if: ${{ inputs.restore-cache == 'true' }}
