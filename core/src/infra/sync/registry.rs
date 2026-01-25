@@ -923,7 +923,11 @@ mod tests {
 		println!("Registered syncable models ({}):", models.len());
 		for model in &models {
 			let reg = registry.get(model).unwrap();
-			let sync_type = if reg.is_device_owned { "device-owned" } else { "shared" };
+			let sync_type = if reg.is_device_owned {
+				"device-owned"
+			} else {
+				"shared"
+			};
 			println!("  - {} ({})", model, sync_type);
 		}
 

@@ -57,14 +57,16 @@ impl VouchingQueue {
 	pub async fn open(data_dir: impl AsRef<Path>) -> Result<Self> {
 		let networking_dir = data_dir.as_ref().join("networking");
 		// Ensure networking directory exists
-		tokio::fs::create_dir_all(&networking_dir).await.map_err(|e| {
-			NetworkingError::Protocol(format!("Failed to create networking directory: {}", e))
-		})?;
+		tokio::fs::create_dir_all(&networking_dir)
+			.await
+			.map_err(|e| {
+				NetworkingError::Protocol(format!("Failed to create networking directory: {}", e))
+			})?;
 		// Ensure networking directory exists
 		std::fs::create_dir_all(&networking_dir).map_err(|e| {
 			NetworkingError::Protocol(format!("Failed to create networking directory: {}", e))
 		})?;
-		
+
 		let db_path = networking_dir.join("vouching_queue.db");
 		let database_url = format!("sqlite://{}?mode=rwc", db_path.display());
 		let conn = Database::connect(&database_url).await.map_err(|e| {

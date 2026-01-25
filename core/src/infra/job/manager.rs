@@ -419,13 +419,16 @@ impl JobManager {
 									};
 
 									// Emit final progress event if one exists (may have been throttled)
-									if let Some(final_progress) = latest_progress_for_monitor.lock().await.as_ref() {
+									if let Some(final_progress) =
+										latest_progress_for_monitor.lock().await.as_ref()
+									{
 										let generic_progress = match final_progress {
 											Progress::Structured(value) => {
 												// Try to deserialize CopyProgress and convert to GenericProgress
-												if let Ok(copy_progress) = serde_json::from_value::<
-													crate::ops::files::copy::CopyProgress,
-												>(value.clone())
+												if let Ok(copy_progress) =
+													serde_json::from_value::<
+														crate::ops::files::copy::CopyProgress,
+													>(value.clone())
 												{
 													use crate::infra::job::generic_progress::ToGenericProgress;
 													Some(copy_progress.to_generic_progress())
@@ -441,7 +444,8 @@ impl JobManager {
 											job_id: job_id_clone.to_string(),
 											job_type: job_type_str.to_string(),
 											device_id,
-											progress: final_progress.as_percentage().unwrap_or(0.0) as f64,
+											progress: final_progress.as_percentage().unwrap_or(0.0)
+												as f64,
 											message: Some(final_progress.to_string()),
 											generic_progress,
 										});
@@ -646,7 +650,8 @@ impl JobManager {
 				// Database persistence (only for non-ephemeral jobs)
 				if should_persist {
 					if last_db_update.elapsed() >= DB_UPDATE_INTERVAL {
-						if let Err(e) = job_db_clone.update_progress(job_id_clone, &progress).await {
+						if let Err(e) = job_db_clone.update_progress(job_id_clone, &progress).await
+						{
 							debug!("Failed to persist job progress to database: {}", e);
 						}
 						last_db_update = std::time::Instant::now();
@@ -845,13 +850,16 @@ impl JobManager {
 									};
 
 									// Emit final progress event if one exists (may have been throttled)
-									if let Some(final_progress) = latest_progress_for_monitor.lock().await.as_ref() {
+									if let Some(final_progress) =
+										latest_progress_for_monitor.lock().await.as_ref()
+									{
 										let generic_progress = match final_progress {
 											Progress::Structured(value) => {
 												// Try to deserialize CopyProgress and convert to GenericProgress
-												if let Ok(copy_progress) = serde_json::from_value::<
-													crate::ops::files::copy::CopyProgress,
-												>(value.clone())
+												if let Ok(copy_progress) =
+													serde_json::from_value::<
+														crate::ops::files::copy::CopyProgress,
+													>(value.clone())
 												{
 													use crate::infra::job::generic_progress::ToGenericProgress;
 													Some(copy_progress.to_generic_progress())
@@ -867,7 +875,8 @@ impl JobManager {
 											job_id: job_id_clone.to_string(),
 											job_type: job_type_str.to_string(),
 											device_id,
-											progress: final_progress.as_percentage().unwrap_or(0.0) as f64,
+											progress: final_progress.as_percentage().unwrap_or(0.0)
+												as f64,
 											message: Some(final_progress.to_string()),
 											generic_progress,
 										});
@@ -1071,7 +1080,9 @@ impl JobManager {
 				};
 
 			// Get job data from in-memory struct (for non-persisted jobs) or database
-			let (job_name, action_type, action_context) = if let Some(ctx) = &running_job.action_context {
+			let (job_name, action_type, action_context) = if let Some(ctx) =
+				&running_job.action_context
+			{
 				// Use in-memory action_context (for ephemeral volume jobs)
 				let action_context_info = ActionContextInfo {
 					action_type: ctx.action_type.clone(),
@@ -1508,11 +1519,15 @@ impl JobManager {
 								let latest_progress_for_monitor = latest_progress.clone();
 
 								// Deserialize action context from database if available
-								let action_context = if let Some(context_data) = &job_record.action_context {
-									rmp_serde::from_slice::<crate::infra::action::context::ActionContext>(context_data).ok()
-								} else {
-									None
-								};
+								let action_context =
+									if let Some(context_data) = &job_record.action_context {
+										rmp_serde::from_slice::<
+											crate::infra::action::context::ActionContext,
+										>(context_data)
+										.ok()
+									} else {
+										None
+									};
 
 								self.running_jobs.write().await.insert(
 									job_id,
@@ -1807,7 +1822,10 @@ impl JobManager {
 				.await?;
 
 			if result.rows_affected == 0 {
-				return Err(JobError::NotFound(format!("Job {} not found in database", job_id)));
+				return Err(JobError::NotFound(format!(
+					"Job {} not found in database",
+					job_id
+				)));
 			}
 		}
 
@@ -1816,7 +1834,12 @@ impl JobManager {
 			return Err(JobError::NotFound(format!("Job {} not found", job_id)));
 		}
 
-		info!("Job {} cancelled (in memory: {}, in db: {})", job_id, is_in_memory, db_job.is_some());
+		info!(
+			"Job {} cancelled (in memory: {}, in db: {})",
+			job_id,
+			is_in_memory,
+			db_job.is_some()
+		);
 		Ok(())
 	}
 
@@ -1855,12 +1878,19 @@ impl JobManager {
 
 				// Deserialize action context from database if available
 				let action_context = if let Some(context_data) = &job_record.action_context {
-					rmp_serde::from_slice::<crate::infra::action::context::ActionContext>(context_data).ok()
+					rmp_serde::from_slice::<crate::infra::action::context::ActionContext>(
+						context_data,
+					)
+					.ok()
 				} else {
 					None
 				};
 
-				Some((job_record.name.clone(), job_record.state.clone(), action_context))
+				Some((
+					job_record.name.clone(),
+					job_record.state.clone(),
+					action_context,
+				))
 			}
 		};
 

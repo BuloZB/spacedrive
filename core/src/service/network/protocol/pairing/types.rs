@@ -5,7 +5,7 @@ use crate::service::network::{
 	utils::identity::NetworkFingerprint,
 };
 use chrono::{DateTime, Utc};
-use iroh::{NodeAddr, NodeId};
+use iroh::{EndpointAddr, EndpointId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -24,8 +24,8 @@ pub struct PairingCode {
 	/// Expiration timestamp
 	expires_at: DateTime<Utc>,
 
-	/// Initiator's NodeId for remote discovery via pkarr (optional - enables relay path)
-	node_id: Option<NodeId>,
+	/// Initiator's EndpointId for remote discovery via pkarr (optional - enables relay path)
+	node_id: Option<EndpointId>,
 }
 
 impl PairingCode {
@@ -65,7 +65,7 @@ impl PairingCode {
 	}
 
 	/// Add node_id for remote pairing via pkarr discovery
-	pub fn with_node_id(mut self, node_id: NodeId) -> Self {
+	pub fn with_node_id(mut self, node_id: EndpointId) -> Self {
 		self.node_id = Some(node_id);
 		self
 	}
@@ -124,7 +124,7 @@ impl PairingCode {
 
 		// Extract node_id (optional - enables remote pairing via pkarr)
 		if let Some(node_id_str) = data.get("node_id").and_then(|v| v.as_str()) {
-			let node_id = node_id_str.parse::<NodeId>().map_err(|e| {
+			let node_id = node_id_str.parse::<EndpointId>().map_err(|e| {
 				crate::service::network::NetworkingError::Protocol(format!(
 					"Invalid node_id in QR code: {}",
 					e
@@ -164,8 +164,8 @@ impl PairingCode {
 		&self.secret
 	}
 
-	/// Get the initiator's NodeId for pkarr discovery
-	pub fn node_id(&self) -> Option<NodeId> {
+	/// Get the initiator's EndpointId for pkarr discovery
+	pub fn node_id(&self) -> Option<EndpointId> {
 		self.node_id
 	}
 
@@ -340,7 +340,7 @@ pub enum PairingState {
 	ResponsePending {
 		challenge: Vec<u8>,
 		response_data: Vec<u8>,
-		remote_node_id: Option<NodeId>,
+		remote_node_id: Option<EndpointId>,
 	},
 	ResponseSent,
 	Completed,
@@ -413,7 +413,7 @@ pub struct PairingAdvertisement {
 	/// The node ID of the initiator (as string for serialization)
 	pub node_id: String,
 	/// The node address components for reconstruction
-	pub node_addr_info: NodeAddrInfo,
+	pub node_addr_info: EndpointAddrInfo,
 	/// Device information of the initiator
 	pub device_info: DeviceInfo,
 	/// When this advertisement expires
@@ -422,9 +422,9 @@ pub struct PairingAdvertisement {
 	pub created_at: DateTime<Utc>,
 }
 
-/// Serializable representation of NodeAddr
+/// Serializable representation of EndpointAddr
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodeAddrInfo {
+pub struct EndpointAddrInfo {
 	/// Node ID as string
 	pub node_id: String,
 	/// Direct socket addresses
@@ -434,43 +434,34 @@ pub struct NodeAddrInfo {
 }
 
 impl PairingAdvertisement {
-	/// Convert node ID string back to NodeId
-	pub fn node_id(&self) -> crate::service::network::Result<NodeId> {
+	/// Convert node ID string back to EndpointId
+	pub fn node_id(&self) -> crate::service::network::Result<EndpointId> {
 		self.node_id.parse().map_err(|e| {
 			crate::service::network::NetworkingError::Protocol(format!("Invalid node ID: {}", e))
 		})
 	}
 
-	/// Convert node address info back to NodeAddr
-	pub fn node_addr(&self) -> crate::service::network::Result<NodeAddr> {
+	/// Convert node address info back to EndpointAddr
+	pub fn node_addr(&self) -> crate::service::network::Result<EndpointAddr> {
 		// Parse node ID
-		let node_id = self.node_addr_info.node_id.parse::<NodeId>().map_err(|e| {
-			crate::service::network::NetworkingError::Protocol(format!(
-				"Invalid node ID in advertisement: {}",
-				e
-			))
-		})?;
+		let node_id = self
+			.node_addr_info
+			.node_id
+			.parse::<EndpointId>()
+			.map_err(|e| {
+				crate::service::network::NetworkingError::Protocol(format!(
+					"Invalid node ID in advertisement: {}",
+					e
+				))
+			})?;
 
-		// Start with base NodeAddr
-		let mut node_addr = NodeAddr::new(node_id);
+		// In v0.95+, EndpointAddr is immutable and builder methods were removed.
+		// Create a minimal EndpointAddr with just the ID - Iroh's discovery system
+		// will automatically resolve addresses via pkarr/DNS if configured.
+		let node_addr = EndpointAddr::new(node_id);
 
-		// Add direct addresses
-		let mut direct_addrs = Vec::new();
-		for addr_str in &self.node_addr_info.direct_addresses {
-			if let Ok(addr) = addr_str.parse() {
-				direct_addrs.push(addr);
-			}
-		}
-		if !direct_addrs.is_empty() {
-			node_addr = node_addr.with_direct_addresses(direct_addrs);
-		}
-
-		// Add relay URL if present
-		if let Some(relay_url) = &self.node_addr_info.relay_url {
-			if let Ok(url) = relay_url.parse() {
-				node_addr = node_addr.with_relay_url(url);
-			}
-		}
+		// Note: Direct addresses and relay URLs from pairing code are now handled
+		// by Iroh's discovery system (pkarr/DNS) rather than being manually set.
 
 		Ok(node_addr)
 	}

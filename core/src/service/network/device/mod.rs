@@ -5,7 +5,7 @@ pub mod persistence;
 pub mod registry;
 
 use chrono::{DateTime, Utc};
-use iroh::{NodeAddr, NodeId};
+use iroh::{EndpointAddr, EndpointId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -55,15 +55,15 @@ impl Default for DeviceType {
 pub enum DeviceState {
 	/// Device discovered via Iroh discovery but not yet connected
 	Discovered {
-		node_id: NodeId,
-		node_addr: NodeAddr,
+		node_id: EndpointId,
+		node_addr: EndpointAddr,
 		discovered_at: DateTime<Utc>,
 	},
 	/// Device currently in pairing process
 	Pairing {
-		node_id: NodeId,
+		node_id: EndpointId,
 		session_id: Uuid,
-		node_addr: NodeAddr,
+		node_addr: EndpointAddr,
 		started_at: DateTime<Utc>,
 	},
 	/// Device successfully paired but not currently connected

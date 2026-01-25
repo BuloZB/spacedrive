@@ -87,7 +87,9 @@ pub struct TestEnvironment {
 
 impl TestEnvironment {
 	/// Create a new test environment with the given name
-	pub fn new(test_name: impl Into<String>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+	pub fn new(
+		test_name: impl Into<String>,
+	) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
 		let test_name = test_name.into();
 		let test_root = PathBuf::from("test_data");
 		let test_data_dir = test_root.join(&test_name);
@@ -225,7 +227,9 @@ impl TestConfigBuilder {
 	}
 
 	/// Build and save the AppConfig to the data directory
-	pub async fn build_and_save(self) -> Result<AppConfig, Box<dyn std::error::Error + Send + Sync>> {
+	pub async fn build_and_save(
+		self,
+	) -> Result<AppConfig, Box<dyn std::error::Error + Send + Sync>> {
 		let config = self.build();
 
 		// Ensure the data directory exists
@@ -318,7 +322,9 @@ pub struct IntegrationTestSetup {
 
 impl IntegrationTestSetup {
 	/// Create a new integration test setup with default configuration
-	pub async fn new(test_name: impl Into<String>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+	pub async fn new(
+		test_name: impl Into<String>,
+	) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
 		let environment = TestEnvironment::new(test_name)?;
 
 		// Clean any existing data
@@ -411,7 +417,9 @@ impl IntegrationTestSetup {
 	///
 	/// This method ensures that the custom AppConfig settings from the test setup
 	/// are properly applied when initializing the Core.
-	pub async fn create_core(&self) -> Result<crate::Core, Box<dyn std::error::Error + Send + Sync>> {
+	pub async fn create_core(
+		&self,
+	) -> Result<crate::Core, Box<dyn std::error::Error + Send + Sync>> {
 		info!(
 			"Creating Core with test configuration from: {}",
 			self.data_dir().display()

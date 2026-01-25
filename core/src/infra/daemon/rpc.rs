@@ -132,7 +132,9 @@ impl RpcServer {
 	}
 
 	/// Start the event broadcaster that forwards core events to subscribed connections
-	async fn start_event_broadcaster(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+	async fn start_event_broadcaster(
+		&self,
+	) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		let core = self.core.clone();
 
 		// Make the core's LogBus globally available to the LogEventLayer

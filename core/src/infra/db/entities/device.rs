@@ -251,156 +251,143 @@ impl crate::infra::sync::Syncable for Model {
 							.unwrap_or(serde_json::Value::String("Unknown".to_string())),
 					)
 					.unwrap_or_else(|_| "Unknown".to_string())),
-					os_version: Set(
-						data.get("os_version")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<String>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid os_version: {}", e))
-								})
+					os_version: Set(data
+						.get("os_version")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<String>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid os_version: {}", e))
 							})
-							.transpose()?,
-					),
-					hardware_model: Set(
-						data.get("hardware_model")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<String>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid hardware_model: {}", e))
-								})
+						})
+						.transpose()?),
+					hardware_model: Set(data
+						.get("hardware_model")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<String>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid hardware_model: {}", e))
 							})
-							.transpose()?,
-					),
-					cpu_model: Set(
-						data.get("cpu_model")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<String>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid cpu_model: {}", e))
-								})
+						})
+						.transpose()?),
+					cpu_model: Set(data
+						.get("cpu_model")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<String>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid cpu_model: {}", e))
 							})
-							.transpose()?,
-					),
-					cpu_architecture: Set(
-						data.get("cpu_architecture")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<String>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid cpu_architecture: {}", e))
-								})
+						})
+						.transpose()?),
+					cpu_architecture: Set(data
+						.get("cpu_architecture")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<String>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid cpu_architecture: {}", e))
 							})
-							.transpose()?,
-					),
-					cpu_cores_physical: Set(
-						data.get("cpu_cores_physical")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<u32>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid cpu_cores_physical: {}", e))
-								})
+						})
+						.transpose()?),
+					cpu_cores_physical: Set(data
+						.get("cpu_cores_physical")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<u32>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid cpu_cores_physical: {}", e))
 							})
-							.transpose()?,
-					),
-					cpu_cores_logical: Set(
-						data.get("cpu_cores_logical")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<u32>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid cpu_cores_logical: {}", e))
-								})
+						})
+						.transpose()?),
+					cpu_cores_logical: Set(data
+						.get("cpu_cores_logical")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<u32>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid cpu_cores_logical: {}", e))
 							})
-							.transpose()?,
-					),
-					cpu_frequency_mhz: Set(
-						data.get("cpu_frequency_mhz")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<i64>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid cpu_frequency_mhz: {}", e))
-								})
+						})
+						.transpose()?),
+					cpu_frequency_mhz: Set(data
+						.get("cpu_frequency_mhz")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<i64>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid cpu_frequency_mhz: {}", e))
 							})
-							.transpose()?,
-					),
-					memory_total_bytes: Set(
-						data.get("memory_total_bytes")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<i64>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid memory_total_bytes: {}", e))
-								})
+						})
+						.transpose()?),
+					memory_total_bytes: Set(data
+						.get("memory_total_bytes")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<i64>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid memory_total_bytes: {}", e))
 							})
-							.transpose()?,
-					),
-					form_factor: Set(
-						data.get("form_factor")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<String>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid form_factor: {}", e))
-								})
+						})
+						.transpose()?),
+					form_factor: Set(data
+						.get("form_factor")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<String>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid form_factor: {}", e))
 							})
-							.transpose()?,
-					),
-					manufacturer: Set(
-						data.get("manufacturer")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<String>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid manufacturer: {}", e))
-								})
+						})
+						.transpose()?),
+					manufacturer: Set(data
+						.get("manufacturer")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<String>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid manufacturer: {}", e))
 							})
-							.transpose()?,
-					),
-					gpu_models: Set(
-						data.get("gpu_models")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<Json>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid gpu_models: {}", e))
-								})
+						})
+						.transpose()?),
+					gpu_models: Set(data
+						.get("gpu_models")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<Json>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid gpu_models: {}", e))
 							})
-							.transpose()?,
-					),
-					boot_disk_type: Set(
-						data.get("boot_disk_type")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<String>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid boot_disk_type: {}", e))
-								})
+						})
+						.transpose()?),
+					boot_disk_type: Set(data
+						.get("boot_disk_type")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<String>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid boot_disk_type: {}", e))
 							})
-							.transpose()?,
-					),
-					boot_disk_capacity_bytes: Set(
-						data.get("boot_disk_capacity_bytes")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<i64>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid boot_disk_capacity_bytes: {}", e))
-								})
+						})
+						.transpose()?),
+					boot_disk_capacity_bytes: Set(data
+						.get("boot_disk_capacity_bytes")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<i64>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!(
+									"Invalid boot_disk_capacity_bytes: {}",
+									e
+								))
 							})
-							.transpose()?,
-					),
-					swap_total_bytes: Set(
-						data.get("swap_total_bytes")
-							.filter(|v| !v.is_null())
-							.map(|v| {
-								serde_json::from_value::<i64>(v.clone()).map_err(|e| {
-									sea_orm::DbErr::Custom(format!("Invalid swap_total_bytes: {}", e))
-								})
+						})
+						.transpose()?),
+					swap_total_bytes: Set(data
+						.get("swap_total_bytes")
+						.filter(|v| !v.is_null())
+						.map(|v| {
+							serde_json::from_value::<i64>(v.clone()).map_err(|e| {
+								sea_orm::DbErr::Custom(format!("Invalid swap_total_bytes: {}", e))
 							})
-							.transpose()?,
-					),
-					network_addresses: Set(
-						serde_json::from_value(
-							data.get("network_addresses")
-								.cloned()
-								.unwrap_or(serde_json::json!([])),
-						)
-						.map_err(|e| {
-							sea_orm::DbErr::Custom(format!("Invalid network_addresses: {}", e))
-						})?,
-					),
+						})
+						.transpose()?),
+					network_addresses: Set(serde_json::from_value(
+						data.get("network_addresses")
+							.cloned()
+							.unwrap_or(serde_json::json!([])),
+					)
+					.map_err(|e| {
+						sea_orm::DbErr::Custom(format!("Invalid network_addresses: {}", e))
+					})?),
 					is_online: Set(serde_json::from_value(
 						data.get("is_online")
 							.cloned()
@@ -413,16 +400,12 @@ impl crate::infra::sync::Syncable for Model {
 							.unwrap_or_else(|| serde_json::json!(chrono::Utc::now())),
 					)
 					.unwrap_or_else(|_| chrono::Utc::now().into())),
-					capabilities: Set(
-						serde_json::from_value(
-							data.get("capabilities")
-								.cloned()
-								.unwrap_or(serde_json::json!({})),
-						)
-						.map_err(|e| {
-							sea_orm::DbErr::Custom(format!("Invalid capabilities: {}", e))
-						})?,
-					),
+					capabilities: Set(serde_json::from_value(
+						data.get("capabilities")
+							.cloned()
+							.unwrap_or(serde_json::json!({})),
+					)
+					.map_err(|e| sea_orm::DbErr::Custom(format!("Invalid capabilities: {}", e)))?),
 					created_at: Set(chrono::Utc::now().into()),
 					updated_at: Set(chrono::Utc::now().into()),
 					sync_enabled: Set(serde_json::from_value(

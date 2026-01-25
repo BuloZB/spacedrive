@@ -491,7 +491,7 @@ impl RemoteTransferStrategy {
 		));
 
 		// Connect to remote device
-		let node_addr = iroh::NodeAddr::new(node_id);
+		let node_addr = iroh::EndpointAddr::new(node_id);
 		let connection = endpoint
 			.connect(node_addr, b"spacedrive/filetransfer/1")
 			.await
@@ -1125,7 +1125,7 @@ async fn stream_file_data<'a>(
 		node_id, destination_device_id
 	));
 
-	let node_addr = iroh::NodeAddr::new(node_id);
+	let node_addr = iroh::EndpointAddr::new(node_id);
 	let connection = endpoint
 		.connect(node_addr, b"spacedrive/filetransfer/1")
 		.await

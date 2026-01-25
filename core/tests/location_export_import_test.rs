@@ -372,7 +372,8 @@ async fn test_location_export_import() -> Result<(), Box<dyn std::error::Error +
 }
 
 #[tokio::test]
-async fn test_export_nonexistent_location() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn test_export_nonexistent_location() -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+{
 	let temp_dir = TempDir::new()?;
 	let core_dir = temp_dir.path().join("core");
 	let export_file = temp_dir.path().join("export.sql");
@@ -475,7 +476,8 @@ async fn test_import_invalid_file() -> Result<(), Box<dyn std::error::Error + Se
 }
 
 #[tokio::test]
-async fn test_import_links_existing_content_identities() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn test_import_links_existing_content_identities(
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 	// This test verifies that when importing a location that has content matching
 	// existing content_identities in the destination library, the entries link to
 	// the existing content_identities rather than creating duplicates.

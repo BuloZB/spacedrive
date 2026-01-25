@@ -425,7 +425,10 @@ fn build_ios() -> Result<()> {
 	let xcframework_path = ios_core_dir.join(format!("{}.xcframework", framework_name));
 
 	if xcframework_path.exists() {
-		println!("Updating existing XCFramework at: {}", xcframework_path.display());
+		println!(
+			"Updating existing XCFramework at: {}",
+			xcframework_path.display()
+		);
 	} else {
 		println!("Creating XCFramework at: {}", xcframework_path.display());
 		std::fs::create_dir_all(&xcframework_path)
@@ -439,8 +442,7 @@ fn build_ios() -> Result<()> {
 
 	// Create/update device framework directory
 	let device_target = xcframework_path.join("ios-arm64");
-	std::fs::create_dir_all(&device_target)
-		.context("Failed to create device target directory")?;
+	std::fs::create_dir_all(&device_target).context("Failed to create device target directory")?;
 	std::fs::copy(
 		device_framework_dir.join(framework_name),
 		device_target.join(format!("lib{}.a", framework_name)),
@@ -449,8 +451,7 @@ fn build_ios() -> Result<()> {
 
 	// Create/update simulator framework directory
 	let sim_target = xcframework_path.join("ios-arm64-simulator");
-	std::fs::create_dir_all(&sim_target)
-		.context("Failed to create simulator target directory")?;
+	std::fs::create_dir_all(&sim_target).context("Failed to create simulator target directory")?;
 	std::fs::copy(
 		sim_framework_dir.join(framework_name),
 		sim_target.join(format!("lib{}.a", framework_name)),

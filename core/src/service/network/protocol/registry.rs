@@ -2,7 +2,7 @@
 
 use super::{ProtocolEvent, ProtocolHandler};
 use crate::service::network::{NetworkingError, Result};
-use iroh::NodeId;
+use iroh::EndpointId;
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -68,7 +68,7 @@ impl ProtocolRegistry {
 		&self,
 		protocol_name: &str,
 		from_device: Uuid,
-		from_node: NodeId,
+		from_node: EndpointId,
 		response_data: Vec<u8>,
 	) -> Result<()> {
 		let handler = self.get_handler(protocol_name).ok_or_else(|| {

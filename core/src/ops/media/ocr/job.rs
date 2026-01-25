@@ -243,9 +243,9 @@ impl OcrJob {
 						if let Ok(Some(mime)) = mime_type::Entity::find_by_id(mime_id).one(db).await
 						{
 							if super::is_ocr_supported(
-							&mime.mime_type,
-							ctx.library().core_context().file_type_registry(),
-						) {
+								&mime.mime_type,
+								ctx.library().core_context().file_type_registry(),
+							) {
 								if let Ok(path) = crate::ops::indexing::PathResolver::get_full_path(
 									db,
 									entry_model.id,
@@ -305,9 +305,9 @@ impl OcrJob {
 								mime_type::Entity::find_by_id(mime_id).one(db).await
 							{
 								if super::is_ocr_supported(
-							&mime.mime_type,
-							ctx.library().core_context().file_type_registry(),
-						) {
+									&mime.mime_type,
+									ctx.library().core_context().file_type_registry(),
+								) {
 									// Get full path
 									if let Ok(path) =
 										crate::ops::indexing::PathResolver::get_full_path(

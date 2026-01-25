@@ -40,10 +40,8 @@ impl MigrationTrait for Migration {
 		// Restore columns for rollback
 		let db = manager.get_connection();
 
-		db.execute_unprepared(
-			"ALTER TABLE devices ADD COLUMN last_sync_at TEXT DEFAULT NULL",
-		)
-		.await?;
+		db.execute_unprepared("ALTER TABLE devices ADD COLUMN last_sync_at TEXT DEFAULT NULL")
+			.await?;
 
 		db.execute_unprepared(
 			"ALTER TABLE devices ADD COLUMN last_state_watermark TEXT DEFAULT NULL",

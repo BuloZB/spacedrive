@@ -119,10 +119,7 @@ fn parse_df_line(
 		}
 		crate::volume::types::VolumeType::Network => {
 			// Use filesystem device as backend identifier for network volumes
-			VolumeFingerprint::from_network_volume(
-				filesystem_device,
-				&mount_path.to_string_lossy(),
-			)
+			VolumeFingerprint::from_network_volume(filesystem_device, &mount_path.to_string_lossy())
 		}
 		_ => {
 			// Primary, UserData, Secondary, System, Virtual, Unknown

@@ -332,7 +332,8 @@ pub async fn run(ctx: &Context, cmd: IndexCmd) -> Result<()> {
 							&format_bytes(breakdown.path_index_overhead as u64),
 							&format_bytes(breakdown.path_index_entries as u64),
 							&format_bytes(
-								(breakdown.path_index_overhead + breakdown.path_index_entries) as u64
+								(breakdown.path_index_overhead + breakdown.path_index_entries)
+									as u64,
 							),
 						]);
 						breakdown_table.add_row(vec![
@@ -340,7 +341,8 @@ pub async fn run(ctx: &Context, cmd: IndexCmd) -> Result<()> {
 							&format_bytes(breakdown.entry_uuids_overhead as u64),
 							&format_bytes(breakdown.entry_uuids_entries as u64),
 							&format_bytes(
-								(breakdown.entry_uuids_overhead + breakdown.entry_uuids_entries) as u64
+								(breakdown.entry_uuids_overhead + breakdown.entry_uuids_entries)
+									as u64,
 							),
 						]);
 						breakdown_table.add_row(vec![
@@ -349,13 +351,12 @@ pub async fn run(ctx: &Context, cmd: IndexCmd) -> Result<()> {
 							&format_bytes(breakdown.content_kinds_entries as u64),
 							&format_bytes(
 								(breakdown.content_kinds_overhead + breakdown.content_kinds_entries)
-									as u64
+									as u64,
 							),
 						]);
 
 						let total = breakdown.arena
-							+ breakdown.cache
-							+ breakdown.registry
+							+ breakdown.cache + breakdown.registry
 							+ breakdown.path_index_overhead
 							+ breakdown.path_index_entries
 							+ breakdown.entry_uuids_overhead

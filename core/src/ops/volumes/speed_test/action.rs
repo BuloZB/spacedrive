@@ -94,9 +94,7 @@ impl LibraryAction for VolumeSpeedTestAction {
 		use crate::domain::resource::EventEmitter;
 		volume
 			.emit_changed(&context.events)
-			.map_err(|e| {
-				ActionError::Internal(format!("Failed to emit volume event: {}", e))
-			})?;
+			.map_err(|e| ActionError::Internal(format!("Failed to emit volume event: {}", e)))?;
 
 		// Return native output directly
 		Ok(VolumeSpeedTestOutput::new(

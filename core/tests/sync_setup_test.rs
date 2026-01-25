@@ -315,8 +315,7 @@ async fn carol_three_device_scenario() {
 	// Wait for Alice's library ID
 	println!("Carol: Waiting for Alice's library ID...");
 	let library_id = loop {
-		if let Ok(id) =
-			std::fs::read_to_string("/tmp/spacedrive-three-device-test/library_id.txt")
+		if let Ok(id) = std::fs::read_to_string("/tmp/spacedrive-three-device-test/library_id.txt")
 		{
 			break id.trim().to_string();
 		}

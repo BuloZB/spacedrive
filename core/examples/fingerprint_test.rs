@@ -28,7 +28,11 @@ fn main() {
 	let fp_ext1 = VolumeFingerprint::from_external_volume(spacedrive_id, device_id);
 	let fp_ext2 = VolumeFingerprint::from_external_volume(spacedrive_id, device_id);
 
-	println!("  With same dotfile UUID: {} == {}", fp_ext1.short_id(), fp_ext2.short_id());
+	println!(
+		"  With same dotfile UUID: {} == {}",
+		fp_ext1.short_id(),
+		fp_ext2.short_id()
+	);
 	println!("  Match: {}\n", fp_ext1 == fp_ext2);
 
 	// Test 3: Network volume stability
@@ -53,7 +57,10 @@ fn main() {
 
 	println!("  Mount at /Volumes/MyDrive:  {}", fp_mount1.short_id());
 	println!("  Mount at /Volumes/MyDrive1: {}", fp_mount2.short_id());
-	println!("  Different: {} (expected for primary volumes)\n", fp_mount1 != fp_mount2);
+	println!(
+		"  Different: {} (expected for primary volumes)\n",
+		fp_mount1 != fp_mount2
+	);
 
 	// Test 5: External volume - Same dotfile UUID, different mount points
 	println!("Test 5: External volume - Dotfile UUID stable across remounts");
@@ -63,7 +70,10 @@ fn main() {
 
 	println!("  Mounted at /Volumes/USB:  {}", fp_at_mount1.short_id());
 	println!("  Mounted at /Volumes/USB1: {}", fp_at_mount2.short_id());
-	println!("  Match: {} (dotfile UUID is stable!)\n", fp_at_mount1 == fp_at_mount2);
+	println!(
+		"  Match: {} (dotfile UUID is stable!)\n",
+		fp_at_mount1 == fp_at_mount2
+	);
 
 	// Summary
 	println!("=== Summary ===");

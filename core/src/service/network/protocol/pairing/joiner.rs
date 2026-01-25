@@ -9,7 +9,7 @@ use crate::service::network::{
 	device::{DeviceInfo, SessionKeys},
 	NetworkingError, Result,
 };
-use iroh::{NodeId, Watcher};
+use iroh::{EndpointId, Watcher};
 use uuid::Uuid;
 
 impl PairingProtocolHandler {
@@ -117,7 +117,7 @@ impl PairingProtocolHandler {
 		success: bool,
 		reason: Option<String>,
 		from_device: Uuid,
-		from_node: NodeId,
+		from_node: EndpointId,
 	) -> Result<()> {
 		self.log_info(&format!(
 			"Received completion message for session {} - success: {}",
@@ -152,7 +152,7 @@ impl PairingProtocolHandler {
 			let node_id = match initiator_device_info
 				.network_fingerprint
 				.node_id
-				.parse::<NodeId>()
+				.parse::<EndpointId>()
 			{
 				Ok(id) => id,
 				Err(_) => {
@@ -167,7 +167,7 @@ impl PairingProtocolHandler {
 			// Register the initiator device in Pairing state
 			{
 				let mut registry = self.device_registry.write().await;
-				let node_addr = iroh::NodeAddr::new(node_id);
+				let node_addr = iroh::EndpointAddr::new(node_id);
 
 				registry
 					.start_pairing(device_id, node_id, session_id, node_addr)
@@ -185,8 +185,7 @@ impl PairingProtocolHandler {
 			let relay_url = self
 				.endpoint
 				.as_ref()
-				.and_then(|ep| ep.home_relay().get().into_iter().next())
-				.map(|r| r.to_string());
+				.and_then(|ep| ep.addr().relay_urls().next().map(|r| r.to_string()));
 
 			// Complete pairing in device registry
 			{

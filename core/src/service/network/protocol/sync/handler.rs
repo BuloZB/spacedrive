@@ -595,7 +595,7 @@ impl crate::service::network::protocol::ProtocolHandler for SyncProtocolHandler 
 		&self,
 		mut send: Box<dyn tokio::io::AsyncWrite + Send + Unpin>,
 		mut recv: Box<dyn tokio::io::AsyncRead + Send + Unpin>,
-		remote_node_id: iroh::NodeId,
+		remote_node_id: iroh::EndpointId,
 	) {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -719,7 +719,7 @@ impl crate::service::network::protocol::ProtocolHandler for SyncProtocolHandler 
 	async fn handle_response(
 		&self,
 		from_device: Uuid,
-		_from_node: iroh::NodeId,
+		_from_node: iroh::EndpointId,
 		response: Vec<u8>,
 	) -> Result<()> {
 		if response.is_empty() {

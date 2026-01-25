@@ -117,13 +117,11 @@ impl Syncable for Model {
 		// Cursor-based pagination with tie-breaker
 		if let Some((cursor_ts, cursor_uuid)) = cursor {
 			query = query.filter(
-				Condition::any()
-					.add(Column::CreatedAt.gt(cursor_ts))
-					.add(
-						Condition::all()
-							.add(Column::CreatedAt.eq(cursor_ts))
-							.add(Column::Uuid.gt(cursor_uuid)),
-					),
+				Condition::any().add(Column::CreatedAt.gt(cursor_ts)).add(
+					Condition::all()
+						.add(Column::CreatedAt.eq(cursor_ts))
+						.add(Column::Uuid.gt(cursor_uuid)),
+				),
 			);
 		}
 

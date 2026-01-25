@@ -6,7 +6,7 @@
 //! - Automatic connection reuse across all protocols
 
 use crate::service::network::{NetworkingError, Result};
-use iroh::{endpoint::Connection, Endpoint, NodeAddr, NodeId};
+use iroh::{endpoint::Connection, Endpoint, EndpointAddr, EndpointId};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -29,9 +29,9 @@ use super::logging::NetworkLogger;
 /// * `Ok(Connection)` - Either cached or newly created connection
 /// * `Err(NetworkingError)` - If connection fails
 pub async fn get_or_create_connection(
-	connections: Arc<RwLock<HashMap<(NodeId, Vec<u8>), Connection>>>,
+	connections: Arc<RwLock<HashMap<(EndpointId, Vec<u8>), Connection>>>,
 	endpoint: &Endpoint,
-	node_id: NodeId,
+	node_id: EndpointId,
 	alpn: &'static [u8],
 	logger: &Arc<dyn NetworkLogger>,
 ) -> Result<Connection> {
@@ -64,7 +64,7 @@ pub async fn get_or_create_connection(
 	}
 
 	// Create new connection with specified ALPN
-	let node_addr = NodeAddr::new(node_id);
+	let node_addr = EndpointAddr::new(node_id);
 	logger
 		.info(&format!(
 			"Creating new {} connection to node {}",

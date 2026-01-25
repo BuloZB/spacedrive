@@ -66,17 +66,16 @@ impl CoreAction for UpdateDeviceAction {
 			}
 			// Validate slug format (alphanumeric + hyphens only)
 			if !slug.chars().all(|c| c.is_alphanumeric() || c == '-') {
-				return Err("Device slug can only contain letters, numbers, and hyphens".to_string());
+				return Err(
+					"Device slug can only contain letters, numbers, and hyphens".to_string()
+				);
 			}
 		}
 
 		Ok(Self { input })
 	}
 
-	async fn execute(
-		self,
-		context: Arc<CoreContext>,
-	) -> Result<Self::Output, ActionError> {
+	async fn execute(self, context: Arc<CoreContext>) -> Result<Self::Output, ActionError> {
 		// Load current device config
 		let mut device_config = DeviceConfig::load_from(&context.data_dir)
 			.map_err(|e| ActionError::Internal(format!("Failed to load device config: {}", e)))?;
@@ -105,10 +104,7 @@ impl CoreAction for UpdateDeviceAction {
 		})
 	}
 
-	async fn validate(
-		&self,
-		_context: Arc<CoreContext>,
-	) -> Result<ValidationResult, ActionError> {
+	async fn validate(&self, _context: Arc<CoreContext>) -> Result<ValidationResult, ActionError> {
 		// Basic validation is done in from_input
 		Ok(ValidationResult::Success { metadata: None })
 	}
