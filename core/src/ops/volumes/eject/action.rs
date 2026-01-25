@@ -1,11 +1,7 @@
 //! Volume eject action
 
 use super::{VolumeEjectInput, VolumeEjectOutput};
-use crate::{
-	context::CoreContext,
-	infra::action::error::ActionError,
-	volume::VolumeFingerprint,
-};
+use crate::{context::CoreContext, infra::action::error::ActionError, volume::VolumeFingerprint};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{error, info};
@@ -45,9 +41,7 @@ impl crate::infra::action::LibraryAction for VolumeEjectAction {
 			.volume_manager
 			.get_volume(&fingerprint)
 			.await
-			.ok_or_else(|| {
-				ActionError::Internal(format!("Volume not found: {}", fingerprint))
-			})?;
+			.ok_or_else(|| ActionError::Internal(format!("Volume not found: {}", fingerprint)))?;
 
 		// Check if volume is mounted
 		if !volume.is_mounted {

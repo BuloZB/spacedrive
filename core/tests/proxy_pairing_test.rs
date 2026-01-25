@@ -93,7 +93,11 @@ async fn alice_proxy_pairing_scenario() {
 	loop {
 		tokio::time::sleep(Duration::from_secs(1)).await;
 		let paired_devices = if let Some(networking) = core.networking() {
-			networking.device_registry().read().await.get_paired_devices()
+			networking
+				.device_registry()
+				.read()
+				.await
+				.get_paired_devices()
 		} else {
 			vec![]
 		};
@@ -146,7 +150,11 @@ async fn alice_proxy_pairing_scenario() {
 	loop {
 		tokio::time::sleep(Duration::from_secs(1)).await;
 		let paired_devices = if let Some(networking) = core.networking() {
-			networking.device_registry().read().await.get_paired_devices()
+			networking
+				.device_registry()
+				.read()
+				.await
+				.get_paired_devices()
 		} else {
 			vec![]
 		};
@@ -181,7 +189,11 @@ async fn alice_proxy_pairing_scenario() {
 
 	// Get Carol's device ID
 	let paired_devices = if let Some(networking) = core.networking() {
-		networking.device_registry().read().await.get_paired_devices()
+		networking
+			.device_registry()
+			.read()
+			.await
+			.get_paired_devices()
 	} else {
 		vec![]
 	};
@@ -281,7 +293,11 @@ async fn carol_proxy_pairing_scenario() {
 	loop {
 		tokio::time::sleep(Duration::from_secs(1)).await;
 		let paired_devices = if let Some(networking) = core.networking() {
-			networking.device_registry().read().await.get_paired_devices()
+			networking
+				.device_registry()
+				.read()
+				.await
+				.get_paired_devices()
 		} else {
 			vec![]
 		};
@@ -327,7 +343,11 @@ async fn carol_proxy_pairing_scenario() {
 	loop {
 		tokio::time::sleep(Duration::from_secs(1)).await;
 		let paired_devices = if let Some(networking) = core.networking() {
-			networking.device_registry().read().await.get_paired_devices()
+			networking
+				.device_registry()
+				.read()
+				.await
+				.get_paired_devices()
 		} else {
 			vec![]
 		};
@@ -447,7 +467,11 @@ async fn bob_proxy_pairing_scenario() {
 	loop {
 		tokio::time::sleep(Duration::from_secs(1)).await;
 		let paired_devices = if let Some(networking) = core.networking() {
-			networking.device_registry().read().await.get_paired_devices()
+			networking
+				.device_registry()
+				.read()
+				.await
+				.get_paired_devices()
 		} else {
 			vec![]
 		};
@@ -485,7 +509,11 @@ async fn bob_proxy_pairing_scenario() {
 	loop {
 		tokio::time::sleep(Duration::from_secs(1)).await;
 		let paired_devices = if let Some(networking) = core.networking() {
-			networking.device_registry().read().await.get_paired_devices()
+			networking
+				.device_registry()
+				.read()
+				.await
+				.get_paired_devices()
 		} else {
 			vec![]
 		};

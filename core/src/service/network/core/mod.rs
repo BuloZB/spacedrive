@@ -181,7 +181,10 @@ impl NetworkingService {
 	///
 	/// This enables the device registry to emit complete device data with hardware_model
 	/// by querying the library database instead of just using network DeviceInfo.
-	pub async fn set_library_manager(&self, library_manager: std::sync::Weak<crate::library::LibraryManager>) {
+	pub async fn set_library_manager(
+		&self,
+		library_manager: std::sync::Weak<crate::library::LibraryManager>,
+	) {
 		let mut registry = self.device_registry.write().await;
 		registry.set_library_manager(library_manager);
 	}
@@ -999,7 +1002,11 @@ impl NetworkingService {
 	/// # Parameters
 	/// * `node_addr` - The node address to connect to
 	/// * `force_relay` - If true, strip direct addresses and only use relay
-	pub async fn connect_to_node(&self, endpoint_addr: EndpointAddr, force_relay: bool) -> Result<()> {
+	pub async fn connect_to_node(
+		&self,
+		endpoint_addr: EndpointAddr,
+		force_relay: bool,
+	) -> Result<()> {
 		let endpoint_addr = if force_relay {
 			Self::strip_ip_addresses(endpoint_addr)
 		} else {
@@ -1053,7 +1060,11 @@ impl NetworkingService {
 	pub async fn get_relay_url(&self) -> Option<String> {
 		if let Some(endpoint) = &self.endpoint {
 			// In v0.95+, get relay URL from the endpoint address
-			endpoint.addr().relay_urls().next().map(|url| url.to_string())
+			endpoint
+				.addr()
+				.relay_urls()
+				.next()
+				.map(|url| url.to_string())
 		} else {
 			None
 		}
@@ -1073,9 +1084,9 @@ impl NetworkingService {
 		// Create mDNS discovery service to subscribe to events
 		// Note: In v0.95+, we need to get discovery services individually and subscribe
 		let endpoint_id = endpoint.id();
-		let mdns_discovery = MdnsDiscovery::builder()
-			.build(endpoint_id)
-			.map_err(|e| NetworkingError::ConnectionFailed(format!("Failed to create mDNS discovery: {}", e)))?;
+		let mdns_discovery = MdnsDiscovery::builder().build(endpoint_id).map_err(|e| {
+			NetworkingError::ConnectionFailed(format!("Failed to create mDNS discovery: {}", e))
+		})?;
 		let mut discovery_stream = mdns_discovery.subscribe().await;
 		let session_id_str = session_id.to_string();
 		let timeout = tokio::time::Duration::from_secs(5); // Shorter timeout for mDNS
@@ -1871,9 +1882,7 @@ async fn spawn_connection_watcher_task(
 				// Use update_device_from_connection with is_connected=false (all connections closed)
 				if let Err(e) = registry
 					.update_device_from_connection(
-						device_id,
-						node_id,
-						false, // is_connected
+						device_id, node_id, false, // is_connected
 						None,  // latency
 					)
 					.await

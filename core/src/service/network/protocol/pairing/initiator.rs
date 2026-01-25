@@ -192,39 +192,43 @@ impl PairingProtocolHandler {
 				.map_err(|e| NetworkingError::Serialization(e));
 		}
 
-	self.log_info(&format!(
-		"Signature verified successfully for session {} from device {}",
-		session_id, from_device
-	))
-	.await;
+		self.log_info(&format!(
+			"Signature verified successfully for session {} from device {}",
+			session_id, from_device
+		))
+		.await;
 
-	// Update session with the final device_info from Response (has correct node_id)
-	// This ensures vouching uses the joiner's authoritative device info
-	{
-		let mut sessions = self.active_sessions.write().await;
-		if let Some(session) = sessions.get_mut(&session_id) {
-			session.remote_device_info = Some(device_info.clone());
-			self.log_debug(&format!(
-				"Updated session {} with joiner's device info (node_id: {})",
-				session_id, device_info.network_fingerprint.node_id
-			))
-			.await;
-		}
-	}
-
-	// Signature is valid - complete pairing on Initiator's side
-	let shared_secret = self.generate_shared_secret(session_id).await?;
-	let session_keys = SessionKeys::from_shared_secret(shared_secret.clone());
-
-	let actual_device_id = device_info.device_id;
-	let node_id = match device_info.network_fingerprint.node_id.parse::<EndpointId>() {
-		Ok(id) => id,
-		Err(_) => {
-			self.log_warn("Failed to parse node ID from device info, using fallback")
+		// Update session with the final device_info from Response (has correct node_id)
+		// This ensures vouching uses the joiner's authoritative device info
+		{
+			let mut sessions = self.active_sessions.write().await;
+			if let Some(session) = sessions.get_mut(&session_id) {
+				session.remote_device_info = Some(device_info.clone());
+				self.log_debug(&format!(
+					"Updated session {} with joiner's device info (node_id: {})",
+					session_id, device_info.network_fingerprint.node_id
+				))
 				.await;
-			EndpointId::from_bytes(&[0u8; 32]).unwrap()
+			}
 		}
-	};
+
+		// Signature is valid - complete pairing on Initiator's side
+		let shared_secret = self.generate_shared_secret(session_id).await?;
+		let session_keys = SessionKeys::from_shared_secret(shared_secret.clone());
+
+		let actual_device_id = device_info.device_id;
+		let node_id = match device_info
+			.network_fingerprint
+			.node_id
+			.parse::<EndpointId>()
+		{
+			Ok(id) => id,
+			Err(_) => {
+				self.log_warn("Failed to parse node ID from device info, using fallback")
+					.await;
+				EndpointId::from_bytes(&[0u8; 32]).unwrap()
+			}
+		};
 
 		// Register joiner's device in Pairing state
 		{

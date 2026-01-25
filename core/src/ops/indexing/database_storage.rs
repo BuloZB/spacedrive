@@ -830,7 +830,10 @@ impl DatabaseStorage {
 			.await
 			.map_err(|e| JobError::execution(format!("Failed to query content identity: {}", e)))?;
 
-		let (content_model, is_new_content, mime_type_model, is_new_mime_type) = if let Some(existing) = existing {
+		let (content_model, is_new_content, mime_type_model, is_new_mime_type) = if let Some(
+			existing,
+		) = existing
+		{
 			let mut existing_active: entities::content_identity::ActiveModel = existing.into();
 			existing_active.entry_count = Set(existing_active.entry_count.unwrap() + 1);
 			existing_active.last_verified_at = Set(chrono::Utc::now());
@@ -855,11 +858,13 @@ impl DatabaseStorage {
 
 			let file_type_result = registry.identify(path).await;
 
-			let (kind_id, mime_type_id, mime_type_model, is_new_mime_type) = match file_type_result {
+			let (kind_id, mime_type_id, mime_type_model, is_new_mime_type) = match file_type_result
+			{
 				Ok(result) => {
 					let kind_id = result.file_type.category as i32;
 
-					let (mime_type_id, mime_type_model, is_new_mime_type) = if let Some(mime_str) = result.file_type.primary_mime_type()
+					let (mime_type_id, mime_type_model, is_new_mime_type) = if let Some(mime_str) =
+						result.file_type.primary_mime_type()
 					{
 						let existing = entities::mime_type::Entity::find()
 							.filter(entities::mime_type::Column::MimeType.eq(mime_str))

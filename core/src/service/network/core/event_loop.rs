@@ -99,7 +99,9 @@ impl NetworkingEventLoop {
 		device_registry: Arc<RwLock<DeviceRegistry>>,
 		event_sender: broadcast::Sender<NetworkEvent>,
 		identity: NetworkIdentity,
-		active_connections: Arc<RwLock<std::collections::HashMap<(EndpointId, Vec<u8>), Connection>>>,
+		active_connections: Arc<
+			RwLock<std::collections::HashMap<(EndpointId, Vec<u8>), Connection>>,
+		>,
 		logger: Arc<dyn NetworkLogger>,
 	) -> Self {
 		let (command_tx, command_rx) = mpsc::unbounded_channel();

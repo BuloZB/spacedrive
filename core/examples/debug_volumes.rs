@@ -32,11 +32,18 @@ async fn main() {
 
 			for vol in &volumes {
 				println!("Volume: {}", vol.name);
-				println!("  Display name: {}", vol.display_name.as_ref().unwrap_or(&"None".to_string()));
+				println!(
+					"  Display name: {}",
+					vol.display_name.as_ref().unwrap_or(&"None".to_string())
+				);
 				println!("  Mount point: {}", vol.mount_point.display());
 				println!("  Type: {:?}", vol.volume_type);
 				println!("  Filesystem: {}", vol.file_system);
-				println!("  Fingerprint: {} ({})", vol.fingerprint.short_id(), vol.fingerprint.0);
+				println!(
+					"  Fingerprint: {} ({})",
+					vol.fingerprint.short_id(),
+					vol.fingerprint.0
+				);
 				println!("  Is user visible: {}", vol.is_user_visible);
 				println!("  Auto-track eligible: {}", vol.auto_track_eligible);
 				println!("  Is tracked: {}", vol.is_tracked);
@@ -44,14 +51,15 @@ async fn main() {
 			}
 
 			// Show specifically which volumes are auto-track eligible
-			let auto_track: Vec<_> = volumes
-				.iter()
-				.filter(|v| v.auto_track_eligible)
-				.collect();
+			let auto_track: Vec<_> = volumes.iter().filter(|v| v.auto_track_eligible).collect();
 
 			println!("=== Auto-Track Eligible Volumes ({}) ===", auto_track.len());
 			for vol in auto_track {
-				println!("  - {} ({})", vol.display_name.as_ref().unwrap_or(&vol.name), vol.mount_point.display());
+				println!(
+					"  - {} ({})",
+					vol.display_name.as_ref().unwrap_or(&vol.name),
+					vol.mount_point.display()
+				);
 			}
 
 			// Show Primary volumes specifically

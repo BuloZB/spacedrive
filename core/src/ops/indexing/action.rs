@@ -95,7 +95,8 @@ impl LibraryAction for IndexingAction {
 				}
 				IndexPersistence::Persistent => {
 					// Persistent mode stores entries in the database but doesn't require a location binding yet.
-					let mut c = IndexerJobConfig::ephemeral_browse(sd_path, self.input.scope, false);
+					let mut c =
+						IndexerJobConfig::ephemeral_browse(sd_path, self.input.scope, false);
 					c.persistence = IndexPersistence::Persistent;
 					c
 				}

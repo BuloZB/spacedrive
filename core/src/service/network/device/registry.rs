@@ -266,7 +266,12 @@ impl DeviceRegistry {
 	}
 
 	/// Add a discovered node
-	pub fn add_discovered_node(&mut self, device_id: Uuid, node_id: EndpointId, node_addr: EndpointAddr) {
+	pub fn add_discovered_node(
+		&mut self,
+		device_id: Uuid,
+		node_id: EndpointId,
+		node_addr: EndpointAddr,
+	) {
 		let state = DeviceState::Discovered {
 			node_id,
 			node_addr,
@@ -587,7 +592,9 @@ impl DeviceRegistry {
 				| DeviceState::Connected { info, .. }
 				| DeviceState::Disconnected { info, .. } => {
 					// Extract node ID from network fingerprint and clean up mapping
-					if let Ok(node_id) = info.network_fingerprint.node_id.parse::<iroh::EndpointId>() {
+					if let Ok(node_id) =
+						info.network_fingerprint.node_id.parse::<iroh::EndpointId>()
+					{
 						self.node_to_device.remove(&node_id);
 					}
 				}
@@ -877,7 +884,11 @@ impl DeviceRegistry {
 	}
 
 	/// Set a device as connected with its node ID
-	pub async fn set_device_connected(&mut self, device_id: Uuid, node_id: EndpointId) -> Result<()> {
+	pub async fn set_device_connected(
+		&mut self,
+		device_id: Uuid,
+		node_id: EndpointId,
+	) -> Result<()> {
 		// Update the node_to_device mapping
 		self.node_to_device.insert(node_id, device_id);
 

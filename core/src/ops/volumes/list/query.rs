@@ -128,7 +128,6 @@ impl VolumeListQuery {
 			_ => Ok(None),
 		}
 	}
-
 }
 
 impl LibraryQuery for VolumeListQuery {

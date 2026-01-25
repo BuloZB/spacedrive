@@ -1409,7 +1409,9 @@ impl Library {
 
 		// Count and size files in thumbnails directory (legacy structure)
 		if thumbnails_dir.exists() {
-			let (count, size) = self.count_and_size_recursive(thumbnails_dir.clone()).await?;
+			let (count, size) = self
+				.count_and_size_recursive(thumbnails_dir.clone())
+				.await?;
 			total_count += count;
 			total_size += size;
 			debug!(
@@ -1441,7 +1443,8 @@ impl Library {
 		while let Some(entry) = entries.next_entry().await? {
 			let file_type = entry.file_type().await?;
 			if file_type.is_dir() {
-				let (sub_count, sub_size) = Box::pin(self.count_and_size_recursive_impl(entry.path())).await?;
+				let (sub_count, sub_size) =
+					Box::pin(self.count_and_size_recursive_impl(entry.path())).await?;
 				count += sub_count;
 				size += sub_size;
 			} else if file_type.is_file() {
@@ -1796,7 +1799,8 @@ impl Library {
 		while let Some(entry) = entries.next_entry().await? {
 			let file_type = entry.file_type().await?;
 			if file_type.is_dir() {
-				let (sub_count, sub_size) = Box::pin(Self::count_and_size_recursive_static_impl(entry.path())).await?;
+				let (sub_count, sub_size) =
+					Box::pin(Self::count_and_size_recursive_static_impl(entry.path())).await?;
 				count += sub_count;
 				size += sub_size;
 			} else if file_type.is_file() {

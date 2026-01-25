@@ -444,12 +444,16 @@ impl PairingAdvertisement {
 	/// Convert node address info back to EndpointAddr
 	pub fn node_addr(&self) -> crate::service::network::Result<EndpointAddr> {
 		// Parse node ID
-		let node_id = self.node_addr_info.node_id.parse::<EndpointId>().map_err(|e| {
-			crate::service::network::NetworkingError::Protocol(format!(
-				"Invalid node ID in advertisement: {}",
-				e
-			))
-		})?;
+		let node_id = self
+			.node_addr_info
+			.node_id
+			.parse::<EndpointId>()
+			.map_err(|e| {
+				crate::service::network::NetworkingError::Protocol(format!(
+					"Invalid node ID in advertisement: {}",
+					e
+				))
+			})?;
 
 		// In v0.95+, EndpointAddr is immutable and builder methods were removed.
 		// Create a minimal EndpointAddr with just the ID - Iroh's discovery system

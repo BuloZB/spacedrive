@@ -635,7 +635,7 @@ impl EphemeralIndex {
 			self.entry_uuids.remove(&id);
 			self.content_kinds.remove(&id);
 
-		// Also remove from parent's children list in arena
+			// Also remove from parent's children list in arena
 			// Get the parent's entry ID
 			if let Some(parent_path) = path.parent() {
 				if let Some(&parent_id) = self.path_index.get(parent_path) {
@@ -734,7 +734,11 @@ impl EphemeralIndex {
 	///
 	/// The root path is stored in the snapshot so it can be restored to
 	/// indexed_paths when loaded, making the cached data queryable.
-	pub fn save_snapshot_with_root(&self, snapshot_path: &Path, _root_path: &Path) -> anyhow::Result<()> {
+	pub fn save_snapshot_with_root(
+		&self,
+		snapshot_path: &Path,
+		_root_path: &Path,
+	) -> anyhow::Result<()> {
 		super::snapshot::save_snapshot_impl(self, snapshot_path)
 	}
 

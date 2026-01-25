@@ -163,10 +163,7 @@ fn test_vouching_session_with_multiple_vouches() {
 
 	assert!(all_terminal);
 	session.state = VouchingSessionState::Completed;
-	assert!(matches!(
-		session.state,
-		VouchingSessionState::Completed
-	));
+	assert!(matches!(session.state, VouchingSessionState::Completed));
 }
 
 #[test]
@@ -234,24 +231,15 @@ fn test_vouching_session_state_transitions() {
 	};
 
 	// Start as Pending
-	assert!(matches!(
-		session.state,
-		VouchingSessionState::Pending
-	));
+	assert!(matches!(session.state, VouchingSessionState::Pending));
 
 	// Transition to InProgress when vouching starts
 	session.state = VouchingSessionState::InProgress;
-	assert!(matches!(
-		session.state,
-		VouchingSessionState::InProgress
-	));
+	assert!(matches!(session.state, VouchingSessionState::InProgress));
 
 	// Transition to Completed when all vouches are processed
 	session.state = VouchingSessionState::Completed;
-	assert!(matches!(
-		session.state,
-		VouchingSessionState::Completed
-	));
+	assert!(matches!(session.state, VouchingSessionState::Completed));
 }
 
 #[test]

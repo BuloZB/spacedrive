@@ -1009,13 +1009,13 @@ impl PairingProtocolHandler {
 				NetworkingError::Protocol("Missing vouchee public key".to_string())
 			})?;
 			let secret = session.shared_secret.clone();
-			
+
 			self.log_debug(&format!(
 				"Vouching device {} with node_id: '{}'",
 				device_info.device_id, device_info.network_fingerprint.node_id
 			))
 			.await;
-			
+
 			(device_info, public_key, secret)
 		};
 
@@ -1435,27 +1435,27 @@ impl PairingProtocolHandler {
 			return Ok(());
 		}
 
-	if proxy_config.auto_accept_vouched && voucher_is_trusted {
-		{
-			self.log_info(&format!(
-				"Auto-accepting proxy pairing for device {} with node_id: '{}'",
-				vouchee_device_info.device_id, vouchee_device_info.network_fingerprint.node_id
-			))
-			.await;
+		if proxy_config.auto_accept_vouched && voucher_is_trusted {
+			{
+				self.log_info(&format!(
+					"Auto-accepting proxy pairing for device {} with node_id: '{}'",
+					vouchee_device_info.device_id, vouchee_device_info.network_fingerprint.node_id
+				))
+				.await;
 
-			let mut registry = self.device_registry.write().await;
-			registry
-				.complete_pairing(
-					vouchee_device_info.device_id,
-					vouchee_device_info.clone(),
-					proxied_session_keys.clone(),
-					None,
-					crate::service::network::device::PairingType::Proxied,
-					Some(voucher_device_id),
-					Some(chrono::Utc::now()),
-				)
-				.await?;
-		}
+				let mut registry = self.device_registry.write().await;
+				registry
+					.complete_pairing(
+						vouchee_device_info.device_id,
+						vouchee_device_info.clone(),
+						proxied_session_keys.clone(),
+						None,
+						crate::service::network::device::PairingType::Proxied,
+						Some(voucher_device_id),
+						Some(chrono::Utc::now()),
+					)
+					.await?;
+			}
 
 			let accepting_device_id = self.get_device_info().await?.device_id;
 			let response = PairingMessage::ProxyPairingResponse {
