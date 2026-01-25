@@ -173,15 +173,22 @@ jobs:
             libswscale-dev:arm64 \
             libswresample-dev:arm64
 
-      - name: Setup native dependencies
+      - name: Setup native dependencies (x86_64)
+        if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
         run: cargo run -p xtask -- setup
         env:
           TARGET_TRIPLE: ${{ matrix.settings.target }}
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-gcc' || '' }}
-          CC_aarch64_unknown_linux_gnu: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-gcc' || '' }}
-          CXX_aarch64_unknown_linux_gnu: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-g++' || '' }}
-          PKG_CONFIG_SYSROOT_DIR: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' && '/' || '' }}
-          PKG_CONFIG_PATH: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' && '/usr/lib/aarch64-linux-gnu/pkgconfig' || '' }}
+
+      - name: Setup native dependencies (aarch64)
+        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
+        run: cargo run -p xtask -- setup
+        env:
+          TARGET_TRIPLE: ${{ matrix.settings.target }}
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
+          PKG_CONFIG_SYSROOT_DIR: /
+          PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
 
       - name: Build server binary (x86_64)
         if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
