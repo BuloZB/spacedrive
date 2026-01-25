@@ -235,15 +235,21 @@ fn setup() -> Result<()> {
 	// once even for dev mode to satisfy Tauri's path validation
 	println!();
 	println!("Building release daemon for Tauri (with ffmpeg,heif features)...");
+
+	let target_triple = system.target_triple();
+	let args = vec![
+		"build",
+		"--release",
+		"--features",
+		"sd-core/ffmpeg,sd-core/heif",
+		"--bin",
+		"sd-daemon",
+		"--target",
+		&target_triple,
+	];
+
 	let status = Command::new("cargo")
-		.args([
-			"build",
-			"--release",
-			"--features",
-			"sd-core/ffmpeg,sd-core/heif",
-			"--bin",
-			"sd-daemon",
-		])
+		.args(&args)
 		.current_dir(&project_root)
 		.status()
 		.context("Failed to build release daemon")?;
@@ -255,9 +261,8 @@ fn setup() -> Result<()> {
 
 	// Create target-suffixed daemon binary for Tauri bundler
 	// Tauri's externalBin appends the target triple to binary names
-	let target_triple = system.target_triple();
 	let exe_ext = if cfg!(windows) { ".exe" } else { "" };
-	let daemon_source = project_root.join(format!("target/release/sd-daemon{}", exe_ext));
+	let daemon_source = project_root.join(format!("target/{}/release/sd-daemon{}", target_triple, exe_ext));
 	let daemon_target = project_root.join(format!(
 		"target/release/sd-daemon-{}{}",
 		target_triple, exe_ext
