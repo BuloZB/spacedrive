@@ -164,13 +164,19 @@ jobs:
       - name: Setup native dependencies
         run: cargo run -p xtask -- setup
 
-      - name: Build server binary
+      - name: Build server binary (x86_64)
+        if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          cargo build --release --bin sd-server --features sd-core/heif,sd-core/ffmpeg --target ${{ matrix.settings.target }}
+
+      - name: Build server binary (aarch64)
+        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
         run: |
           cargo build --release --bin sd-server --features sd-core/heif,sd-core/ffmpeg --target ${{ matrix.settings.target }}
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          OPENSSL_DIR: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' && '/usr/lib/aarch64-linux-gnu' || '' }}
-          OPENSSL_INCLUDE_DIR: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' && '/usr/include' || '' }}
+          PKG_CONFIG_SYSROOT_DIR: /
+          PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
 
       - name: Prepare server binary
         run: |
