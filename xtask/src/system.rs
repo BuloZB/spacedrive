@@ -58,6 +58,38 @@ impl SystemInfo {
 		Ok(SystemInfo { os, arch, libc })
 	}
 
+	pub fn from_target_triple(triple: &str) -> Result<Self> {
+		let parts: Vec<&str> = triple.split('-').collect();
+
+		let arch = match parts.first() {
+			Some(&"x86_64") => Arch::X86_64,
+			Some(&"aarch64") => Arch::Aarch64,
+			_ => anyhow::bail!("Unsupported architecture in target triple: {}", triple),
+		};
+
+		let os = if triple.contains("darwin") || triple.contains("apple") {
+			Os::MacOS
+		} else if triple.contains("linux") {
+			Os::Linux
+		} else if triple.contains("windows") {
+			Os::Windows
+		} else {
+			anyhow::bail!("Unsupported OS in target triple: {}", triple)
+		};
+
+		let libc = if os == Os::Linux {
+			if triple.contains("musl") {
+				Some(Libc::Musl)
+			} else {
+				Some(Libc::Glibc)
+			}
+		} else {
+			None
+		};
+
+		Ok(SystemInfo { os, arch, libc })
+	}
+
 	pub fn native_deps_filename(&self) -> String {
 		match (self.os, self.arch, self.libc) {
 			(Os::Linux, Arch::X86_64, Some(Libc::Musl)) => {

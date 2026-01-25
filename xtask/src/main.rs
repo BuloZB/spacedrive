@@ -108,8 +108,13 @@ fn setup() -> Result<()> {
 
 	let project_root = find_workspace_root()?;
 
-	// Detect system
-	let system = system::SystemInfo::detect()?;
+	// Detect system - use TARGET_TRIPLE env var if set for cross-compilation
+	let system = if let Ok(target_triple) = std::env::var("TARGET_TRIPLE") {
+		println!("Using TARGET_TRIPLE from environment: {}", target_triple);
+		system::SystemInfo::from_target_triple(&target_triple)?
+	} else {
+		system::SystemInfo::detect()?
+	};
 	println!("Detected platform: {:?} {:?}", system.os, system.arch);
 
 	// Check for required tools
