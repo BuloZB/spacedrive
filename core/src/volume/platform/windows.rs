@@ -254,11 +254,12 @@ pub fn create_volume_from_windows_info(
 		}
 		crate::volume::types::VolumeType::Network => {
 			// Use mount path as backend identifier for network volumes
+			let mount_path_str = mount_path.to_string_lossy();
 			let backend_id = info
 				.volume_guid
 				.as_deref()
-				.unwrap_or(&mount_path.to_string_lossy());
-			VolumeFingerprint::from_network_volume(backend_id, &mount_path.to_string_lossy())
+				.unwrap_or(&mount_path_str);
+			VolumeFingerprint::from_network_volume(backend_id, &mount_path_str)
 		}
 		_ => {
 			// Primary, UserData, Secondary, System, Virtual, Unknown

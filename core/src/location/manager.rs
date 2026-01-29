@@ -99,7 +99,7 @@ impl LocationManager {
 							{
 								// Windows has file IDs but they're more complex to extract
 								// For now, leave as None for Windows
-								None
+								None::<u64>
 							}
 						}
 						Err(e) => {
