@@ -331,12 +331,10 @@ jobs:
 
           echo "✓ Native dependencies verified"
 
-      - name: Build
-        working-directory: apps/tauri
-        run: |
-          bun tauri build --ci -vv --target ${{ matrix.settings.target }} --bundles ${{ matrix.settings.bundles }}
+      - name: Build with tauri-action
+        uses: tauri-apps/tauri-action@v0
         env:
-          CARGO_BUILD_TARGET: ${{ matrix.settings.target }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           ENABLE_CODE_SIGNING: ${{ secrets.APPLE_CERTIFICATE }}
@@ -351,6 +349,10 @@ jobs:
           CXXFLAGS: ${{ matrix.settings.arch == 'aarch64' && '-march=armv8.2-a+crypto' || '' }}
           CPATH: ${{ github.workspace }}/apps/.deps/include
           C_INCLUDE_PATH: ${{ github.workspace }}/apps/.deps/include
+        with:
+          projectPath: apps/tauri
+          args: --target ${{ matrix.settings.target }} --bundles ${{ matrix.settings.bundles }}
+          includeUpdaterJson: true
 
       - name: Package frontend
         if: ${{ runner.os == 'Linux' }}
@@ -395,3 +397,4 @@ jobs:
             */*.tar.xz
             */*.tar.gz
             */*.sig
+            */*.json

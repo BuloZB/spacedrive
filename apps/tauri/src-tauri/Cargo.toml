@@ -18,6 +18,7 @@ tauri-plugin-fs = "2.0"
 tauri-plugin-shell = "2.0"
 tauri-plugin-clipboard-manager = "2.0"
 tauri-plugin-os = "2.0"
+tauri-plugin-updater = "2.0"
 
 # Core bridge
 sd-tauri-core = { path = "../sd-tauri-core" }

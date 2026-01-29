@@ -1,10 +1,9 @@
 import { useMemo } from "react";
 import type { File, SdPath } from "@sd/ts-client";
-import { useNormalizedQuery, useSearchFiles } from "@sd/ts-client";
+import { useNormalizedQuery } from "@sd/ts-client";
 import { useVirtualListing } from "./useVirtualListing";
-import { useSearchStore } from "../context/SearchContext";
 
-export type FileSource = "search" | "virtual" | "directory";
+export type FileSource = "virtual" | "directory";
 
 export interface ExplorerFilesResult {
 	files: File[];
@@ -15,10 +14,9 @@ export interface ExplorerFilesResult {
 /**
  * Centralized hook for fetching files in the mobile explorer.
  *
- * Handles three file sources with priority:
- * 1. Search results (when in search mode)
- * 2. Virtual listings (devices/volumes/locations)
- * 3. Directory listings (normal file browsing)
+ * Handles two file sources with priority:
+ * 1. Virtual listings (devices/volumes/locations)
+ * 2. Directory listings (normal file browsing)
  */
 export function useExplorerFiles(
 	params:
@@ -26,8 +24,6 @@ export function useExplorerFiles(
 		| { type: "view"; view: string; id?: string }
 		| undefined,
 ): ExplorerFilesResult {
-	const { isSearchMode, query, scope } = useSearchStore();
-
 	// Check for virtual listing first
 	const { files: virtualFiles, isVirtualView, isLoading: virtualLoading } =
 		useVirtualListing(params);
@@ -45,14 +41,6 @@ export function useExplorerFiles(
 		return null;
 	}, [params]);
 
-	// Search query
-	const { files: searchFiles, isLoading: searchLoading } = useSearchFiles({
-		query,
-		scope,
-		currentPath: scope === "folder" && currentPath ? currentPath : undefined,
-		enabled: isSearchMode && query.length >= 2,
-	});
-
 	// Directory query
 	const directoryQuery = useNormalizedQuery({
 		query: "files.directory_listing",
@@ -61,43 +49,26 @@ export function useExplorerFiles(
 					path: currentPath,
 					limit: null,
 					include_hidden: false,
-					sort_by: "name", // Default to name sorting
+					sort_by: "name",
 					folders_first: true,
 				}
 			: (null as any),
 		resourceType: "file",
-		enabled: !!currentPath && !isVirtualView && !isSearchMode,
+		enabled: !!currentPath && !isVirtualView,
 		pathScope: currentPath ?? undefined,
 	});
 
-	// Determine source and files with priority: search > virtual > directory
-	const source: FileSource = isSearchMode
-		? "search"
-		: isVirtualView
-			? "virtual"
-			: "directory";
+	// Determine source and files with priority: virtual > directory
+	const source: FileSource = isVirtualView ? "virtual" : "directory";
 
 	const files = useMemo(() => {
-		if (isSearchMode) {
-			return searchFiles || [];
-		}
 		if (isVirtualView) {
 			return virtualFiles || [];
 		}
 		return (directoryQuery.data as { files?: File[] })?.files || [];
-	}, [
-		isSearchMode,
-		isVirtualView,
-		searchFiles,
-		virtualFiles,
-		directoryQuery.data,
-	]);
+	}, [isVirtualView, virtualFiles, directoryQuery.data]);
 
-	const isLoading = isSearchMode
-		? searchLoading
-		: isVirtualView
-			? virtualLoading
-			: directoryQuery.isLoading;
+	const isLoading = isVirtualView ? virtualLoading : directoryQuery.isLoading;
 
 	return {
 		files,

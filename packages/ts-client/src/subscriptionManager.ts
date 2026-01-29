@@ -69,6 +69,7 @@ export class SubscriptionManager {
 		// Check if subscription already exists
 		let entry = this.subscriptions.get(key);
 		if (entry) {
+			console.log(`[SubscriptionManager] Reusing existing subscription for key: ${key}, refCount: ${entry.refCount} -> ${entry.refCount + 1}`);
 			entry.listeners.add(callback);
 			entry.refCount++;
 			return this.createCleanup(key, callback);
@@ -77,6 +78,7 @@ export class SubscriptionManager {
 		// Check if subscription is being created (concurrent request)
 		const pending = this.pendingSubscriptions.get(key);
 		if (pending) {
+			console.log(`[SubscriptionManager] Waiting for pending subscription: ${key}`);
 			// Wait for the in-progress subscription to complete
 			entry = await pending;
 			entry.listeners.add(callback);
@@ -85,6 +87,7 @@ export class SubscriptionManager {
 		}
 
 		// Create new subscription
+		console.log(`[SubscriptionManager] Creating new subscription for key: ${key}`);
 		const subscriptionPromise = this.createSubscription(key, filter);
 		this.pendingSubscriptions.set(key, subscriptionPromise);
 
@@ -92,6 +95,7 @@ export class SubscriptionManager {
 			entry = await subscriptionPromise;
 			entry.listeners.add(callback);
 			entry.refCount++;
+			console.log(`[SubscriptionManager] New subscription created, refCount: ${entry.refCount}`);
 			return this.createCleanup(key, callback);
 		} finally {
 			this.pendingSubscriptions.delete(key);
@@ -144,12 +148,17 @@ export class SubscriptionManager {
 	): () => void {
 		return () => {
 			const currentEntry = this.subscriptions.get(key);
-			if (!currentEntry) return;
+			if (!currentEntry) {
+				console.log(`[SubscriptionManager] Cleanup called but entry not found for key: ${key}`);
+				return;
+			}
 
 			currentEntry.listeners.delete(callback);
 			currentEntry.refCount--;
+			console.log(`[SubscriptionManager] Cleanup called for key: ${key}, refCount: ${currentEntry.refCount + 1} -> ${currentEntry.refCount}`);
 
 			if (currentEntry.refCount === 0) {
+				console.log(`[SubscriptionManager] RefCount reached 0, unsubscribing from key: ${key}`);
 				currentEntry.unsubscribe();
 				this.subscriptions.delete(key);
 			}
