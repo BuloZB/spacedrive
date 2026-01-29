@@ -4,10 +4,10 @@ on:
   push:
     tags:
       - "v*"
-  # pull_request:
-  #   paths:
-  #     - ".github/workflows/release.yml"
-  #     - ".github/actions/publish-artifacts/**"
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - ".github/actions/publish-artifacts/**"
   workflow_dispatch:
 
 # From: https://github.com/rust-lang/rust-analyzer/blob/master/.github/workflows/release.yaml#L13-L21
@@ -234,12 +234,12 @@ jobs:
       matrix:
         settings:
           # macOS builds
-          - host: self-hosted
+          - host: macos-15-arm64
             target: aarch64-apple-darwin
             bundles: dmg,app
             os: darwin
             arch: aarch64
-          - host: self-hosted
+          - host: macos-15-intel
             target: x86_64-apple-darwin
             bundles: dmg,app
             os: darwin
