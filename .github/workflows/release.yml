@@ -4,10 +4,10 @@ on:
   push:
     tags:
       - "v*"
-  pull_request:
-    paths:
-      - ".github/workflows/release.yml"
-      - ".github/actions/publish-artifacts/**"
+  # pull_request:
+  #   paths:
+  #     - ".github/workflows/release.yml"
+  #     - ".github/actions/publish-artifacts/**"
   workflow_dispatch:
 
 # From: https://github.com/rust-lang/rust-analyzer/blob/master/.github/workflows/release.yaml#L13-L21
@@ -245,11 +245,11 @@ jobs:
             os: darwin
             arch: x86_64
           # Windows builds
-          # - host: windows-latest
-          #   target: x86_64-pc-windows-msvc
-          #   bundles: msi
-          #   os: windows
-          #   arch: x86_64
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: msi
+            os: windows
+            arch: x86_64
           # Linux builds
           - host: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
