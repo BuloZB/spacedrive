@@ -525,7 +525,27 @@ pub async fn run_processing_phase(
 				};
 
 				// Open file to get handle for GetFileInformationByHandle
-				std::fs::File::open(location_root_path).ok().and_then(|file| {
+						// Open directory to get handle for GetFileInformationByHandle
+						use std::os::windows::fs::OpenOptionsExt;
+						use windows_sys::Win32::Foundation::HANDLE;
+						use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_BACKUP_SEMANTICS;
+
+						std::fs::OpenOptions::new()
+							.read(true)
+							.custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+							.open(location_root_path)
+							.ok()
+							.and_then(|file| {
+								let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+								let success = unsafe {
+									GetFileInformationByHandle(file.as_raw_handle() as HANDLE, &mut info)
+								};
+								if success != 0 {
+									Some(((info.nFileIndexHigh as u64) << 32) | (info.nFileIndexLow as u64))
+								} else {
+									None
+								}
+							})
 					let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
 					let success =
 						unsafe { GetFileInformationByHandle(file.as_raw_handle() as isize, &mut info) };
