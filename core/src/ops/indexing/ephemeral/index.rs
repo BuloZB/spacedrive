@@ -35,6 +35,7 @@ pub struct EphemeralIndex {
 	cache: Arc<NameCache>,
 	registry: NameRegistry,
 	path_index: HashMap<PathBuf, EntryId>,
+	id_to_path: HashMap<EntryId, PathBuf>,
 	entry_uuids: HashMap<EntryId, Uuid>,
 	content_kinds: HashMap<EntryId, ContentKind>,
 	created_at: Instant,
@@ -50,6 +51,8 @@ pub struct MemoryBreakdown {
 	pub registry: usize,
 	pub path_index_overhead: usize,
 	pub path_index_entries: usize,
+	pub id_to_path_overhead: usize,
+	pub id_to_path_entries: usize,
 	pub entry_uuids_overhead: usize,
 	pub entry_uuids_entries: usize,
 	pub content_kinds_overhead: usize,
@@ -63,6 +66,8 @@ impl MemoryBreakdown {
 			+ self.registry
 			+ self.path_index_overhead
 			+ self.path_index_entries
+			+ self.id_to_path_overhead
+			+ self.id_to_path_entries
 			+ self.entry_uuids_overhead
 			+ self.entry_uuids_entries
 			+ self.content_kinds_overhead
@@ -71,6 +76,10 @@ impl MemoryBreakdown {
 
 	pub fn path_index_total(&self) -> usize {
 		self.path_index_overhead + self.path_index_entries
+	}
+
+	pub fn id_to_path_total(&self) -> usize {
+		self.id_to_path_overhead + self.id_to_path_entries
 	}
 
 	pub fn entry_uuids_total(&self) -> usize {
@@ -105,6 +114,7 @@ impl EphemeralIndex {
 			cache,
 			registry,
 			path_index: HashMap::new(),
+			id_to_path: HashMap::new(),
 			entry_uuids: HashMap::new(),
 			content_kinds: HashMap::new(),
 			created_at: now,
@@ -157,6 +167,7 @@ impl EphemeralIndex {
 		}
 
 		self.path_index.insert(path.to_path_buf(), id);
+		self.id_to_path.insert(id, path.to_path_buf());
 		self.registry.insert(name, id);
 
 		Ok(id)
@@ -240,6 +251,7 @@ impl EphemeralIndex {
 		};
 
 		self.path_index.insert(path.clone(), id);
+		self.id_to_path.insert(id, path.clone());
 		self.registry.insert(name, id);
 
 		// Only store UUID if provided (volume indexing passes None to skip UUID generation)
@@ -444,6 +456,7 @@ impl EphemeralIndex {
 		// Remove from indexes
 		for (child_path, child_id) in &children_to_remove {
 			self.path_index.remove(child_path);
+			self.id_to_path.remove(child_id);
 			self.entry_uuids.remove(child_id);
 			self.content_kinds.remove(child_id);
 		}
@@ -470,27 +483,7 @@ impl EphemeralIndex {
 	}
 
 	fn reconstruct_path(&self, id: EntryId) -> Option<PathBuf> {
-		let mut segments = Vec::new();
-		let mut current = id;
-
-		while let Some(node) = self.arena.get(current) {
-			segments.push(node.name().to_owned());
-			if let Some(parent) = node.parent() {
-				current = parent;
-			} else {
-				break;
-			}
-		}
-
-		if segments.is_empty() {
-			return None;
-		}
-
-		let mut path = PathBuf::from("/");
-		for segment in segments.into_iter().rev() {
-			path.push(segment);
-		}
-		Some(path)
+		self.id_to_path.get(&id).cloned()
 	}
 
 	pub fn find_by_name(&self, name: &str) -> Vec<PathBuf> {
@@ -553,6 +546,10 @@ impl EphemeralIndex {
 			path_index_overhead: self.path_index.capacity(),
 			path_index_entries: self.path_index.len()
 				* (std::mem::size_of::<PathBuf>() + std::mem::size_of::<EntryId>() + avg_path_len),
+			// id_to_path: HashMap<EntryId, PathBuf> (reverse index)
+			id_to_path_overhead: self.id_to_path.capacity(),
+			id_to_path_entries: self.id_to_path.len()
+				* (std::mem::size_of::<EntryId>() + std::mem::size_of::<PathBuf>() + avg_path_len),
 			// entry_uuids: HashMap<EntryId, Uuid> - now using EntryId keys!
 			entry_uuids_overhead: self.entry_uuids.capacity(),
 			entry_uuids_entries: self.entry_uuids.len()
@@ -632,6 +629,7 @@ impl EphemeralIndex {
 
 		// Remove from other HashMaps using EntryId
 		if let Some(id) = entry_id {
+			self.id_to_path.remove(&id);
 			self.entry_uuids.remove(&id);
 			self.content_kinds.remove(&id);
 
@@ -671,6 +669,7 @@ impl EphemeralIndex {
 		for key in keys_to_remove {
 			// Get EntryId before removing from path_index
 			if let Some(entry_id) = self.path_index.remove(&key) {
+				self.id_to_path.remove(&entry_id);
 				self.entry_uuids.remove(&entry_id);
 				self.content_kinds.remove(&entry_id);
 			}
@@ -783,11 +782,17 @@ impl EphemeralIndex {
 		stats: IndexerStats,
 	) -> Self {
 		let now = Instant::now();
+		// Rebuild reverse index from path_index
+		let id_to_path: HashMap<EntryId, PathBuf> = path_index
+			.iter()
+			.map(|(path, &id)| (id, path.clone()))
+			.collect();
 		Self {
 			arena,
 			cache,
 			registry,
 			path_index,
+			id_to_path,
 			entry_uuids,
 			content_kinds,
 			created_at: now,

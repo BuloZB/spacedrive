@@ -176,6 +176,11 @@ impl LibraryAction for IndexVolumeAction {
 								ephemeral_cache.mark_indexing_complete(&mount_point_clone);
 								let _ = ephemeral_cache
 									.register_for_watching(mount_point_clone.clone());
+
+								// Emit Refresh so frontend invalidates directory listing cache
+								context_clone
+									.events
+									.emit(crate::infra::event::Event::Refresh);
 							}
 							break;
 						}
