@@ -96,12 +96,12 @@ jobs:
             os: windows
             arch: x86_64
           # Linux builds
-          - host: blacksmith-8vcpu-ubuntu-2204
+          - host: blacksmith-16vcpu-ubuntu-2404
             target: x86_64-unknown-linux-gnu
             bundles: deb
             os: linux
             arch: x86_64
-          - host: blacksmith-8vcpu-ubuntu-2204-arm
+          - host: blacksmith-8vcpu-ubuntu-2404-arm
             target: aarch64-unknown-linux-gnu
             bundles: deb
             os: linux
