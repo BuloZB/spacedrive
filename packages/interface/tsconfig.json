@@ -8,6 +8,7 @@
 		"module": "ESNext",
 		"target": "ES2022",
 		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
 		"baseUrl": ".",
 		"paths": {
 			"~/*": ["./src/*"]

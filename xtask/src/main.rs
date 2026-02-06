@@ -25,6 +25,7 @@
 //! - No external tools required (except cargo/rustup)
 
 mod config;
+mod contributors;
 mod native_deps;
 mod system;
 mod test_core;
@@ -67,6 +68,7 @@ fn main() -> Result<()> {
 		eprintln!("  build-ios    Build sd-ios-core XCFramework for iOS devices and simulator");
 		eprintln!("  build-mobile Build sd-mobile-core for React Native iOS/Android");
 		eprintln!("  test-core    Run all core integration tests with progress tracking");
+		eprintln!("  update-contributors  Fetch contributors from GitHub and update contributors.json");
 		eprintln!();
 		eprintln!("Examples:");
 		eprintln!("  cargo xtask setup          # First time setup");
@@ -87,6 +89,10 @@ fn main() -> Result<()> {
 				.map(|s| s == "--verbose" || s == "-v")
 				.unwrap_or(false);
 			test_core_command(verbose)?;
+		}
+		"update-contributors" => {
+			let project_root = find_workspace_root()?;
+			contributors::update(&project_root)?;
 		}
 		_ => {
 			eprintln!("Unknown command: {}", args[1]);

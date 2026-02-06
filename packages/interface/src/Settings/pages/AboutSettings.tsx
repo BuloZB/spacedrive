@@ -3,6 +3,7 @@ import { Ball } from "@sd/assets/images";
 import Orb from "../../components/Orb";
 import { TopBarButton } from "@sd/ui";
 import { GlobeHemisphereWest, GithubLogo, DiscordLogo } from "@phosphor-icons/react";
+import contributors from "../../contributors.json";
 
 export function AboutSettings() {
 
@@ -96,11 +97,36 @@ export function AboutSettings() {
         </a>
       </motion.div>
 
+      {/* Contributors */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.45 }}
+        className="max-w-lg text-center mb-8 px-4"
+      >
+        <p className="text-[11px] leading-relaxed text-white/30">
+          {contributors.map((c, i) => (
+            <span key={c.github}>
+              {i > 0 && "  ·  "}
+              <a
+                href={`https://github.com/${c.github}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`@${c.github}`}
+                className="hover:text-white/50 transition-colors"
+              >
+                {c.name}
+              </a>
+            </span>
+          ))}
+        </p>
+      </motion.div>
+
       {/* License */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.5 }}
+        transition={{ duration: 0.5, delay: 0.55 }}
         className="text-center"
       >
         <a
