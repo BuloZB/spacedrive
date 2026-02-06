@@ -75,6 +75,7 @@ jobs:
   # V2 Desktop builds
   desktop-main:
     strategy:
+      fail-fast: false
       matrix:
         settings:
           # macOS builds
@@ -202,6 +203,8 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          CC: ${{ runner.os == 'Windows' && 'cl' || '' }}
+          CXX: ${{ runner.os == 'Windows' && 'cl' || '' }}
           CFLAGS: ${{ matrix.settings.arch == 'aarch64' && '-march=armv8.2-a+crypto' || '' }}
           CXXFLAGS: ${{ matrix.settings.arch == 'aarch64' && '-march=armv8.2-a+crypto' || '' }}
           CPATH: ${{ github.workspace }}/apps/.deps/include
