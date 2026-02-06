@@ -21,8 +21,8 @@ declare module "@sd/assets/images/*.jpg" {
 }
 
 declare module "@sd/assets/svgs/*.svg" {
-	import type { FC, SVGProps } from "react";
-	const content: FC<SVGProps<SVGSVGElement>>;
+	import type { FC } from "react";
+	const content: FC<Record<string, unknown>>;
 	export default content;
 }
 
@@ -32,7 +32,7 @@ declare module "@sd/assets/videos/*.mp4" {
 }
 
 declare module "@sd/assets/sounds/*.mp3" {
-	const value: string;
+	const value: number | string; // number on React Native (asset ID), string on web (URL)
 	export default value;
 }
 

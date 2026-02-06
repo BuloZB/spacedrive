@@ -21,6 +21,14 @@
 			"types": "./src/hooks/index.ts",
 			"default": "./src/hooks/index.ts"
 		},
+		"./hooks/useClient": {
+			"types": "./src/hooks/useClient.tsx",
+			"default": "./src/hooks/useClient.tsx"
+		},
+		"./hooks/useNormalizedQuery": {
+			"types": "./src/hooks/useNormalizedQuery.ts",
+			"default": "./src/hooks/useNormalizedQuery.ts"
+		},
 		"./src/hooks/useClient": {
 			"types": "./src/hooks/useClient.tsx",
 			"default": "./src/hooks/useClient.tsx"
