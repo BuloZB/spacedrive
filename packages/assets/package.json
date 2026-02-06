@@ -6,6 +6,19 @@
 		"name": "@spacedriveapp/assets"
 	},
 	"sideEffects": false,
+	"types": "./types.d.ts",
+	"exports": {
+		"./icons": "./icons/index.ts",
+		"./icons/*": "./icons/*",
+		"./images": "./images/index.ts",
+		"./images/*": "./images/*",
+		"./svgs/*": "./svgs/*",
+		"./sounds": "./sounds/index.ts",
+		"./sounds/*": "./sounds/*",
+		"./videos/*": "./videos/*",
+		"./lottie/*": "./lottie/*",
+		"./util": "./util/index.ts"
+	},
 	"files": [
 		"icons",
 		"images",
@@ -13,7 +26,8 @@
 		"sounds",
 		"svgs",
 		"videos",
-		"util"
+		"util",
+		"types.d.ts"
 	],
 	"scripts": {
 		"gen": "node ./scripts/generate.mjs"
