@@ -7,7 +7,7 @@ members = [
 	# "apps/mobile/modules/sd-core/android/crate",
 	# "apps/mobile/modules/sd-core/core",
 	# "apps/mobile/modules/sd-core/ios/crate",
-	# "apps/mobile/modules/sd-mobile-core/core",  # Standalone workspace - build with xtask build-mobile
+	"apps/mobile/modules/sd-mobile-core/core",
 	"apps/server",
 	"apps/cli",
 	# "apps/gpui-photo-grid",
