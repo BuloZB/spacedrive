@@ -205,6 +205,8 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           CC: ${{ runner.os == 'Windows' && 'cl' || '' }}
           CXX: ${{ runner.os == 'Windows' && 'cl' || '' }}
+          CMAKE_C_COMPILER: ${{ runner.os == 'Windows' && 'cl' || '' }}
+          CMAKE_CXX_COMPILER: ${{ runner.os == 'Windows' && 'cl' || '' }}
           CFLAGS: ${{ matrix.settings.arch == 'aarch64' && '-march=armv8.2-a+crypto' || '' }}
           CXXFLAGS: ${{ matrix.settings.arch == 'aarch64' && '-march=armv8.2-a+crypto' || '' }}
           CPATH: ${{ github.workspace }}/apps/.deps/include
