@@ -42,15 +42,16 @@ runs:
         key: ${{ steps.cache-llvm-restore.outputs.cache-primary-key }}
         path: C:/Program Files/LLVM
 
-    - name: Configure LLVM for Windows
+    - name: Hide Clang compilers on Windows
       if: ${{ runner.os == 'Windows' }}
       shell: powershell
       run: |
-        # Keep LIBCLANG_PATH so bindgen can find libclang.dll
-        echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
-        # Remove LLVM\bin from PATH so CMake/cc won't find clang over MSVC's cl.exe
-        $cleanPath = $env:PATH -replace [regex]::Escape("C:\Program Files\LLVM\bin;"), "" -replace [regex]::Escape("C:\Program Files\LLVM\bin"), ""
-        echo "PATH=$cleanPath" >> $env:GITHUB_ENV
+        # Rename clang executables so CMake/cc-rs can't find them
+        # libclang.dll is kept intact for bindgen
+        $llvmBin = "C:\Program Files\LLVM\bin"
+        Rename-Item "$llvmBin\clang.exe" "clang.exe.bak" -ErrorAction SilentlyContinue
+        Rename-Item "$llvmBin\clang++.exe" "clang++.exe.bak" -ErrorAction SilentlyContinue
+        Rename-Item "$llvmBin\clang-cl.exe" "clang-cl.exe.bak" -ErrorAction SilentlyContinue
 
     - name: Install current Bash on macOS
       shell: bash
