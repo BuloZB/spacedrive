@@ -326,10 +326,6 @@ cargo run -p sd-cli -- search .
 # Now launch Tauri app - it will connect to the running daemon
 ```
 
-### Native Prototypes
-
-Experimental native apps are available in `apps/ios/`, `apps/macos/`, and `apps/gpui-photo-grid/` but are not documented for public use. These prototypes explore platform-specific optimizations and alternative UI approaches.
-
 ### Running Tests
 
 Spacedrive has a comprehensive test suite covering single-device operations and multi-device networking scenarios.
