@@ -110,8 +110,8 @@ jobs:
           - host: blacksmith-4vcpu-ubuntu-2204
             target: x86_64-unknown-linux-gnu
             platform: linux-x86_64
-          - host: ubuntu-22.04
-            target: blacksmith-4vcpu-ubuntu-2404-arm
+          - host: blacksmith-4vcpu-ubuntu-2204-arm
+            target: aarch64-unknown-linux-gnu
             platform: linux-aarch64
     name: Server - ${{ matrix.settings.platform }}
     runs-on: ${{ matrix.settings.host }}
@@ -180,8 +180,8 @@ jobs:
             os: windows
             arch: x86_64
           # Linux builds
-          - host: ubuntu-22.04
-            target: blacksmith-4vcpu-ubuntu-2404
+          - host: blacksmith-8vcpu-ubuntu-2204
+            target: x86_64-unknown-linux-gnu
             bundles: deb
             os: linux
             arch: x86_64
