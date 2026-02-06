@@ -42,22 +42,68 @@ runs:
         key: ${{ steps.cache-llvm-restore.outputs.cache-primary-key }}
         path: C:/Program Files/LLVM
 
-    - name: Hide Clang compilers on Windows
+    - name: Remove all Clang compilers on Windows
       if: ${{ runner.os == 'Windows' }}
       shell: powershell
       run: |
-        # Rename clang executables so CMake/cc-rs can't find them
-        # libclang.dll is kept intact for bindgen
+        # Remove ALL clang executables system-wide so CMake can only find MSVC.
+        # libclang.dll is preserved for bindgen.
+
+        # 1. Nuke all .exe in our installed LLVM (keeps libclang.dll which is a .dll)
         $llvmBin = "C:\Program Files\LLVM\bin"
-        Rename-Item "$llvmBin\clang.exe" "clang.exe.bak" -ErrorAction SilentlyContinue
-        Rename-Item "$llvmBin\clang++.exe" "clang++.exe.bak" -ErrorAction SilentlyContinue
-        Rename-Item "$llvmBin\clang-cl.exe" "clang-cl.exe.bak" -ErrorAction SilentlyContinue
-        # Verify clang is no longer discoverable
-        if (Get-Command clang -ErrorAction SilentlyContinue) {
-          Write-Error "clang is still in PATH after rename!"
+        if (Test-Path $llvmBin) {
+          Get-ChildItem "$llvmBin\*.exe" | Remove-Item -Force
+          Write-Host "Removed all executables from $llvmBin"
+        }
+
+        # 2. Remove LLVM CMake config so CMake can't discover LLVM as a toolchain
+        $llvmCmake = "C:\Program Files\LLVM\lib\cmake"
+        if (Test-Path $llvmCmake) {
+          Remove-Item $llvmCmake -Recurse -Force
+          Write-Host "Removed LLVM CMake configs"
+        }
+
+        # 3. Check for VS-bundled Clang (optional component of Build Tools)
+        $vsClangPaths = @(
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm",
+          "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm",
+          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm",
+          "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm"
+        )
+        foreach ($p in $vsClangPaths) {
+          if (Test-Path $p) {
+            Remove-Item $p -Recurse -Force
+            Write-Host "Removed VS-bundled Clang at $p"
+          }
+        }
+
+        # 4. Set LIBCLANG_PATH for bindgen (points to our LLVM where libclang.dll lives)
+        echo "LIBCLANG_PATH=$llvmBin" >> $env:GITHUB_ENV
+
+        # 5. Find cl.exe full path via vswhere and set CMAKE_C_COMPILER
+        $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+          -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+          -property installationPath
+        $msvcVer = (Get-Content "$vsPath\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt").Trim()
+        $clExe = "$vsPath\VC\Tools\MSVC\$msvcVer\bin\HostX64\x64\cl.exe"
+        if (Test-Path $clExe) {
+          echo "CMAKE_C_COMPILER=$clExe" >> $env:GITHUB_ENV
+          echo "CMAKE_CXX_COMPILER=$clExe" >> $env:GITHUB_ENV
+          Write-Host "Set CMAKE_C_COMPILER to $clExe"
+        } else {
+          Write-Error "Could not find cl.exe at $clExe"
           exit 1
         }
-        Write-Host "Clang hidden from PATH, libclang.dll preserved for bindgen"
+
+        # 6. Verify no clang is discoverable anywhere in PATH
+        foreach ($name in @('clang', 'clang++', 'clang-cl')) {
+          $found = Get-Command $name -ErrorAction SilentlyContinue
+          if ($found) {
+            Write-Error "$name still found at: $($found.Source)"
+            exit 1
+          }
+        }
+        Write-Host "All Clang compilers removed. MSVC cl.exe set as CMAKE compiler."
 
     - name: Install current Bash on macOS
       shell: bash
