@@ -68,6 +68,7 @@ pub fn update(project_root: &Path) -> Result<()> {
 
 	let client = reqwest::blocking::Client::builder()
 		.user_agent("spacedrive-xtask")
+		.timeout(std::time::Duration::from_secs(20))
 		.build()
 		.context("Failed to build HTTP client")?;
 
