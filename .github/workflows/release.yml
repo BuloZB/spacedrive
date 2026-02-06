@@ -107,10 +107,10 @@ jobs:
     strategy:
       matrix:
         settings:
-          - host: ubuntu-22.04
+          - host: blacksmith-4vcpu-ubuntu-2204
             target: x86_64-unknown-linux-gnu
             platform: linux-x86_64
-          - host: ubuntu-22.04
+          - host: blacksmith-4vcpu-ubuntu-2204
             target: aarch64-unknown-linux-gnu
             platform: linux-aarch64
     name: Server - ${{ matrix.settings.platform }}
@@ -234,24 +234,24 @@ jobs:
       matrix:
         settings:
           # macOS builds
-          - host: macos-15-arm64
+          - host: self-hosted
             target: aarch64-apple-darwin
             bundles: dmg,app
             os: darwin
             arch: aarch64
-          - host: macos-15-intel
+          - host: self-hosted
             target: x86_64-apple-darwin
             bundles: dmg,app
             os: darwin
             arch: x86_64
           # Windows builds
-          - host: windows-latest
+          - host: blacksmith-4vcpu-windows-2025
             target: x86_64-pc-windows-msvc
             bundles: msi
             os: windows
             arch: x86_64
           # Linux builds
-          - host: ubuntu-22.04
+          - host: blacksmith-8vcpu-ubuntu-2204
             target: x86_64-unknown-linux-gnu
             bundles: deb
             os: linux
