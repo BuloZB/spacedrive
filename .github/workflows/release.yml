@@ -110,7 +110,7 @@ jobs:
           - host: blacksmith-4vcpu-ubuntu-2204
             target: x86_64-unknown-linux-gnu
             platform: linux-x86_64
-          - host: blacksmith-4vcpu-ubuntu-2204
+          - host: blacksmith-4vcpu-ubuntu-2204-arm
             target: aarch64-unknown-linux-gnu
             platform: linux-aarch64
     name: Server - ${{ matrix.settings.platform }}
@@ -130,48 +130,25 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           target: ${{ matrix.settings.target }}
 
-      - name: Configure APT for ARM cross-compilation
-        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo dpkg --add-architecture arm64
-          # Mark existing sources as amd64-only to prevent apt from looking for arm64 packages there
-          sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
-          sudo sed -i 's/^deb-src /deb-src [arch=amd64] /' /etc/apt/sources.list
-          # Add arm64 sources pointing to ports.ubuntu.com
-          cat <<EOF | sudo tee /etc/apt/sources.list.d/arm64.list
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
-          EOF
-
-      - name: Install cross-compilation tools (ARM)
-        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-
       - name: Install OpenSSL (x86_64)
         if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
         run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
 
-      - name: Install cross OpenSSL (ARM)
+      - name: Install OpenSSL (ARM64)
         if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev:arm64
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
 
-      - name: Install FFmpeg libraries (ARM)
+      - name: Install FFmpeg libraries (ARM64)
         if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
         run: |
           sudo apt-get install -y \
-            libavcodec-dev:arm64 \
-            libavformat-dev:arm64 \
-            libavutil-dev:arm64 \
-            libavfilter-dev:arm64 \
-            libavdevice-dev:arm64 \
-            libswscale-dev:arm64 \
-            libswresample-dev:arm64
+            libavcodec-dev \
+            libavformat-dev \
+            libavutil-dev \
+            libavfilter-dev \
+            libavdevice-dev \
+            libswscale-dev \
+            libswresample-dev
 
       - name: Setup native dependencies (x86_64)
         if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
@@ -184,11 +161,6 @@ jobs:
         run: cargo run -p xtask -- setup
         env:
           TARGET_TRIPLE: ${{ matrix.settings.target }}
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
-          PKG_CONFIG_SYSROOT_DIR: /
-          PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
 
       - name: Build server binary (x86_64)
         if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
@@ -199,12 +171,6 @@ jobs:
         if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
         run: |
           cargo build --release --bin sd-server --features sd-core/heif,sd-core/ffmpeg --target ${{ matrix.settings.target }}
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
-          PKG_CONFIG_SYSROOT_DIR: /
-          PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
 
       - name: Prepare server binary
         run: |
