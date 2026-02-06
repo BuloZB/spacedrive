@@ -51,7 +51,7 @@ Pushing the tag triggers the release workflows.
 
 ## Workflows
 
-Four GitHub Actions workflows handle CI and releases.
+Five GitHub Actions workflows handle CI and releases.
 
 ### CI (`ci.yml`)
 
@@ -107,6 +107,44 @@ The Docker build uses `buildah` with QEMU emulation for cross-platform images. T
 
 The `latest` tag only moves for stable releases (tags matching `vX.Y.Z` with no suffix). Pre-release tags like `alpha` or `beta` are published under their specific version only. This protects users pulling `latest` from getting unstable builds.
 
+### Mobile Release (`mobile.yml`)
+
+Manual dispatch only. Builds the React Native app for iOS and/or Android. A platform picker lets you build `ios`, `android`, or `all`.
+
+The mobile app bundles `sd-mobile-core`, a native Expo module that wraps the Spacedrive Rust core. This means mobile builds require the full Cargo workspace and Rust cross-compilation toolchain, not just JavaScript bundling.
+
+**iOS (TestFlight):**
+
+1. Compiles `sd-mobile-core` for `aarch64-apple-ios` via `cargo xtask build-mobile`
+2. Runs `expo prebuild` to generate the Xcode project
+3. Archives with `xcodebuild` using manual code signing
+4. Exports IPA with `app-store-connect` distribution method
+5. Uploads directly to TestFlight via `xcrun altool`
+
+Runs on a self-hosted macOS ARM64 runner (same as desktop macOS builds). TestFlight handles distribution to testers automatically after upload.
+
+**Android (Play Store Internal):**
+
+1. Compiles `sd-mobile-core` for `aarch64-linux-android` via `cargo xtask build-mobile`
+2. Runs `expo prebuild` to generate the Android project
+3. Builds a signed AAB with `./gradlew bundleRelease`
+4. Uploads to Play Store internal testing track
+
+Runs on a Linux runner with Java 17 and the Android SDK/NDK.
+
+<Note>The mobile workflow is manual dispatch only. It is not triggered by tags. Run it from the Actions tab when you want to push a mobile build to testers.</Note>
+
+**Required secrets (in addition to existing Apple secrets):**
+
+| Secret | Purpose |
+|---|---|
+| `MOBILE_PROVISIONING_PROFILE` | iOS App Store distribution profile for `com.spacedrive.app` (base64) |
+| `ANDROID_KEYSTORE` | Android release keystore file (base64) |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Signing key alias |
+| `ANDROID_KEY_PASSWORD` | Signing key password |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT` | Google Play API service account JSON (for automated upload) |
+
 ## Release Flow
 
 A full release looks like this:
@@ -124,6 +162,8 @@ git push --tags
 ```
 
 Both `release.yml` and `server.yml` trigger in parallel from the same tag push. The GitHub release is created as a draft. The Docker image is pushed to ghcr.io immediately.
+
+Mobile releases are decoupled from this flow. Trigger the mobile workflow manually from the Actions tab when you want to push a build to TestFlight or Play Store internal testing.
 
 ## Tauri Updater
 

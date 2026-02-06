@@ -1,0 +1,206 @@
+name: Mobile Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: true
+        type: choice
+        options:
+          - all
+          - ios
+          - android
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  ios:
+    if: ${{ inputs.platform == 'all' || inputs.platform == 'ios' }}
+    name: iOS - TestFlight
+    runs-on: [self-hosted, macOS, ARM64]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          target: aarch64-apple-ios
+
+      - name: Add iOS Rust targets
+        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+
+      - name: Setup Bun and dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build mobile Rust core
+        run: cargo xtask build-mobile
+
+      - name: Expo prebuild
+        working-directory: apps/mobile
+        run: bunx expo prebuild --platform ios --clean
+
+      - name: Install CocoaPods
+        working-directory: apps/mobile/ios
+        run: pod install
+
+      - name: Install Apple API key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys/
+          echo "${{ secrets.APPLE_API_KEY_BASE64 }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+
+      - name: Install Codesigning Certificate
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      # Requires a provisioning profile for com.spacedrive.app (App Store distribution)
+      # Generate via Apple Developer portal and store base64-encoded in MOBILE_PROVISIONING_PROFILE secret
+      - name: Install Provisioning Profile
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "${{ secrets.MOBILE_PROVISIONING_PROFILE }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/spacedrive_mobile.mobileprovision
+
+      - name: Build iOS archive
+        working-directory: apps/mobile/ios
+        run: |
+          xcodebuild archive \
+            -workspace Spacedrive.xcworkspace \
+            -scheme Spacedrive \
+            -configuration Release \
+            -archivePath ${{ runner.temp }}/Spacedrive.xcarchive \
+            -destination 'generic/platform=iOS' \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8 \
+            -authenticationKeyID ${{ secrets.APPLE_API_KEY }} \
+            -authenticationKeyIssuerID ${{ secrets.APPLE_API_ISSUER }} \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="${{ secrets.APPLE_SIGNING_IDENTITY }}" \
+            DEVELOPMENT_TEAM=YB4V2VA9YY
+
+      - name: Export IPA
+        run: |
+          cat > ${{ runner.temp }}/ExportOptions.plist << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>teamID</key>
+            <string>YB4V2VA9YY</string>
+            <key>destination</key>
+            <string>upload</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild -exportArchive \
+            -archivePath ${{ runner.temp }}/Spacedrive.xcarchive \
+            -exportOptionsPlist ${{ runner.temp }}/ExportOptions.plist \
+            -exportPath ${{ runner.temp }}/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8 \
+            -authenticationKeyID ${{ secrets.APPLE_API_KEY }} \
+            -authenticationKeyIssuerID ${{ secrets.APPLE_API_ISSUER }}
+
+      - name: Upload to TestFlight
+        run: |
+          xcrun altool --upload-app \
+            -f ${{ runner.temp }}/export/Spacedrive.ipa \
+            --type ios \
+            --apiKey ${{ secrets.APPLE_API_KEY }} \
+            --apiIssuer ${{ secrets.APPLE_API_ISSUER }}
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain signing_temp.keychain || true
+
+  android:
+    if: ${{ inputs.platform == 'all' || inputs.platform == 'android' }}
+    name: Android - Play Store Internal
+    runs-on: blacksmith-8vcpu-ubuntu-2204
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+        with:
+          target: aarch64-linux-android
+
+      - name: Add Android Rust targets
+        run: rustup target add aarch64-linux-android x86_64-linux-android
+
+      - name: Setup Android NDK
+        run: sdkmanager "ndk;27.0.12077973"
+
+      - name: Setup Bun and dependencies
+        uses: ./.github/actions/setup-bun
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build mobile Rust core
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
+        run: cargo xtask build-mobile
+
+      - name: Expo prebuild
+        working-directory: apps/mobile
+        run: bunx expo prebuild --platform android --clean
+
+      # Requires a release keystore stored as base64 in ANDROID_KEYSTORE secret
+      # Generate with: keytool -genkey -v -keystore spacedrive.jks -keyalg RSA -keysize 2048 -validity 10000
+      - name: Decode release keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 --decode > apps/mobile/android/app/spacedrive.jks
+
+      - name: Build Android AAB
+        working-directory: apps/mobile/android
+        env:
+          SPACEDRIVE_STORE_FILE: spacedrive.jks
+          SPACEDRIVE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          SPACEDRIVE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SPACEDRIVE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
+
+      # Requires a Google Play service account JSON key stored in GOOGLE_PLAY_SERVICE_ACCOUNT secret
+      # See: https://developers.google.com/android-publisher/getting_started
+      # Uncomment when Play Store is configured:
+      # - name: Upload to Play Store (internal track)
+      #   uses: r0adkll/upload-google-play@v1
+      #   with:
+      #     serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
+      #     packageName: com.spacedrive.app
+      #     releaseFiles: apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
+      #     track: internal
