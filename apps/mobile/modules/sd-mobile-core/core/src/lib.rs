@@ -65,8 +65,11 @@ struct JsonRpcError {
 }
 
 /// Initialize the embedded core with full Spacedrive functionality
+///
+/// # Safety
+/// `data_dir` must be a valid null-terminated C string. `device_name` may be null.
 #[no_mangle]
-pub extern "C" fn initialize_core(
+pub unsafe extern "C" fn initialize_core(
 	data_dir: *const std::os::raw::c_char,
 	device_name: *const std::os::raw::c_char,
 ) -> std::os::raw::c_int {
@@ -123,7 +126,7 @@ pub extern "C" fn initialize_core(
 	}
 
 	// Initialize core
-	let mut core =
+	let core =
 		rt.block_on(async { Core::new_with_config(data_path, None, device_name_opt).await });
 
 	let mut core = match core {
@@ -160,7 +163,7 @@ pub extern "C" fn initialize_core(
 	let _ = CORE.set(core);
 
 	// Emit test logs
-	use tracing::{error, info, warn};
+	use tracing::info;
 	info!("Mobile core initialized successfully");
 
 	0 // Success
@@ -174,8 +177,13 @@ pub extern "C" fn shutdown_core() {
 }
 
 /// Handle JSON-RPC message from the embedded core
+///
+/// # Safety
+/// - `query` must be a valid, non-null, null-terminated C string.
+/// - `callback` must be a valid function pointer that is safe to call from any thread.
+/// - `callback_data` must remain valid until `callback` is invoked (invocation is asynchronous).
 #[no_mangle]
-pub extern "C" fn handle_core_msg(
+pub unsafe extern "C" fn handle_core_msg(
 	query: *const std::os::raw::c_char,
 	callback: extern "C" fn(*mut std::os::raw::c_void, *const std::os::raw::c_char),
 	callback_data: *mut std::os::raw::c_void,

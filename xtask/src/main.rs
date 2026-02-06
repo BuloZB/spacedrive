@@ -481,14 +481,6 @@ fn build_mobile() -> Result<()> {
 	println!();
 
 	let project_root = find_workspace_root()?;
-	let mobile_core_dir = project_root.join("apps/mobile/modules/sd-mobile-core/core");
-
-	if !mobile_core_dir.exists() {
-		anyhow::bail!(
-			"Mobile core directory not found: {}",
-			mobile_core_dir.display()
-		);
-	}
 
 	// Check which iOS targets are installed (macOS only)
 	#[cfg(target_os = "macos")]
@@ -510,8 +502,8 @@ fn build_mobile() -> Result<()> {
 				println!("  Building for iOS {} ({})...", name, target);
 
 				let status = Command::new("cargo")
-					.args(["build", "--release", "--target", target])
-					.current_dir(&mobile_core_dir)
+					.args(["build", "--release", "-p", "sd-mobile-core", "--target", target])
+					.current_dir(&project_root)
 					.env("IPHONEOS_DEPLOYMENT_TARGET", "18.0")
 					.status()
 					.context(format!("Failed to build for {}", target))?;
@@ -547,8 +539,8 @@ fn build_mobile() -> Result<()> {
 			println!("  Building for Android {} ({})...", name, target);
 
 			let status = Command::new("cargo")
-				.args(["build", "--release", "--target", target])
-				.current_dir(&mobile_core_dir)
+				.args(["build", "--release", "-p", "sd-mobile-core", "--target", target])
+				.current_dir(&project_root)
 				.status()
 				.context(format!("Failed to build for {}", target))?;
 
@@ -566,7 +558,7 @@ fn build_mobile() -> Result<()> {
 
 	// Copy built libraries to the iOS module directory
 	let ios_module_dir = project_root.join("apps/mobile/modules/sd-mobile-core/ios");
-	let target_dir = mobile_core_dir.join("target");
+	let target_dir = project_root.join("target");
 
 	// Create libs directory structure
 	let libs_dir = ios_module_dir.join("libs");
