@@ -52,6 +52,12 @@ runs:
         Rename-Item "$llvmBin\clang.exe" "clang.exe.bak" -ErrorAction SilentlyContinue
         Rename-Item "$llvmBin\clang++.exe" "clang++.exe.bak" -ErrorAction SilentlyContinue
         Rename-Item "$llvmBin\clang-cl.exe" "clang-cl.exe.bak" -ErrorAction SilentlyContinue
+        # Verify clang is no longer discoverable
+        if (Get-Command clang -ErrorAction SilentlyContinue) {
+          Write-Error "clang is still in PATH after rename!"
+          exit 1
+        }
+        Write-Host "Clang hidden from PATH, libclang.dll preserved for bindgen"
 
     - name: Install current Bash on macOS
       shell: bash

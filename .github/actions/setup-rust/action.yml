@@ -61,7 +61,7 @@ runs:
       with:
         key: ${{ inputs.target }}
         save-if: ${{ inputs.save-cache }}
-        shared-key: stable-cache-v2
+        shared-key: stable-cache-v3
 
     # TODO: Re-enable cargo config generation when preprep.mjs is ported
     # For now, use cargo's defaults which work fine without native deps
