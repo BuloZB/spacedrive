@@ -120,61 +120,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: ./.github/actions/setup-rust
         with:
-          targets: ${{ matrix.settings.target }}
-
-      - name: Setup System and Rust
-        uses: ./.github/actions/setup-system
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           target: ${{ matrix.settings.target }}
 
-      - name: Install OpenSSL (x86_64)
-        if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
-
-      - name: Install OpenSSL (ARM64)
-        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
-
-      - name: Install FFmpeg and VA-API libraries (ARM64)
-        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get install -y \
-            libavcodec-dev \
-            libavformat-dev \
-            libavutil-dev \
-            libavfilter-dev \
-            libavdevice-dev \
-            libswscale-dev \
-            libswresample-dev \
-            libva-dev \
-            libva-drm2 \
-            libva2 \
-            libgnutls28-dev
-
-      - name: Setup native dependencies (x86_64)
-        if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
+      - name: Setup native dependencies
         run: cargo run -p xtask -- setup
         env:
           TARGET_TRIPLE: ${{ matrix.settings.target }}
 
-      - name: Setup native dependencies (aarch64)
-        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
-        run: cargo run -p xtask -- setup
-        env:
-          TARGET_TRIPLE: ${{ matrix.settings.target }}
-
-      - name: Build server binary (x86_64)
-        if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
-        run: |
-          cargo build --release --bin sd-server --features sd-core/heif,sd-core/ffmpeg --target ${{ matrix.settings.target }}
-
-      - name: Build server binary (aarch64)
-        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          cargo build --release --bin sd-server --features sd-core/heif,sd-core/ffmpeg --target ${{ matrix.settings.target }}
+      - name: Build server binary
+        run: cargo build --release --bin sd-server --features sd-core/heif,sd-core/ffmpeg --target ${{ matrix.settings.target }}
 
       - name: Prepare server binary
         run: |
