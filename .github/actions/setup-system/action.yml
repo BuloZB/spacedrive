@@ -19,97 +19,43 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Restore cached LLVM and Clang
+    - name: Restore cached libclang
       if: ${{ runner.os == 'Windows' }}
-      id: cache-llvm-restore
+      id: cache-libclang
       uses: actions/cache/restore@v4
       with:
-        key: llvm-15
-        path: C:/Program Files/LLVM
+        key: libclang-15-win64
+        path: C:\libclang
 
-    - name: Install LLVM and Clang
-      if: ${{ runner.os == 'Windows' }}
-      uses: KyleMayes/install-llvm-action@v2
-      with:
-        cached: ${{ steps.cache-llvm-restore.outputs.cache-hit }}
-        version: '15'
-
-    - name: Save LLVM and Clang
-      if: ${{ runner.os == 'Windows' && inputs.save-cache == 'true' }}
-      id: cache-llvm-save
-      uses: actions/cache/save@v4
-      with:
-        key: ${{ steps.cache-llvm-restore.outputs.cache-primary-key }}
-        path: C:/Program Files/LLVM
-
-    - name: Remove all Clang compilers on Windows
-      if: ${{ runner.os == 'Windows' }}
+    - name: Download libclang for bindgen
+      if: ${{ runner.os == 'Windows' && steps.cache-libclang.outputs.cache-hit != 'true' }}
       shell: powershell
       run: |
-        # Remove ALL clang executables system-wide so CMake can only find MSVC.
-        # libclang.dll is preserved for bindgen.
-
-        # 1. Nuke all .exe in our installed LLVM (keeps libclang.dll which is a .dll)
-        $llvmBin = "C:\Program Files\LLVM\bin"
-        if (Test-Path $llvmBin) {
-          Get-ChildItem "$llvmBin\*.exe" | Remove-Item -Force
-          Write-Host "Removed all executables from $llvmBin"
-        }
-
-        # 2. Remove LLVM CMake config so CMake can't discover LLVM as a toolchain
-        $llvmCmake = "C:\Program Files\LLVM\lib\cmake"
-        if (Test-Path $llvmCmake) {
-          Remove-Item $llvmCmake -Recurse -Force
-          Write-Host "Removed LLVM CMake configs"
-        }
-
-        # 3. Check for VS-bundled Clang (optional component of Build Tools)
-        $vsClangPaths = @(
-          "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm",
-          "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm",
-          "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm",
-          "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm"
-        )
-        foreach ($p in $vsClangPaths) {
-          if (Test-Path $p) {
-            Remove-Item $p -Recurse -Force
-            Write-Host "Removed VS-bundled Clang at $p"
-          }
-        }
-
-        # 4. Set LIBCLANG_PATH for bindgen (points to our LLVM where libclang.dll lives)
-        echo "LIBCLANG_PATH=$llvmBin" >> $env:GITHUB_ENV
-
-        # 5. Find cl.exe full path via vswhere and force it for ALL compiler detection.
-        # aws-lc-sys uses the `cc` crate (not CMAKE_C_COMPILER) to detect the compiler.
-        # If it finds clang-cl, it enables __builtin_bswap support, but CMake then compiles
-        # with MSVC which doesn't know those builtins → linker error.
-        # Setting CC forces the cc crate to use MSVC for both detection AND compilation.
-        $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
-          -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-          -property installationPath
-        $msvcVer = (Get-Content "$vsPath\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt").Trim()
-        $clExe = "$vsPath\VC\Tools\MSVC\$msvcVer\bin\HostX64\x64\cl.exe"
-        if (Test-Path $clExe) {
-          echo "CC=$clExe" >> $env:GITHUB_ENV
-          echo "CXX=$clExe" >> $env:GITHUB_ENV
-          echo "CMAKE_C_COMPILER=$clExe" >> $env:GITHUB_ENV
-          echo "CMAKE_CXX_COMPILER=$clExe" >> $env:GITHUB_ENV
-          Write-Host "Set CC and CMAKE_C_COMPILER to $clExe"
-        } else {
-          Write-Error "Could not find cl.exe at $clExe"
+        # Only libclang.dll is needed (for bindgen). Installing the full LLVM toolchain
+        # puts clang-cl.exe on PATH, which causes aws-lc-sys to mis-detect compiler
+        # support for __builtin_bswap — leading to unresolved symbol errors with MSVC.
+        $installer = "$env:TEMP\llvm-15.exe"
+        Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/LLVM-15.0.7-win64.exe" -OutFile $installer
+        New-Item -ItemType Directory -Force -Path "C:\libclang"
+        7z e $installer "-oC:\libclang" "bin\libclang.dll" -r -y
+        Remove-Item $installer -Force
+        if (!(Test-Path "C:\libclang\libclang.dll")) {
+          Write-Error "Failed to extract libclang.dll"
           exit 1
         }
+        Write-Host "Extracted libclang.dll to C:\libclang"
 
-        # 6. Verify no clang is discoverable anywhere in PATH
-        foreach ($name in @('clang', 'clang++', 'clang-cl')) {
-          $found = Get-Command $name -ErrorAction SilentlyContinue
-          if ($found) {
-            Write-Error "$name still found at: $($found.Source)"
-            exit 1
-          }
-        }
-        Write-Host "All Clang compilers removed. MSVC cl.exe set as CMAKE compiler."
+    - name: Save libclang cache
+      if: ${{ runner.os == 'Windows' && inputs.save-cache == 'true' }}
+      uses: actions/cache/save@v4
+      with:
+        key: ${{ steps.cache-libclang.outputs.cache-primary-key }}
+        path: C:\libclang
+
+    - name: Set LIBCLANG_PATH
+      if: ${{ runner.os == 'Windows' }}
+      shell: powershell
+      run: echo "LIBCLANG_PATH=C:\libclang" >> $env:GITHUB_ENV
 
     - name: Install current Bash on macOS
       shell: bash
