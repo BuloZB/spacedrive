@@ -150,6 +150,8 @@ fn resolve_name(
 	let user: GitHubUser = github_get(client, &url, token)
 		.send()
 		.context("Failed to fetch user")?
+		.error_for_status()
+		.context("GitHub API returned an error")?
 		.json()
 		.context("Failed to parse user response")?;
 
