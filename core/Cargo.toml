@@ -244,8 +244,3 @@ path = "src/bin/daemon.rs"
 [dev-dependencies]
 pretty_assertions = "1.4"
 tempfile          = "3.14"
-
-# Patches for iOS compatibility
-[patch.crates-io]
-# https://github.com/shellrow/netdev/pull/125
-netdev = { git = "https://github.com/shellrow/netdev", rev = "b6ef275d2a72143b3c7d5845ee2f5a70b0e97771" }

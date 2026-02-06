@@ -30,6 +30,8 @@ struct ConfigContext {
 	has_android: bool,
 	#[serde(rename = "hasLLD")]
 	has_lld: Option<LinkerInfo>,
+	#[serde(rename = "sdkPath")]
+	sdk_path: String,
 }
 
 #[derive(Serialize)]
@@ -97,6 +99,19 @@ pub fn generate_cargo_config(
 			String::new()
 		});
 
+	// Get macOS SDK path so bindgen can find system headers (errno.h, etc.)
+	let sdk_path = if matches!(system.os, Os::MacOS) {
+		std::process::Command::new("xcrun")
+			.args(["--show-sdk-path"])
+			.output()
+			.ok()
+			.and_then(|o| String::from_utf8(o.stdout).ok())
+			.map(|p| p.trim().to_string())
+			.unwrap_or_default()
+	} else {
+		String::new()
+	};
+
 	// Build context for mustache
 	let context = ConfigContext {
 		native_deps,
@@ -120,6 +135,7 @@ pub fn generate_cargo_config(
 		has_ios,
 		has_android,
 		has_lld,
+		sdk_path,
 	};
 
 	// Read template
