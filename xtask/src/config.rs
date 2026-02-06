@@ -105,6 +105,7 @@ pub fn generate_cargo_config(
 			.args(["--show-sdk-path"])
 			.output()
 			.ok()
+			.filter(|o| o.status.success())
 			.and_then(|o| String::from_utf8(o.stdout).ok())
 			.map(|p| p.trim().to_string())
 			.unwrap_or_default()
