@@ -292,10 +292,21 @@ fn setup() -> Result<()> {
 		println!("Copying DLLs to target directories...");
 		let dll_source_dir = native_deps_dir.join("bin");
 		if dll_source_dir.exists() {
-			// Copy to both debug and release directories
-			for target_profile in ["debug", "release"] {
-				let target_dir = project_root.join("target").join(target_profile);
-				fs::create_dir_all(&target_dir).ok();
+			let mut target_dirs = vec![
+				("debug".to_string(), project_root.join("target/debug")),
+				("release".to_string(), project_root.join("target/release")),
+			];
+
+			// Also copy to target-triple directories used by CI cross-compilation
+			for triple in ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"] {
+				for profile in ["debug", "release"] {
+					let dir = project_root.join("target").join(triple).join(profile);
+					target_dirs.push((format!("{}/{}", triple, profile), dir));
+				}
+			}
+
+			for (label, target_dir) in &target_dirs {
+				fs::create_dir_all(target_dir).ok();
 
 				if let Ok(entries) = fs::read_dir(&dll_source_dir) {
 					for entry in entries.flatten() {
@@ -312,7 +323,7 @@ fn setup() -> Result<()> {
 						}
 					}
 				}
-				println!("   ✓ DLLs copied to target/{}/", target_profile);
+				println!("   ✓ DLLs copied to target/{}/", label);
 			}
 		}
 	}

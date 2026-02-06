@@ -60,7 +60,8 @@
     ],
     "externalBin": ["../../../target/release/sd-daemon"],
     "resources": {
-      "gen/**/*": "./"
+      "gen/**/*": "./",
+      "../../.deps/bin/*.dll": "./"
     },
     "fileAssociations": [
       {
