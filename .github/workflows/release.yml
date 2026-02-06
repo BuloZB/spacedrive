@@ -189,6 +189,13 @@ jobs:
 
           echo "✓ Native dependencies verified"
 
+      - name: Set ARM crypto flags
+        if: ${{ matrix.settings.arch == 'aarch64' }}
+        shell: bash
+        run: |
+          echo "CFLAGS=-march=armv8.2-a+crypto" >> $GITHUB_ENV
+          echo "CXXFLAGS=-march=armv8.2-a+crypto" >> $GITHUB_ENV
+
       - name: Build with tauri-action
         uses: tauri-apps/tauri-action@v0
         env:
@@ -203,8 +210,6 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          CFLAGS: ${{ matrix.settings.arch == 'aarch64' && '-march=armv8.2-a+crypto' || '' }}
-          CXXFLAGS: ${{ matrix.settings.arch == 'aarch64' && '-march=armv8.2-a+crypto' || '' }}
           CPATH: ${{ github.workspace }}/apps/.deps/include
           C_INCLUDE_PATH: ${{ github.workspace }}/apps/.deps/include
         with:
