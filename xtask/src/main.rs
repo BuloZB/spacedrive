@@ -24,6 +24,7 @@
 //! - Cross-platform by default
 //! - No external tools required (except cargo/rustup)
 
+mod bump;
 mod config;
 mod native_deps;
 mod system;
@@ -67,6 +68,7 @@ fn main() -> Result<()> {
 		eprintln!("  build-ios    Build sd-ios-core XCFramework for iOS devices and simulator");
 		eprintln!("  build-mobile Build sd-mobile-core for React Native iOS/Android");
 		eprintln!("  test-core    Run all core integration tests with progress tracking");
+		eprintln!("  bump <ver>   Bump version across all packages (e.g. bump 2.0.0-alpha.2)");
 		eprintln!();
 		eprintln!("Examples:");
 		eprintln!("  cargo xtask setup          # First time setup");
@@ -87,6 +89,15 @@ fn main() -> Result<()> {
 				.map(|s| s == "--verbose" || s == "-v")
 				.unwrap_or(false);
 			test_core_command(verbose)?;
+		}
+		"bump" => {
+			let version = args.get(2).cloned().unwrap_or_else(|| {
+				eprintln!("Usage: cargo xtask bump <version>");
+				eprintln!("Example: cargo xtask bump 2.0.0-alpha.2");
+				std::process::exit(1);
+			});
+			let root = find_workspace_root()?;
+			bump::bump(&root, &version)?;
 		}
 		_ => {
 			eprintln!("Unknown command: {}", args[1]);

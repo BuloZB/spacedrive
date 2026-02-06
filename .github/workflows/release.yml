@@ -104,6 +104,11 @@ jobs:
             bundles: deb
             os: linux
             arch: x86_64
+          - host: blacksmith-8vcpu-ubuntu-2204-arm
+            target: aarch64-unknown-linux-gnu
+            bundles: deb
+            os: linux
+            arch: aarch64
     name: Desktop - Main ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
     steps:
@@ -127,6 +132,10 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install VA-API libraries
+        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
+        run: sudo apt-get update && sudo apt-get install -y libva-dev libva-drm2
 
       - name: Install Apple API key
         if: ${{ runner.os == 'macOS' }}
