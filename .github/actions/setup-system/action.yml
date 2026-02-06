@@ -80,16 +80,22 @@ runs:
         # 4. Set LIBCLANG_PATH for bindgen (points to our LLVM where libclang.dll lives)
         echo "LIBCLANG_PATH=$llvmBin" >> $env:GITHUB_ENV
 
-        # 5. Find cl.exe full path via vswhere and set CMAKE_C_COMPILER
+        # 5. Find cl.exe full path via vswhere and force it for ALL compiler detection.
+        # aws-lc-sys uses the `cc` crate (not CMAKE_C_COMPILER) to detect the compiler.
+        # If it finds clang-cl, it enables __builtin_bswap support, but CMake then compiles
+        # with MSVC which doesn't know those builtins → linker error.
+        # Setting CC forces the cc crate to use MSVC for both detection AND compilation.
         $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
           -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
           -property installationPath
         $msvcVer = (Get-Content "$vsPath\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt").Trim()
         $clExe = "$vsPath\VC\Tools\MSVC\$msvcVer\bin\HostX64\x64\cl.exe"
         if (Test-Path $clExe) {
+          echo "CC=$clExe" >> $env:GITHUB_ENV
+          echo "CXX=$clExe" >> $env:GITHUB_ENV
           echo "CMAKE_C_COMPILER=$clExe" >> $env:GITHUB_ENV
           echo "CMAKE_CXX_COMPILER=$clExe" >> $env:GITHUB_ENV
-          Write-Host "Set CMAKE_C_COMPILER to $clExe"
+          Write-Host "Set CC and CMAKE_C_COMPILER to $clExe"
         } else {
           Write-Error "Could not find cl.exe at $clExe"
           exit 1
