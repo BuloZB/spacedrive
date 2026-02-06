@@ -24,7 +24,7 @@ concurrency:
 jobs:
   rustfmt:
     name: Rust Formatting
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     timeout-minutes: 10
     permissions:
       contents: read
@@ -94,7 +94,7 @@ jobs:
       matrix:
         settings:
           - host: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
+            target: blacksmith-4vcpu-ubuntu-2404
     name: Clippy (${{ matrix.settings.host }})
     runs-on: ${{ matrix.settings.host }}
     permissions:
@@ -164,7 +164,7 @@ jobs:
 
   typescript:
     name: TypeScript
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     timeout-minutes: 15
     permissions:
       contents: read

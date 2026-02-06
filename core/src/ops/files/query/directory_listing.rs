@@ -645,8 +645,8 @@ impl DirectoryListingQuery {
 
 		let cache = context.ephemeral_cache();
 
-		// Check if we have a cached index that covers this path
-		if let Some(index) = cache.get_for_path(&local_path) {
+		// Check if we have a cached index that covers this path (or a parent path)
+		if let Some(index) = cache.get_for_search(&local_path) {
 			tracing::info!(
 				"Found cached ephemeral index for path: {}",
 				local_path.display()

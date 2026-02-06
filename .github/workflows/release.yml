@@ -3,11 +3,11 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
   pull_request:
     paths:
-      - ".github/workflows/release.yml"
-      - ".github/actions/publish-artifacts/**"
+      - '.github/workflows/release.yml'
+      - '.github/actions/publish-artifacts/**'
   workflow_dispatch:
 
 # From: https://github.com/rust-lang/rust-analyzer/blob/master/.github/workflows/release.yaml#L13-L21
@@ -65,7 +65,7 @@ jobs:
 
   #     - name: Build CLI binaries
   #       run: |
-  #         cargo build --release --bin sd-cli --bin sd-daemon --features heif,ffmpeg --target ${{ matrix.target }}
+  #         cargo build --release --bin sd-cli --bin sd-daemon --features heif,ffmpeg,ai --target ${{ matrix.target }}
   #       env:
   #         # Set linker for cross-compilation
   #         CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
@@ -110,8 +110,8 @@ jobs:
           - host: blacksmith-4vcpu-ubuntu-2204
             target: x86_64-unknown-linux-gnu
             platform: linux-x86_64
-          - host: blacksmith-4vcpu-ubuntu-2204-arm
-            target: aarch64-unknown-linux-gnu
+          - host: ubuntu-22.04
+            target: blacksmith-4vcpu-ubuntu-2404-arm
             platform: linux-aarch64
     name: Server - ${{ matrix.settings.platform }}
     runs-on: ${{ matrix.settings.host }}
@@ -130,7 +130,10 @@ jobs:
           TARGET_TRIPLE: ${{ matrix.settings.target }}
 
       - name: Build server binary
-        run: cargo build --release --bin sd-server --features sd-core/heif,sd-core/ffmpeg --target ${{ matrix.settings.target }}
+        run: |
+          cargo build --release --bin sd-server --features sd-core/heif,sd-core/ffmpeg,sd-core/ai --target ${{ matrix.settings.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
       - name: Prepare server binary
         run: |
@@ -177,8 +180,8 @@ jobs:
             os: windows
             arch: x86_64
           # Linux builds
-          - host: blacksmith-8vcpu-ubuntu-2204
-            target: x86_64-unknown-linux-gnu
+          - host: ubuntu-22.04
+            target: blacksmith-4vcpu-ubuntu-2404
             bundles: deb
             os: linux
             arch: x86_64
@@ -191,10 +194,10 @@ jobs:
         with:
           swap-size-mb: 3072
           root-reserve-mb: 6144
-          remove-dotnet: "true"
-          remove-codeql: "true"
-          remove-haskell: "true"
-          remove-docker-images: "true"
+          remove-dotnet: 'true'
+          remove-codeql: 'true'
+          remove-haskell: 'true'
+          remove-docker-images: 'true'
 
       - name: Symlink target to C:\
         if: ${{ runner.os == 'Windows' }}
@@ -301,7 +304,7 @@ jobs:
   # Create unified release with Server, CLI, and Desktop artifacts
   release:
     if: startsWith(github.ref, 'refs/tags/')
-    runs-on: self-hosted
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     name: Create Release
     needs: [server-build, desktop-main]
     permissions:

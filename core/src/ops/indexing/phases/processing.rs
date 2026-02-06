@@ -5,7 +5,6 @@
 //! entries. Processes entries in depth-first order (parents before children) within database
 //! transactions, preserving ephemeral UUIDs from prior browsing sessions and validating that
 //! indexing paths stay within location boundaries to prevent cross-location data corruption.
-
 use crate::{
 	infra::{
 		db::entities::{self, directory_paths, entry_closure},
@@ -520,9 +519,31 @@ pub async fn run_processing_phase(
 
 			#[cfg(windows)]
 			let inode: Option<u64> = {
-				// Windows file indices require unstable feature `windows_by_handle` (rust#63010)
-				// Fall back to path-only matching until stabilized
-				None
+				use std::os::windows::fs::OpenOptionsExt;
+				use std::os::windows::io::AsRawHandle;
+				use windows_sys::Win32::Foundation::HANDLE;
+				use windows_sys::Win32::Storage::FileSystem::{
+					GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+					FILE_FLAG_BACKUP_SEMANTICS,
+				};
+
+				// Open directory to get handle for GetFileInformationByHandle
+				std::fs::OpenOptions::new()
+					.read(true)
+					.custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+					.open(location_root_path)
+					.ok()
+					.and_then(|file| {
+						let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+						let success = unsafe {
+							GetFileInformationByHandle(file.as_raw_handle() as HANDLE, &mut info)
+						};
+						if success != 0 {
+							Some(((info.nFileIndexHigh as u64) << 32) | (info.nFileIndexLow as u64))
+						} else {
+							None
+						}
+					})
 			};
 
 			#[cfg(not(any(unix, windows)))]

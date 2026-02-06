@@ -22,7 +22,7 @@ jobs:
             target: aarch64-apple-darwin
             os: macos
           - host: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
+            target: blacksmith-4vcpu-ubuntu-2404
             os: linux
           - host: [self-hosted, Windows, X64]
             target: x86_64-pc-windows-msvc

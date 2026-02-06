@@ -6,20 +6,27 @@ use crate::volume::{
 	types::{DiskType, FileSystem, MountType, Volume, VolumeDetectionConfig, VolumeFingerprint},
 	utils,
 };
+use serde::Deserialize;
 use std::path::PathBuf;
 use std::process::Command;
 use tokio::task;
-use tracing::warn;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 /// Windows volume information from PowerShell/WMI
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct WindowsVolumeInfo {
 	pub drive_letter: Option<String>,
+	#[serde(rename = "FileSystemLabel")]
 	pub label: Option<String>,
+	#[serde(default)]
 	pub size: u64,
+	#[serde(default)]
 	pub size_remaining: u64,
+	#[serde(rename = "FileSystem", default)]
 	pub filesystem: String,
+	#[serde(rename = "UniqueId")]
 	pub volume_guid: Option<String>,
 }
 
@@ -34,7 +41,7 @@ pub async fn detect_volumes(
 		let output = Command::new("powershell")
 			.args([
 				"-Command",
-				"Get-Volume | Select-Object DriveLetter,FileSystemLabel,Size,SizeRemaining,FileSystem | ConvertTo-Json"
+				"Get-Volume | Select-Object DriveLetter,FileSystemLabel,Size,SizeRemaining,FileSystem,UniqueId | ConvertTo-Json"
 			])
 			.output()
 			.map_err(|e| VolumeError::platform(format!("Failed to run PowerShell: {}", e)))?;
@@ -57,10 +64,55 @@ fn parse_powershell_volumes(
 	device_id: Uuid,
 	config: &VolumeDetectionConfig,
 ) -> VolumeResult<Vec<Volume>> {
-	// For now, return empty until we implement full JSON parsing
-	// This would require adding serde_json dependency
-	warn!("PowerShell JSON parsing not fully implemented yet");
-	Ok(Vec::new())
+	let trimmed = json_output.trim();
+	if trimmed.is_empty() {
+		debug!("PowerShell returned empty output");
+		return Ok(Vec::new());
+	}
+
+	// PowerShell returns a single object (not array) when there's only one volume
+	let volume_infos: Vec<WindowsVolumeInfo> = if trimmed.starts_with('[') {
+		serde_json::from_str(trimmed).map_err(|e| {
+			VolumeError::platform(format!("Failed to parse PowerShell JSON array: {}", e))
+		})?
+	} else {
+		let single: WindowsVolumeInfo = serde_json::from_str(trimmed).map_err(|e| {
+			VolumeError::platform(format!("Failed to parse PowerShell JSON object: {}", e))
+		})?;
+		vec![single]
+	};
+
+	debug!("Parsed {} volumes from PowerShell", volume_infos.len());
+
+	let mut volumes = Vec::new();
+	for info in volume_infos {
+		// Skip volumes without drive letters or with zero size (unless they have a label)
+		if info.drive_letter.is_none() {
+			debug!(
+				"Skipping volume without drive letter: label={:?}. guid={:?}",
+				info.label, info.volume_guid
+			);
+			continue;
+		}
+
+		if info.size == 0 {
+			debug!("Skipping volume with zero size: {:?}", info.drive_letter);
+			continue;
+		}
+
+		match create_volume_from_windows_info(info, device_id) {
+			Ok(volume) => {
+				if should_include_volume(&volume, config) {
+					volumes.push(volume);
+				}
+			}
+			Err(e) => {
+				warn!("Failed to create volume from Windows info: {}", e);
+			}
+		}
+	}
+
+	Ok(volumes)
 }
 
 /// Fallback method using wmic or fsutil
@@ -217,19 +269,20 @@ pub fn create_volume_from_windows_info(
 	info: WindowsVolumeInfo,
 	device_id: Uuid,
 ) -> VolumeResult<Volume> {
-	let mount_path = if let Some(drive_letter) = &info.drive_letter {
-		PathBuf::from(format!("{}:\\", drive_letter))
-	} else {
-		PathBuf::from("C:\\") // Default fallback
+	let mount_path = match &info.drive_letter {
+		Some(drive_letter) => PathBuf::from(format!("{}:\\", drive_letter)),
+		None => {
+			return Err(VolumeError::platform(format!(
+				"Volume without drive letter reached create_volume_from_windows_info: {:?}",
+				info.label
+			)))
+		}
 	};
 
-	let name = info.label.unwrap_or_else(|| {
-		if let Some(drive) = &info.drive_letter {
-			format!("Local Disk ({}:)", drive)
-		} else {
-			"Unknown Drive".to_string()
-		}
-	});
+	let name = match &info.label {
+		Some(label) if !label.is_empty() => label.clone(),
+		_ => format!("Local Disk ({}:)", info.drive_letter.as_ref().unwrap()),
+	};
 
 	let file_system = utils::parse_filesystem_type(&info.filesystem);
 	let mount_type = if let Some(drive) = &info.drive_letter {
@@ -254,12 +307,9 @@ pub fn create_volume_from_windows_info(
 		}
 		crate::volume::types::VolumeType::Network => {
 			// Use mount path as backend identifier for network volumes
-			let mount_path_str = mount_path.to_string_lossy();
-			let backend_id = info
-				.volume_guid
-				.as_deref()
-				.unwrap_or(&mount_path_str);
-			VolumeFingerprint::from_network_volume(backend_id, &mount_path_str)
+			let path_lossy = mount_path.to_string_lossy();
+			let backend_id = info.volume_guid.as_deref().unwrap_or(&path_lossy);
+			VolumeFingerprint::from_network_volume(backend_id, &path_lossy)
 		}
 		_ => {
 			// Primary, UserData, Secondary, System, Virtual, Unknown

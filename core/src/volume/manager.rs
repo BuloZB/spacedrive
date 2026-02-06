@@ -733,8 +733,9 @@ impl VolumeManager {
 						|| old_info.total_bytes_available != new_info.total_bytes_available
 						|| old_info.error_status != new_info.error_status
 					{
-						// Update the volume
+						// Update the volume - preserve existing ID for cache stability
 						let mut updated_volume = detected.clone();
+						updated_volume.id = existing.id;
 						updated_volume.update_info(new_info.clone());
 						current_volumes.insert(fingerprint.clone(), updated_volume.clone());
 
@@ -943,7 +944,24 @@ impl VolumeManager {
 	pub async fn volume_for_path(&self, path: &Path) -> Option<Volume> {
 		// Canonicalize the path to handle relative paths properly
 		let canonical_path = match path.canonicalize() {
-			Ok(p) => p,
+			Ok(p) => {
+				// On Windows, canonicalize() returns UNC extended paths (\\?\D:\)
+				// which breaks starts_with() matching against normal mount points (D:\).
+				// Strip the \\?\ prefix to get a normal path.
+				#[cfg(windows)]
+				{
+					let s = p.to_string_lossy();
+					if let Some(stripped) = s.strip_prefix(r"\\?\") {
+						PathBuf::from(stripped)
+					} else {
+						p
+					}
+				}
+				#[cfg(not(windows))]
+				{
+					p
+				}
+			}
 			Err(e) => {
 				debug!("Failed to canonicalize path {}: {}", path.display(), e);
 				// If canonicalization fails, try with the original path
