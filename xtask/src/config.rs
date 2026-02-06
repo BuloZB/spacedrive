@@ -95,7 +95,8 @@ pub fn generate_cargo_config(
 		.unwrap_or_else(|_| {
 			println!("   ⚠️  Android NDK not found. Android builds will not work.");
 			String::new()
-		});
+		})
+		.replace('\\', "\\\\");
 
 	// Build context for mustache
 	let context = ConfigContext {

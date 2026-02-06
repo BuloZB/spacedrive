@@ -343,6 +343,7 @@ impl JobManager {
 			job_logging_config,
 			Some(library.job_logs_dir()),
 			Some(persistence_complete_tx),
+			should_persist,
 		);
 
 		// Dispatch to task system
@@ -402,7 +403,7 @@ impl JobManager {
 							}
 							JobStatus::Completed => {
 								// Emit completion event for all jobs
-								if should_persist {
+								if should_emit_events {
 									// Get the final output from the handle before removing the job
 									let output = {
 										let jobs = running_jobs.read().await;
@@ -459,32 +460,36 @@ impl JobManager {
 										output: output.unwrap_or(JobOutput::Success),
 									});
 
-									// Trigger library statistics recalculation after job completion
-									let library_id_for_stats = library_id_clone;
-									let context_for_stats = context.clone();
-									tokio::spawn(async move {
-										if let Some(library) = context_for_stats
-											.libraries()
-											.await
-											.get_library(library_id_for_stats)
-											.await
-										{
-											if let Err(e) = library.recalculate_statistics().await {
-												warn!(
-													library_id = %library_id_for_stats,
-													job_id = %job_id_clone,
-													error = %e,
-													"Failed to trigger library statistics recalculation after job completion"
-												);
-											} else {
-												debug!(
-													library_id = %library_id_for_stats,
-													job_id = %job_id_clone,
-													"Triggered library statistics recalculation after job completion"
-												);
+									if should_persist {
+										// Trigger library statistics recalculation after job completion
+										let library_id_for_stats = library_id_clone;
+										let context_for_stats = context.clone();
+										tokio::spawn(async move {
+											if let Some(library) = context_for_stats
+												.libraries()
+												.await
+												.get_library(library_id_for_stats)
+												.await
+											{
+												if let Err(e) =
+													library.recalculate_statistics().await
+												{
+													warn!(
+														library_id = %library_id_for_stats,
+														job_id = %job_id_clone,
+														error = %e,
+														"Failed to trigger library statistics recalculation after job completion"
+													);
+												} else {
+													debug!(
+														library_id = %library_id_for_stats,
+														job_id = %job_id_clone,
+														"Triggered library statistics recalculation after job completion"
+													);
+												}
 											}
-										}
-									});
+										});
+									}
 								}
 
 								// Remove from running jobs
@@ -497,7 +502,7 @@ impl JobManager {
 							}
 							JobStatus::Failed => {
 								// Emit event for all jobs
-								if should_persist {
+								if should_emit_events {
 									event_bus.emit(Event::JobFailed {
 										job_id: job_id_clone.to_string(),
 										job_type: job_type_str.to_string(),
@@ -512,7 +517,7 @@ impl JobManager {
 							}
 							JobStatus::Cancelled => {
 								// Emit event for all jobs
-								if should_persist {
+								if should_emit_events {
 									event_bus.emit(Event::JobCancelled {
 										job_id: job_id_clone.to_string(),
 										job_type: job_type_str.to_string(),
@@ -777,6 +782,7 @@ impl JobManager {
 			job_logging_config,
 			Some(library.job_logs_dir()),
 			Some(persistence_complete_tx),
+			should_persist,
 		);
 
 		// Dispatch to task system
@@ -833,7 +839,7 @@ impl JobManager {
 							}
 							JobStatus::Completed => {
 								// Emit completion event for all jobs
-								if should_persist {
+								if should_emit_events {
 									// Get the final output from the handle before removing the job
 									let output = {
 										let jobs = running_jobs.read().await;
@@ -889,33 +895,36 @@ impl JobManager {
 										device_id,
 										output: output.unwrap_or(JobOutput::Success),
 									});
-
-									// Trigger library statistics recalculation after job completion
-									let library_id_for_stats = library_id_clone;
-									let context_for_stats = context.clone();
-									tokio::spawn(async move {
-										if let Some(library) = context_for_stats
-											.libraries()
-											.await
-											.get_library(library_id_for_stats)
-											.await
-										{
-											if let Err(e) = library.recalculate_statistics().await {
-												warn!(
-													library_id = %library_id_for_stats,
-													job_id = %job_id_clone,
-													error = %e,
-													"Failed to trigger library statistics recalculation after job completion"
-												);
-											} else {
-												debug!(
-													library_id = %library_id_for_stats,
-													job_id = %job_id_clone,
-													"Triggered library statistics recalculation after job completion"
-												);
+									if should_persist {
+										// Trigger library statistics recalculation after job completion
+										let library_id_for_stats = library_id_clone;
+										let context_for_stats = context.clone();
+										tokio::spawn(async move {
+											if let Some(library) = context_for_stats
+												.libraries()
+												.await
+												.get_library(library_id_for_stats)
+												.await
+											{
+												if let Err(e) =
+													library.recalculate_statistics().await
+												{
+													warn!(
+														library_id = %library_id_for_stats,
+														job_id = %job_id_clone,
+														error = %e,
+														"Failed to trigger library statistics recalculation after job completion"
+													);
+												} else {
+													debug!(
+														library_id = %library_id_for_stats,
+														job_id = %job_id_clone,
+														"Triggered library statistics recalculation after job completion"
+													);
+												}
 											}
-										}
-									});
+										});
+									}
 								}
 
 								// Remove from running jobs
@@ -928,7 +937,7 @@ impl JobManager {
 							}
 							JobStatus::Failed => {
 								// Emit event for all jobs
-								if should_persist {
+								if should_emit_events {
 									event_bus.emit(Event::JobFailed {
 										job_id: job_id_clone.to_string(),
 										job_type: job_type_str.to_string(),
@@ -943,7 +952,7 @@ impl JobManager {
 							}
 							JobStatus::Cancelled => {
 								// Emit event for all jobs
-								if should_persist {
+								if should_emit_events {
 									event_bus.emit(Event::JobCancelled {
 										job_id: job_id_clone.to_string(),
 										job_type: job_type_str.to_string(),
@@ -1487,6 +1496,7 @@ impl JobManager {
 							tokio::sync::oneshot::channel();
 
 						// Create executor using the erased job
+						// Resumed jobs are always persistent (loaded from database)
 						let executor = erased_job.create_executor(
 							job_id,
 							job_name,
@@ -1504,6 +1514,7 @@ impl JobManager {
 							self.context.job_logging_config.clone(),
 							self.context.job_logs_dir.clone(),
 							Some(persistence_complete_tx),
+							true,
 						);
 
 						// Dispatch to task system
@@ -1992,6 +2003,7 @@ impl JobManager {
 				tokio::sync::oneshot::channel();
 
 			// Create executor
+			// Resumed jobs are always persistent (loaded from database)
 			let executor = erased_job.create_executor(
 				job_id,
 				job_name.clone(),
@@ -2009,6 +2021,7 @@ impl JobManager {
 				self.context.job_logging_config.clone(),
 				self.context.job_logs_dir.clone(),
 				Some(persistence_complete_tx),
+				true,
 			);
 
 			// Dispatch to task system
