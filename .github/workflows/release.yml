@@ -109,7 +109,7 @@ jobs:
     runs-on: ${{ matrix.settings.host }}
     steps:
       - name: Maximize build space
-        if: ${{ runner.os == 'Linux' }}
+        if: ${{ runner.os == 'Linux' && matrix.settings.arch != 'aarch64' }}
         uses: easimon/maximize-build-space@master
         with:
           swap-size-mb: 3072
