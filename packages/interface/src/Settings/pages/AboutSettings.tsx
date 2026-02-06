@@ -105,9 +105,9 @@ export function AboutSettings() {
         className="max-w-lg text-center mb-8 px-4"
       >
         <p className="text-[11px] leading-relaxed text-white/30">
-          {contributors.map((c, i) => (
+          {contributors.map((c: { name: string; github: string }, i) => (
             <span key={c.github}>
-              {i > 0 && "  ·  "}
+              {i > 0 && " · "}
               <a
                 href={`https://github.com/${c.github}`}
                 target="_blank"
