@@ -133,6 +133,10 @@ jobs:
         if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
         run: sudo apt-get update && sudo apt-get install -y libva-dev libva-drm2
 
+      - name: Install NASM
+        if: ${{ runner.os == 'Windows' }}
+        uses: ilammy/setup-nasm@v1
+
       - name: Install Apple API key
         if: ${{ runner.os == 'macOS' }}
         run: |
