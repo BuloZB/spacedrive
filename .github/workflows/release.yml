@@ -214,7 +214,10 @@ jobs:
           C_INCLUDE_PATH: ${{ github.workspace }}/apps/.deps/include
         with:
           projectPath: apps/tauri
-          args: --target ${{ matrix.settings.target }} --bundles ${{ matrix.settings.bundles }}
+          args: >-
+            --target ${{ matrix.settings.target }}
+            --bundles ${{ matrix.settings.bundles }}
+            ${{ matrix.settings.os == 'windows' && '--config src-tauri/tauri.windows.conf.json' || '' }}
           includeUpdaterJson: true
 
       - name: Package frontend
