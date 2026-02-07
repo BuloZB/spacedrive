@@ -60,6 +60,9 @@ fn main() {
 	// Create target-suffixed daemon binary for Tauri bundler
 	// Tauri's externalBin expects binaries with target triple suffix
 	let target_triple = std::env::var("TARGET").expect("TARGET not set");
+
+	// Expose target triple to runtime code for daemon binary resolution
+	println!("cargo:rustc-env=SD_TARGET_TRIPLE={}", target_triple);
 	let profile = std::env::var("PROFILE").unwrap_or_else(|_| "debug".to_string());
 	let workspace_dir = std::env::var("CARGO_WORKSPACE_DIR")
 		.or_else(|_| std::env::var("CARGO_MANIFEST_DIR").map(|d| format!("{}/../../..", d)))

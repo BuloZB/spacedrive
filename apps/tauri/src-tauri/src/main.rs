@@ -1037,18 +1037,7 @@ async fn install_daemon_service(
 		let plist_path = launch_agents_dir.join("com.spacedrive.daemon.plist");
 		tracing::info!("Creating plist at: {}", plist_path.display());
 
-		let daemon_path = std::env::current_exe()
-			.map_err(|e| format!("Failed to get current exe: {}", e))?
-			.parent()
-			.ok_or_else(|| "Could not determine binary directory".to_string())?
-			.join("sd-daemon");
-
-		if !daemon_path.exists() {
-			return Err(format!(
-				"Daemon binary not found at {}",
-				daemon_path.display()
-			));
-		}
+		let daemon_path = find_daemon_binary()?;
 
 		let log_dir = data_dir.join("logs");
 		std::fs::create_dir_all(&log_dir)
@@ -1158,18 +1147,7 @@ async fn install_daemon_service(
 
 		let service_path = systemd_dir.join("spacedrive-daemon.service");
 
-		let daemon_path = std::env::current_exe()
-			.map_err(|e| format!("Failed to get current exe: {}", e))?
-			.parent()
-			.ok_or_else(|| "Could not determine binary directory".to_string())?
-			.join("sd-daemon");
-
-		if !daemon_path.exists() {
-			return Err(format!(
-				"Daemon binary not found at {}",
-				daemon_path.display()
-			));
-		}
+		let daemon_path = find_daemon_binary()?;
 
 		let service_content = format!(
 			r#"[Unit]
@@ -1278,18 +1256,7 @@ WantedBy=default.target
 		let _ = app.emit("daemon-starting", ());
 		tracing::info!("Emitted daemon-starting event");
 
-		let daemon_path = std::env::current_exe()
-			.map_err(|e| format!("Failed to get current exe: {}", e))?
-			.parent()
-			.ok_or_else(|| "Could not determine binary directory".to_string())?
-			.join("sd-daemon.exe");
-
-		if !daemon_path.exists() {
-			return Err(format!(
-				"Daemon binary not found at {}",
-				daemon_path.display()
-			));
-		}
+		let daemon_path = find_daemon_binary()?;
 
 		// Delete existing task if it exists
 		let _ = std::process::Command::new("schtasks")
@@ -1572,44 +1539,41 @@ async fn is_daemon_running(socket_addr: &str) -> bool {
 	}
 }
 
+/// Find the daemon binary, checking for Tauri's target-triple-suffixed name first
+fn find_daemon_binary() -> Result<std::path::PathBuf, String> {
+	let exe_path =
+		std::env::current_exe().map_err(|e| format!("Failed to get current exe: {}", e))?;
+	let bin_dir = exe_path.parent().ok_or("No parent directory for exe")?;
+
+	// Tauri's externalBin bundles with a target triple suffix (e.g. sd-daemon-x86_64-pc-windows-msvc.exe)
+	// Try that first, then fall back to the plain name for dev builds
+	let daemon_with_triple = format!(
+		"sd-daemon-{}{}",
+		env!("SD_TARGET_TRIPLE"),
+		std::env::consts::EXE_SUFFIX
+	);
+	let daemon_plain = format!("sd-daemon{}", std::env::consts::EXE_SUFFIX);
+
+	[&daemon_with_triple, &daemon_plain]
+		.iter()
+		.map(|name| bin_dir.join(name))
+		.find(|p| p.exists())
+		.ok_or_else(|| {
+			format!(
+				"Daemon binary not found. Checked {} and {} in {:?}",
+				daemon_with_triple, daemon_plain, bin_dir
+			)
+		})
+}
+
 /// Start the daemon as a background process
 async fn start_daemon(
 	data_dir: &PathBuf,
 	socket_addr: &str,
 ) -> Result<std::process::Child, String> {
-	// Find the daemon binary
-	let daemon_path = if cfg!(debug_assertions) {
-		// In dev mode, look in workspace target directory
-		// Current exe is at: workspace/target/debug/spacedrive-tauri
-		// Daemon is at: workspace/target/debug/sd-daemon
-		let exe_path =
-			std::env::current_exe().map_err(|e| format!("Failed to get current exe: {}", e))?;
-
-		tracing::debug!("Current exe: {:?}", exe_path);
-
-		let target_dir = exe_path.parent().ok_or("No parent directory for exe")?;
-
-		let daemon_path = target_dir.join("sd-daemon");
-		tracing::debug!("Looking for daemon at: {:?}", daemon_path);
-
-		daemon_path
-	} else {
-		// In production, daemon should be in same directory as the app
-		std::env::current_exe()
-			.map_err(|e| format!("Failed to get current exe: {}", e))?
-			.parent()
-			.ok_or("No parent directory")?
-			.join("sd-daemon")
-	};
+	let daemon_path = find_daemon_binary()?;
 
 	tracing::info!("Starting daemon from: {:?}", daemon_path);
-
-	if !daemon_path.exists() {
-		return Err(format!(
-			"Daemon binary not found at {:?}. Run 'cargo build --bin sd-daemon' first.",
-			daemon_path
-		));
-	}
 
 	let child = std::process::Command::new(daemon_path)
 		.arg("--data-dir")
