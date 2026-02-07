@@ -4,10 +4,6 @@ on:
   push:
     tags:
       - "v*"
-  pull_request:
-    paths:
-      - '.github/workflows/server.yml'
-      - 'apps/server/**'
   workflow_dispatch:
 
 jobs:
@@ -84,7 +80,12 @@ jobs:
           set -euxo pipefail
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             IMAGE_TAG="${GITHUB_REF##*/}"
-            EXTRA_TAG="latest"
+            # Only tag as "latest" for stable releases (no alpha/beta/rc suffix)
+            if [[ "$IMAGE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              EXTRA_TAG="latest"
+            else
+              EXTRA_TAG=""
+            fi
           else
             IMAGE_TAG="$(git rev-parse --short "$GITHUB_SHA")"
             EXTRA_TAG="staging"
@@ -109,7 +110,7 @@ jobs:
         id: build-image
         uses: redhat-actions/buildah-build@v2
         with:
-          tags: ${{ steps.image_info.outputs.tag }} ${{ steps.image_info.outputs.extra_tag }}
+          tags: ${{ steps.image_info.outputs.extra_tag && format('{0} {1}', steps.image_info.outputs.tag, steps.image_info.outputs.extra_tag) || steps.image_info.outputs.tag }}
           archs: amd64, arm64
           image: ${{ steps.image_info.outputs.name }}
           layers: 'false'

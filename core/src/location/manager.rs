@@ -99,7 +99,7 @@ impl LocationManager {
 							{
 								// Windows has file IDs but they're more complex to extract
 								// For now, leave as None for Windows
-								None
+								None::<u64>
 							}
 						}
 						Err(e) => {
@@ -182,8 +182,8 @@ impl LocationManager {
 			indexed_at: Set(Some(now)), // Record when location root was created
 			permissions: Set(None),
 			inode: Set(inode.map(|i| i as i64)), // Use extracted inode
-			parent_id: Set(None),                     // Location root has no parent
-			volume_id: Set(Some(volume_id)),          // Volume is required for all locations
+			parent_id: Set(None),                // Location root has no parent
+			volume_id: Set(Some(volume_id)),     // Volume is required for all locations
 			..Default::default()
 		};
 

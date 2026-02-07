@@ -53,11 +53,13 @@ export function useTheme() {
 	useEffect(() => {
 		if (!client) return;
 
+		console.log('[useTheme] Setting up ConfigChanged subscription');
 		let unsubscribe: (() => void) | undefined;
 		let isCancelled = false;
 
 		const handleEvent = (event: any) => {
 			if ('ConfigChanged' in event) {
+				console.log('[useTheme] Received ConfigChanged event:', event.ConfigChanged);
 				const configEvent = event.ConfigChanged;
 				if (configEvent?.field === 'theme') {
 					// Refetch config to get the new theme value
@@ -75,7 +77,9 @@ export function useTheme() {
 		};
 
 		client.subscribeFiltered(filter, handleEvent).then((unsub) => {
+			console.log('[useTheme] ConfigChanged subscription created');
 			if (isCancelled) {
+				console.log('[useTheme] Subscription was cancelled during setup, cleaning up');
 				unsub();
 			} else {
 				unsubscribe = unsub;
@@ -83,10 +87,11 @@ export function useTheme() {
 		});
 
 		return () => {
+			console.log('[useTheme] Cleaning up ConfigChanged subscription');
 			isCancelled = true;
 			unsubscribe?.();
 		};
-	}, [client, refetch]);
+	}, [client]);
 
 	// Listen for system theme changes when theme is set to "system"
 	useEffect(() => {

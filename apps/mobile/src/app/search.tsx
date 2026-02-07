@@ -22,12 +22,6 @@ export default function SearchScreen() {
 	const { query, scope, isSearchMode, enterSearchMode, exitSearchMode, setSearchQuery } =
 		useSearchStore();
 
-	// Ref to track current query for cleanup without triggering effect re-runs
-	const queryRef = useRef(query);
-	useEffect(() => {
-		queryRef.current = query;
-	}, [query]);
-
 	// Get current path from route params if needed (for folder scope)
 	// For now, we'll use library scope by default
 	const currentPath = undefined;
@@ -53,11 +47,8 @@ export default function SearchScreen() {
 	useFocusEffect(
 		React.useCallback(() => {
 			return () => {
-				// Only exit search mode if query is empty when navigating away
-				// Using ref to avoid stale closure issues when query changes
-				if (!queryRef.current) {
-					exitSearchMode();
-				}
+				// Always exit search mode when leaving the search screen
+				exitSearchMode();
 			};
 		}, [exitSearchMode])
 	);

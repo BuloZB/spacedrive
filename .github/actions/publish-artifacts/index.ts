@@ -28,11 +28,11 @@ const OS_TARGETS = {
 	},
 	windows: {
 		updater: {
-			bundle: 'msi',
-			bundleExt: 'msi',
-			archiveExt: 'zip'
+			bundle: 'nsis',
+			bundleExt: 'exe',
+			archiveExt: 'nsis.zip'
 		},
-		standalone: [{ ext: 'msi', bundle: 'msi' }]
+		standalone: [{ ext: 'exe', bundle: 'nsis' }]
 	},
 	linux: {
 		updater: false,
@@ -49,7 +49,7 @@ const PROFILE = core.getInput('profile');
 const BUNDLE_DIR = `target/${TARGET}/${PROFILE}/bundle`;
 const ARTIFACTS_DIR = '.artifacts';
 const ARTIFACT_BASE = `Spacedrive-${OS}-${ARCH}`;
-const FRONT_END_BUNDLE = 'apps/desktop/dist.tar.xz';
+const FRONT_END_BUNDLE = 'apps/tauri/dist.tar.xz';
 // const UPDATER_ARTIFACT_NAME = `Spacedrive-Updater-${OS}-${ARCH}`;
 const FRONTEND_ARCHIVE_NAME = `Spacedrive-frontend-${OS}-${ARCH}`;
 

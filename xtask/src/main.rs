@@ -24,6 +24,7 @@
 //! - Cross-platform by default
 //! - No external tools required (except cargo/rustup)
 
+mod bump;
 mod config;
 mod contributors;
 mod native_deps;
@@ -68,7 +69,10 @@ fn main() -> Result<()> {
 		eprintln!("  build-ios    Build sd-ios-core XCFramework for iOS devices and simulator");
 		eprintln!("  build-mobile Build sd-mobile-core for React Native iOS/Android");
 		eprintln!("  test-core    Run all core integration tests with progress tracking");
-		eprintln!("  update-contributors  Fetch contributors from GitHub and update contributors.json");
+		eprintln!("  bump <ver>   Bump version across all packages (e.g. bump 2.0.0-alpha.2)");
+		eprintln!(
+			"  update-contributors  Fetch contributors from GitHub and update contributors.json"
+		);
 		eprintln!();
 		eprintln!("Examples:");
 		eprintln!("  cargo xtask setup          # First time setup");
@@ -89,6 +93,15 @@ fn main() -> Result<()> {
 				.map(|s| s == "--verbose" || s == "-v")
 				.unwrap_or(false);
 			test_core_command(verbose)?;
+		}
+		"bump" => {
+			let version = args.get(2).cloned().unwrap_or_else(|| {
+				eprintln!("Usage: cargo xtask bump <version>");
+				eprintln!("Example: cargo xtask bump 2.0.0-alpha.2");
+				std::process::exit(1);
+			});
+			let root = find_workspace_root()?;
+			bump::bump(&root, &version)?;
 		}
 		"update-contributors" => {
 			let project_root = find_workspace_root()?;
@@ -114,8 +127,13 @@ fn setup() -> Result<()> {
 
 	let project_root = find_workspace_root()?;
 
-	// Detect system
-	let system = system::SystemInfo::detect()?;
+	// Detect system - use TARGET_TRIPLE env var if set for cross-compilation
+	let system = if let Ok(target_triple) = std::env::var("TARGET_TRIPLE") {
+		println!("Using TARGET_TRIPLE from environment: {}", target_triple);
+		system::SystemInfo::from_target_triple(&target_triple)?
+	} else {
+		system::SystemInfo::detect()?
+	};
 	println!("Detected platform: {:?} {:?}", system.os, system.arch);
 
 	// Check for required tools
@@ -236,15 +254,21 @@ fn setup() -> Result<()> {
 	// once even for dev mode to satisfy Tauri's path validation
 	println!();
 	println!("Building release daemon for Tauri (with ffmpeg,heif features)...");
+
+	let target_triple = system.target_triple();
+	let args = vec![
+		"build",
+		"--release",
+		"--features",
+		"sd-core/ffmpeg,sd-core/heif",
+		"--bin",
+		"sd-daemon",
+		"--target",
+		&target_triple,
+	];
+
 	let status = Command::new("cargo")
-		.args([
-			"build",
-			"--release",
-			"--features",
-			"sd-core/ffmpeg,sd-core/heif",
-			"--bin",
-			"sd-daemon",
-		])
+		.args(&args)
 		.current_dir(&project_root)
 		.status()
 		.context("Failed to build release daemon")?;
@@ -256,9 +280,11 @@ fn setup() -> Result<()> {
 
 	// Create target-suffixed daemon binary for Tauri bundler
 	// Tauri's externalBin appends the target triple to binary names
-	let target_triple = system.target_triple();
 	let exe_ext = if cfg!(windows) { ".exe" } else { "" };
-	let daemon_source = project_root.join(format!("target/release/sd-daemon{}", exe_ext));
+	let daemon_source = project_root.join(format!(
+		"target/{}/release/sd-daemon{}",
+		target_triple, exe_ext
+	));
 	let daemon_target = project_root.join(format!(
 		"target/release/sd-daemon-{}{}",
 		target_triple, exe_ext
@@ -277,10 +303,21 @@ fn setup() -> Result<()> {
 		println!("Copying DLLs to target directories...");
 		let dll_source_dir = native_deps_dir.join("bin");
 		if dll_source_dir.exists() {
-			// Copy to both debug and release directories
-			for target_profile in ["debug", "release"] {
-				let target_dir = project_root.join("target").join(target_profile);
-				fs::create_dir_all(&target_dir).ok();
+			let mut target_dirs = vec![
+				("debug".to_string(), project_root.join("target/debug")),
+				("release".to_string(), project_root.join("target/release")),
+			];
+
+			// Also copy to target-triple directories used by CI cross-compilation
+			for triple in ["x86_64-pc-windows-msvc", "aarch64-pc-windows-msvc"] {
+				for profile in ["debug", "release"] {
+					let dir = project_root.join("target").join(triple).join(profile);
+					target_dirs.push((format!("{}/{}", triple, profile), dir));
+				}
+			}
+
+			for (label, target_dir) in &target_dirs {
+				fs::create_dir_all(target_dir).ok();
 
 				if let Ok(entries) = fs::read_dir(&dll_source_dir) {
 					for entry in entries.flatten() {
@@ -297,7 +334,7 @@ fn setup() -> Result<()> {
 						}
 					}
 				}
-				println!("   ✓ DLLs copied to target/{}/", target_profile);
+				println!("   ✓ DLLs copied to target/{}/", label);
 			}
 		}
 	}
@@ -508,7 +545,14 @@ fn build_mobile() -> Result<()> {
 				println!("  Building for iOS {} ({})...", name, target);
 
 				let status = Command::new("cargo")
-					.args(["build", "--release", "-p", "sd-mobile-core", "--target", target])
+					.args([
+						"build",
+						"--release",
+						"-p",
+						"sd-mobile-core",
+						"--target",
+						target,
+					])
 					.current_dir(&project_root)
 					.env("IPHONEOS_DEPLOYMENT_TARGET", "18.0")
 					.status()
@@ -545,7 +589,14 @@ fn build_mobile() -> Result<()> {
 			println!("  Building for Android {} ({})...", name, target);
 
 			let status = Command::new("cargo")
-				.args(["build", "--release", "-p", "sd-mobile-core", "--target", target])
+				.args([
+					"build",
+					"--release",
+					"-p",
+					"sd-mobile-core",
+					"--target",
+					target,
+				])
 				.current_dir(&project_root)
 				.status()
 				.context(format!("Failed to build for {}", target))?;
