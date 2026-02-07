@@ -9,7 +9,7 @@ tags: [sync, service, epic, index-driven]
 whitepaper: Section 5.2
 design_doc: workbench/FILE_SYNC_IMPLEMENTATION_PLAN.md
 documentation: docs/core/file-sync.mdx
-last_updated: 2025-10-15
+last_updated: 2026-02-07
 ---
 
 ## Description
@@ -56,9 +56,19 @@ Intelligent local storage management with access pattern tracking.
 
 - **FSYNC-001**: DeleteJob Strategy Pattern & Remote Deletion (Phase 1) - Done
 - **FSYNC-002**: Database Schema & Entities (Phase 2) - Done
-- **FSYNC-003**: FileSyncService Core Implementation (Phase 3)
+- **FSYNC-003**: FileSyncService Core Implementation (Phase 3) - Blocked on INDEX-010, INDEX-011
 - **FSYNC-004**: Service Integration & API (Phase 4)
 - **FSYNC-005**: Advanced Features (Phase 5)
+
+## New Dependencies (2026-02-07)
+
+FSYNC-003 depends on foundational index work that was identified during architecture review:
+
+- **INDEX-010**: Bidirectional UUID reconciliation — ephemeral index must reuse persistent UUIDs so file sync has unified identity across layers
+- **INDEX-011**: Rules-free scan mode — file sync needs complete filesystem visibility, not filtered index views
+- **FILE-006**: Path intersection & smart diff — extracts the diffing logic from FSYNC-003 into a standalone operation that also serves the "smart copy" use case
+
+Execution order: INDEX-010 → INDEX-011 → FILE-006 → FSYNC-003
 
 ## Key Benefits
 

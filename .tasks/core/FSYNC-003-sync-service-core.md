@@ -7,8 +7,8 @@ parent: FSYNC-000
 priority: High
 tags: [service, core, orchestration, resolver]
 design_doc: workbench/FILE_SYNC_IMPLEMENTATION_PLAN.md
-last_updated: 2025-10-14
-related_tasks: [FSYNC-001, FSYNC-002]
+last_updated: 2026-02-07
+related_tasks: [FSYNC-001, FSYNC-002, INDEX-010, INDEX-011, FILE-006]
 ---
 
 ## Description
@@ -16,6 +16,8 @@ related_tasks: [FSYNC-001, FSYNC-002]
 Implement the core FileSyncService - a service-based orchestrator that calculates sync operations from index queries and dispatches FileCopyJob and DeleteJob to perform work.
 
 **Architecture:** Service dispatches jobs, doesn't execute operations directly. This enables proper separation of concerns and reuses battle-tested file operation infrastructure.
+
+**Dependencies:** Requires INDEX-010 (bidirectional UUID reconciliation) for unified identity across ephemeral and persistent indexes, and INDEX-011 (rules-free scan mode) for complete filesystem coverage. The resolver's diff logic is shared with FILE-006 (path intersection).
 
 ## Service Structure
 
@@ -250,9 +252,22 @@ async fn complete_sync_with_verification(...) -> Result<()> {
 - Sequential deletes after all copies complete
 - Progress aggregation from job manager
 
+## Architectural Update: Unified Index Layer
+
+The original design assumed the SyncResolver queries the persistent index exclusively. This has a gap: files excluded by indexer rules (node_modules, .git, gitignored files) are invisible to sync.
+
+The updated approach uses the ephemeral index as a complete filesystem layer:
+
+1. **INDEX-010**: Ensures ephemeral UUIDs match persistent UUIDs for already-indexed files
+2. **INDEX-011**: Provides rules-free scan mode so sync can see every file on disk
+3. **FILE-006**: Extracts the path diffing logic into a shared operation usable by both sync and smart copy
+
+The SyncResolver should use the ephemeral cache (with complete scan) as its data source instead of querying the persistent DB directly. This gives it full filesystem visibility while still leveraging persistent content IDs and metadata where available.
+
 ## References
 
 - Implementation: FILE_SYNC_IMPLEMENTATION_PLAN.md (Lines 637-1855)
 - Resolver logic: Lines 1133-1430
 - Verification: Lines 1699-1855
 - Related: FSYNC-001 (DeleteStrategy), FSYNC-002 (entities), FILE-001 (FileCopyJob)
+- Dependencies: INDEX-010, INDEX-011, FILE-006

@@ -1,12 +1,12 @@
 ---
 id: INDEX-000
 title: "Epic: Hybrid Indexing Engine"
-status: Done
+status: In Progress
 assignee: jamiepine
 priority: High
 tags: [epic, core, indexing]
 whitepaper: Section 4.3
-last_updated: 2025-12-16
+last_updated: 2026-02-07
 ---
 
 ## Description
@@ -29,3 +29,20 @@ The hybrid indexing engine is Spacedrive's core filesystem discovery and process
 - Real-time filesystem watching via unified ChangeHandler
 - Intelligent rules engine with .gitignore integration
 - Index verification and integrity checking
+- Bidirectional UUID reconciliation across ephemeral and persistent layers
+- Rules-free scan mode for operations requiring complete filesystem coverage
+
+## Child Tasks
+
+- **INDEX-001**: Hybrid Indexing Architecture - Done
+- **INDEX-002**: Five-Phase Indexing Pipeline - Done
+- **INDEX-003**: Database Architecture - Done
+- **INDEX-004**: Change Detection System - Done
+- **INDEX-005**: Indexer Rules Engine - Done
+- **INDEX-006**: Data Structures & Memory Optimizations - Done
+- **INDEX-007**: Index Verification System - Done
+- **INDEX-008**: Nested Locations Support - To Do
+- **INDEX-009**: Stale File Detection - To Do
+- **INDEX-010**: Bidirectional UUID Reconciliation - To Do (Critical, blocks FSYNC-003)
+- **INDEX-011**: Rules-Free Ephemeral Scan Mode - To Do (blocks FSYNC-003, FILE-006)
+- **INDEX-012**: Ephemeral Cache Parent Path Deduplication - To Do (correctness fix)
