@@ -1,8 +1,9 @@
 name: Core Tests
 
 on:
-  push:
-    branches: [] # disable for now
+  workflow_dispatch: # manual trigger only, auto-run disabled for now
+  # push:
+  #   branches: ["main"]
   # pull_request:
   #   branches: ["main"]
 
