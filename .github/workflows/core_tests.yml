@@ -2,7 +2,7 @@ name: Core Tests
 
 on:
   push:
-    branches: ["main"]
+    branches: [] # disable for now
   # pull_request:
   #   branches: ["main"]
 
@@ -38,10 +38,10 @@ jobs:
         with:
           swap-size-mb: 3072
           root-reserve-mb: 6144
-          remove-dotnet: "true"
-          remove-codeql: "true"
-          remove-haskell: "true"
-          remove-docker-images: "true"
+          remove-dotnet: 'true'
+          remove-codeql: 'true'
+          remove-haskell: 'true'
+          remove-docker-images: 'true'
 
       - name: Symlink target to C:\
         if: ${{ matrix.settings.os == 'windows' }}
