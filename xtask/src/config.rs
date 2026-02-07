@@ -120,16 +120,13 @@ pub fn generate_cargo_config(
 		protoc,
 		mobile_native_deps,
 		android_ndk_home,
+		// Android NDK host tag - the prebuilt directory is always named darwin-x86_64 on macOS,
+		// but the binaries are universal (fat) binaries with native ARM64 support.
+		// Google kept the path name for backwards compatibility.
 		host_tag: match system.os {
 			Os::Windows => "windows-x86_64",
 			Os::Linux => "linux-x86_64",
-			Os::MacOS => {
-				if cfg!(target_arch = "aarch64") {
-					"darwin-aarch64"
-				} else {
-					"darwin-x86_64"
-				}
-			}
+			Os::MacOS => "darwin-x86_64",
 		},
 		is_win: matches!(system.os, Os::Windows),
 		is_macos: matches!(system.os, Os::MacOS),

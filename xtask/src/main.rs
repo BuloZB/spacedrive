@@ -26,6 +26,7 @@
 
 mod bump;
 mod config;
+mod contributors;
 mod native_deps;
 mod system;
 mod test_core;
@@ -69,6 +70,9 @@ fn main() -> Result<()> {
 		eprintln!("  build-mobile Build sd-mobile-core for React Native iOS/Android");
 		eprintln!("  test-core    Run all core integration tests with progress tracking");
 		eprintln!("  bump <ver>   Bump version across all packages (e.g. bump 2.0.0-alpha.2)");
+		eprintln!(
+			"  update-contributors  Fetch contributors from GitHub and update contributors.json"
+		);
 		eprintln!();
 		eprintln!("Examples:");
 		eprintln!("  cargo xtask setup          # First time setup");
@@ -98,6 +102,10 @@ fn main() -> Result<()> {
 			});
 			let root = find_workspace_root()?;
 			bump::bump(&root, &version)?;
+		}
+		"update-contributors" => {
+			let project_root = find_workspace_root()?;
+			contributors::update(&project_root)?;
 		}
 		_ => {
 			eprintln!("Unknown command: {}", args[1]);
@@ -273,7 +281,10 @@ fn setup() -> Result<()> {
 	// Create target-suffixed daemon binary for Tauri bundler
 	// Tauri's externalBin appends the target triple to binary names
 	let exe_ext = if cfg!(windows) { ".exe" } else { "" };
-	let daemon_source = project_root.join(format!("target/{}/release/sd-daemon{}", target_triple, exe_ext));
+	let daemon_source = project_root.join(format!(
+		"target/{}/release/sd-daemon{}",
+		target_triple, exe_ext
+	));
 	let daemon_target = project_root.join(format!(
 		"target/release/sd-daemon-{}{}",
 		target_triple, exe_ext
@@ -534,7 +545,14 @@ fn build_mobile() -> Result<()> {
 				println!("  Building for iOS {} ({})...", name, target);
 
 				let status = Command::new("cargo")
-					.args(["build", "--release", "-p", "sd-mobile-core", "--target", target])
+					.args([
+						"build",
+						"--release",
+						"-p",
+						"sd-mobile-core",
+						"--target",
+						target,
+					])
 					.current_dir(&project_root)
 					.env("IPHONEOS_DEPLOYMENT_TARGET", "18.0")
 					.status()
@@ -571,7 +589,14 @@ fn build_mobile() -> Result<()> {
 			println!("  Building for Android {} ({})...", name, target);
 
 			let status = Command::new("cargo")
-				.args(["build", "--release", "-p", "sd-mobile-core", "--target", target])
+				.args([
+					"build",
+					"--release",
+					"-p",
+					"sd-mobile-core",
+					"--target",
+					target,
+				])
 				.current_dir(&project_root)
 				.status()
 				.context(format!("Failed to build for {}", target))?;

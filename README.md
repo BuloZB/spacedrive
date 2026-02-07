@@ -127,26 +127,66 @@ Peer-to-peer synchronization without central coordinators. Device-specific data 
 **Core**
 
 - **Rust** - Entire VDFS implementation (~183k lines)
-- **SQLite + SeaORM** - Local-first database with type-safe queries
-- **Iroh** - P2P networking with QUIC transport and hole-punching
+- **Tokio** - Async runtime
+- **SQLite + SeaORM** - Local-first database with type-safe ORM queries
+- **Iroh** - P2P networking with QUIC transport, hole-punching, and local discovery
 - **BLAKE3** - Fast cryptographic hashing for content identity
-- **WASM** - Sandboxed extension runtime
+- **Wasmer** - Sandboxed WASM extension runtime
+- **Axum** - HTTP/GraphQL server for web and API access
+- **OpenDAL** - Unified cloud storage abstraction (S3, Google Drive, OneDrive, Dropbox, Azure Blob, GCS)
+- **Specta** - Auto-generated TypeScript and Swift types from Rust
 
-**Apps**
+**Cryptography & Security**
 
-- **CLI** - Command-line interface (available now)
-- **Server** - Headless daemon for Docker deployment ([self-hosting guide](https://v2.spacedrive.com/overview/self-hosting))
-- **Tauri** - Cross-platform desktop with React frontend (macOS and Linux now, Windows in alpha.2)
-- **Web** - Web interface and shared UI components (available now)
-- **Mobile** - React Native mobile app (iOS and Android coming soon)
-- **Prototypes** - Native Swift apps (iOS, macOS) and GPUI media viewer for exploration
+- **Ed25519 / X25519** - Signatures and key exchange
+- **ChaCha20-Poly1305 / AES-GCM** - Authenticated encryption
+- **Argon2** - Password hashing
+- **BIP39** - Mnemonic phrase support for key backup
+- **redb** - Encrypted key-value store for credentials
+
+**Media Processing**
+
+- **FFmpeg** (via custom `sd-ffmpeg` crate) - Video thumbnails, audio extraction
+- **libheif** - HEIF/HEIC image support
+- **Pdfium** - PDF rendering
+- **Whisper** - On-device speech recognition (Metal-accelerated on Apple platforms)
+- **Blurhash** - Compact image placeholders
+
+**Interface** (shared across web and desktop)
+
+- **React 19** - UI framework
+- **Vite** - Build tooling
+- **TypeScript** - Type-safe frontend code
+- **TanStack Query** - Server state management
+- **Zustand** - Client state management
+- **Radix UI** - Accessible headless components
+- **Tailwind CSS** - Utility-first styling
+- **Framer Motion** - Animations
+- **React Hook Form + Zod** - Form management and validation
+- **Three.js / React Three Fiber** - 3D visualization
+- **dnd-kit** - Drag and drop
+- **TanStack Virtual / TanStack Table** - Virtualized lists and tables
+
+**Desktop**
+
+- **Tauri 2** - Cross-platform desktop shell (macOS, Linux, Windows)
+
+**Mobile (React Native)**
+
+- **React Native** 0.81 + **Expo** - Cross-platform mobile framework
+- **Expo Router** - File-based routing
+- **NativeWind** - Tailwind CSS for React Native
+- **React Navigation** - Native navigation stack
+- **Reanimated** - Native-thread animations
+- **sd-mobile-core** - Rust core bridge via FFI
 
 **Architecture Patterns**
 
 - Event-driven design with centralized EventBus
 - CQRS: Actions (mutations) and Queries (reads) with preview-commit-verify
-- Durable jobs with MessagePack serialization
+- Durable jobs with MessagePack serialization and checkpointing
 - Domain-separated sync with clear data ownership boundaries
+- Compile-time operation registration via `inventory` crate
 
 ---
 
@@ -154,25 +194,49 @@ Peer-to-peer synchronization without central coordinators. Device-specific data 
 
 ```
 spacedrive/
-├── core/              # Rust VDFS implementation
+├── core/                  # Rust VDFS implementation
 │   ├── src/
-│   │   ├── domain/    # Core models (Entry, Library, Device, Tag)
-│   │   ├── ops/       # CQRS operations (actions & queries)
-│   │   ├── infra/     # Infrastructure (DB, events, jobs, sync)
-│   │   ├── service/   # High-level services (network, file sharing)
-│   │   ├── location/  # Location management and indexing
-│   │   ├── library/   # Library lifecycle and operations
-│   │   └── volume/    # Volume detection and fingerprinting
+│   │   ├── domain/        # Core models (Entry, Library, Device, Tag, Volume)
+│   │   ├── ops/           # CQRS operations (actions & queries)
+│   │   ├── infra/         # Infrastructure (DB, events, jobs, sync)
+│   │   ├── service/       # High-level services (network, file sharing, sync)
+│   │   ├── crypto/        # Key management and encryption
+│   │   ├── device/        # Device identity and configuration
+│   │   ├── filetype/      # File type detection and registry
+│   │   ├── location/      # Location management and indexing
+│   │   ├── library/       # Library lifecycle and operations
+│   │   └── volume/        # Volume detection and fingerprinting
+│   └── tests/             # Integration tests (pairing, sync, file transfer)
 ├── apps/
-│   ├── cli/           # CLI for managing libraries and running daemon
-│   ├── server/        # Headless server daemon
-│   ├── tauri/         # Cross-platform desktop app (macOS, Windows, Linux)
-│   ├── ios/           # Native prototype (private)
-│   ├── macos/         # Native prototype (private)
-│   └── gpui-photo-grid/  # GPUI media viewer prototype
-├── extensions/        # WASM extensions
-├── crates/            # Shared Rust utilities
-└── docs/              # Architecture documentation
+│   ├── cli/               # CLI and daemon entry point
+│   ├── server/            # Headless server for Docker/self-hosting
+│   ├── tauri/             # Desktop app shell (macOS, Windows, Linux)
+│   ├── web/               # Web app (Vite, connects to daemon via WebSocket)
+│   ├── mobile/            # React Native mobile app (Expo)
+│   ├── api/               # Cloud API server (Bun + Elysia)
+│   ├── landing/           # Marketing site and docs (Next.js)
+│   ├── ios/               # Native iOS prototype (Swift)
+│   ├── macos/             # Native macOS prototype (Swift)
+│   └── gpui-photo-grid/   # GPUI media viewer prototype
+├── packages/
+│   ├── interface/         # Shared React UI (used by web and desktop)
+│   ├── ts-client/         # Auto-generated TypeScript client and hooks
+│   ├── swift-client/      # Auto-generated Swift client
+│   ├── ui/                # Shared component library
+│   └── assets/            # Icons and images
+├── crates/
+│   ├── crypto/            # Cryptographic primitives
+│   ├── ffmpeg/            # FFmpeg bindings for video/audio
+│   ├── images/            # Image processing (HEIF, PDF, SVG)
+│   ├── media-metadata/    # EXIF/media metadata extraction
+│   ├── fs-watcher/        # Cross-platform file system watcher
+│   ├── sdk/               # WASM extension SDK
+│   ├── sdk-macros/        # Extension procedural macros
+│   ├── task-system/       # Durable job execution engine
+│   ├── sd-client/         # Rust client library
+│   └── ...                # actors, fda, log-analyzer, utils
+├── extensions/            # WASM extensions (photos, test-extension)
+└── docs/                  # Architecture documentation
 ```
 
 ---
@@ -261,10 +325,6 @@ cargo run -p sd-cli -- search .
 
 # Now launch Tauri app - it will connect to the running daemon
 ```
-
-### Native Prototypes
-
-Experimental native apps are available in `apps/ios/`, `apps/macos/`, and `apps/gpui-photo-grid/` but are not documented for public use. These prototypes explore platform-specific optimizations and alternative UI approaches.
 
 ### Running Tests
 

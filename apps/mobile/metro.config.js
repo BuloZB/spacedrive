@@ -7,8 +7,12 @@ const workspaceRoot = path.resolve(projectRoot, "../..");
 
 const config = getDefaultConfig(projectRoot);
 
-// Watch entire monorepo for hot reload
-config.watchFolders = [workspaceRoot];
+// Watch only relevant directories for hot reload (not entire monorepo)
+// This avoids watching Rust target/ dirs (4.5GB+) and other build artifacts
+config.watchFolders = [
+	path.resolve(projectRoot, "src"),
+	path.resolve(workspaceRoot, "packages"),
+];
 
 // Configure resolver for monorepo and SVG support
 config.resolver = {
@@ -25,17 +29,18 @@ config.resolver = {
 		path.resolve(workspaceRoot, "node_modules"),
 	],
 
-	// Exclude build outputs and prevent loading wrong React version from root
+	// Exclude build outputs
 	blockList: [
 		/\/apps\/mobile\/ios\/build\/.*/,
 		/\/apps\/mobile\/android\/build\/.*/,
-		// Block React from workspace root to force local version
-		new RegExp(`^${workspaceRoot}/node_modules/react/.*`),
 	],
 
-	// Force React resolution from mobile app's node_modules
+	// Dynamically resolve React/React Native from wherever the package manager installed them
 	extraNodeModules: {
-		react: path.resolve(projectRoot, "node_modules/react"),
+		react: path.dirname(require.resolve("react/package.json", { paths: [projectRoot, workspaceRoot] })),
+		"react-native": path.dirname(
+			require.resolve("react-native/package.json", { paths: [projectRoot, workspaceRoot] })
+		),
 	},
 };
 
