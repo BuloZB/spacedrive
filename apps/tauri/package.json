@@ -1,7 +1,7 @@
 {
 	"name": "@sd/tauri",
 	"private": true,
-	"version": "2.0.0",
+	"version": "2.0.0-alpha.2",
 	"type": "module",
 	"engines": {
 		"bun": ">=1.3.0"
@@ -10,14 +10,14 @@
 		"dev": "vite dev",
 		"dev:with-daemon": "bun ./scripts/dev-with-daemon.ts",
 		"build": "vite build",
-		"build:daemon": "cargo build --bin sd-daemon --manifest-path ../../Cargo.toml",
-		"build:daemon:release": "cargo build --release --bin sd-daemon --manifest-path ../../Cargo.toml",
+		"build:daemon": "bash -c 'cargo build --bin sd-daemon --manifest-path ../../Cargo.toml ${CARGO_BUILD_TARGET:+--target $CARGO_BUILD_TARGET}'",
+		"build:daemon:release": "bash -c 'cargo build --release --bin sd-daemon --manifest-path ../../Cargo.toml ${CARGO_BUILD_TARGET:+--target $CARGO_BUILD_TARGET}'",
 		"preview": "vite preview",
 		"typecheck": "tsc -b",
-		"tauri": "bunx tauri",
-		"tauri:dev": "bunx tauri dev",
-		"tauri:dev:no-watch": "bunx tauri dev --no-watch",
-		"tauri:build": "bunx tauri build && ./scripts/fix-daemon-entitlements.sh ../../target/release/bundle/macos/Spacedrive.app || true"
+		"tauri": "tauri",
+		"tauri:dev": "tauri dev",
+		"tauri:dev:no-watch": "tauri dev --no-watch",
+		"tauri:build": "tauri build && ./scripts/fix-daemon-entitlements.sh ../../target/release/bundle/macos/Spacedrive.app || true"
 	},
 	"dependencies": {
 		"@phosphor-icons/react": "^2.1.0",

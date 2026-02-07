@@ -19,28 +19,43 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Restore cached LLVM and Clang
+    - name: Restore cached libclang
       if: ${{ runner.os == 'Windows' }}
-      id: cache-llvm-restore
+      id: cache-libclang
       uses: actions/cache/restore@v4
       with:
-        key: llvm-15
-        path: C:/Program Files/LLVM
+        key: libclang-15-win64
+        path: C:\libclang
 
-    - name: Install LLVM and Clang
-      if: ${{ runner.os == 'Windows' }}
-      uses: KyleMayes/install-llvm-action@v2
-      with:
-        cached: ${{ steps.cache-llvm-restore.outputs.cache-hit }}
-        version: '15'
+    - name: Download libclang for bindgen
+      if: ${{ runner.os == 'Windows' && steps.cache-libclang.outputs.cache-hit != 'true' }}
+      shell: powershell
+      run: |
+        # Only libclang.dll is needed (for bindgen). Installing the full LLVM toolchain
+        # puts clang-cl.exe on PATH, which causes aws-lc-sys to mis-detect compiler
+        # support for __builtin_bswap — leading to unresolved symbol errors with MSVC.
+        $installer = "$env:TEMP\llvm-15.exe"
+        Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.7/LLVM-15.0.7-win64.exe" -OutFile $installer
+        New-Item -ItemType Directory -Force -Path "C:\libclang"
+        7z e $installer "-oC:\libclang" "bin\libclang.dll" -r -y
+        Remove-Item $installer -Force
+        if (!(Test-Path "C:\libclang\libclang.dll")) {
+          Write-Error "Failed to extract libclang.dll"
+          exit 1
+        }
+        Write-Host "Extracted libclang.dll to C:\libclang"
 
-    - name: Save LLVM and Clang
+    - name: Save libclang cache
       if: ${{ runner.os == 'Windows' && inputs.save-cache == 'true' }}
-      id: cache-llvm-save
       uses: actions/cache/save@v4
       with:
-        key: ${{ steps.cache-llvm-restore.outputs.cache-primary-key }}
-        path: C:/Program Files/LLVM
+        key: ${{ steps.cache-libclang.outputs.cache-primary-key }}
+        path: C:\libclang
+
+    - name: Set LIBCLANG_PATH
+      if: ${{ runner.os == 'Windows' }}
+      shell: powershell
+      run: echo "LIBCLANG_PATH=C:\libclang" >> $env:GITHUB_ENV
 
     - name: Install current Bash on macOS
       shell: bash

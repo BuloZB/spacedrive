@@ -3,11 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
-  pull_request:
-    paths:
-      - ".github/workflows/release.yml"
-      - ".github/actions/publish-artifacts/**"
+      - 'v*'
   workflow_dispatch:
 
 # From: https://github.com/rust-lang/rust-analyzer/blob/master/.github/workflows/release.yaml#L13-L21
@@ -17,101 +13,16 @@ env:
   RUSTUP_MAX_RETRIES: 10
 
 jobs:
-  # CLI builds for v2
-  # cli-build:
-  #   strategy:
-  #     matrix:
-  #       include:
-  #         # macOS builds
-  #         - host: self-hosted
-  #           target: aarch64-apple-darwin
-  #           platform: macos-aarch64
-  #         - host: macos-15-intel
-  #           target: x86_64-apple-darwin
-  #           platform: macos-x86_64
-  #         # Linux builds
-  #         - host: ubuntu-22.04
-  #           target: x86_64-unknown-linux-gnu
-  #           platform: linux-x86_64
-  #         # Windows builds
-  #         - host: windows-latest
-  #           target: x86_64-pc-windows-msvc
-  #           platform: windows-x86_64
-  #   name: CLI - ${{ matrix.platform }}
-  #   runs-on: ${{ matrix.host }}
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-
-  #     - name: Setup Rust
-  #       uses: dtolnay/rust-toolchain@stable
-  #       with:
-  #         targets: ${{ matrix.target }}
-
-  #     - name: Setup System and Rust
-  #       uses: ./.github/actions/setup-system
-  #       with:
-  #         token: ${{ secrets.GITHUB_TOKEN }}
-  #         target: ${{ matrix.target }}
-
-  #     - name: Install cross-compilation tools (Linux ARM)
-  #       if: matrix.target == 'aarch64-unknown-linux-gnu'
-  #       run: |
-  #         sudo apt-get update
-  #         sudo apt-get install -y gcc-aarch64-linux-gnu
-
-  #     - name: Setup native dependencies
-  #       run: cargo run -p xtask -- setup
-
-  #     - name: Build CLI binaries
-  #       run: |
-  #         cargo build --release --bin sd-cli --bin sd-daemon --features heif,ffmpeg,ai --target ${{ matrix.target }}
-  #       env:
-  #         # Set linker for cross-compilation
-  #         CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-
-  #     - name: Prepare binaries (Unix)
-  #       if: runner.os != 'Windows'
-  #       run: |
-  #         mkdir -p dist
-  #         cp target/${{ matrix.target }}/release/sd-cli dist/sd-${{ matrix.platform }}
-  #         cp target/${{ matrix.target }}/release/sd-daemon dist/sd-daemon-${{ matrix.platform }}
-  #         chmod +x dist/*
-
-  #     - name: Prepare binaries (Windows)
-  #       if: runner.os == 'Windows'
-  #       shell: pwsh
-  #       run: |
-  #         New-Item -ItemType Directory -Force -Path dist
-  #         Copy-Item target/${{ matrix.target }}/release/sd-cli.exe dist/sd-${{ matrix.platform }}.exe
-  #         Copy-Item target/${{ matrix.target }}/release/sd-daemon.exe dist/sd-daemon-${{ matrix.platform }}.exe
-
-  #     - name: Generate checksums
-  #       shell: bash
-  #       run: |
-  #         cd dist
-  #         if [ "$RUNNER_OS" == "Windows" ]; then
-  #           sha256sum *.exe > checksums-${{ matrix.platform }}.txt
-  #         else
-  #           sha256sum * > checksums-${{ matrix.platform }}.txt
-  #         fi
-
-  #     - name: Upload artifacts
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: cli-${{ matrix.platform }}
-  #         path: dist/*
-
   # Server builds for self-hosting
   server-build:
     strategy:
       matrix:
         settings:
-          - host: ubuntu-22.04
+          - host: blacksmith-4vcpu-ubuntu-2204
             target: x86_64-unknown-linux-gnu
             platform: linux-x86_64
-          - host: ubuntu-22.04
-            target: blacksmith-4vcpu-ubuntu-2404-arm
+          - host: blacksmith-4vcpu-ubuntu-2204-arm
+            target: aarch64-unknown-linux-gnu
             platform: linux-aarch64
     name: Server - ${{ matrix.settings.platform }}
     runs-on: ${{ matrix.settings.host }}
@@ -120,27 +31,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: ./.github/actions/setup-rust
         with:
-          targets: ${{ matrix.settings.target }}
-
-      - name: Setup System and Rust
-        uses: ./.github/actions/setup-system
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           target: ${{ matrix.settings.target }}
 
-      - name: Install cross-compilation tools (ARM)
+      - name: Install VA-API libraries
         if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Install OpenSSL
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+        run: sudo apt-get update && sudo apt-get install -y libva-dev libva-drm2
 
       - name: Setup native dependencies
         run: cargo run -p xtask -- setup
+        env:
+          TARGET_TRIPLE: ${{ matrix.settings.target }}
 
       - name: Build server binary
         run: |
@@ -173,6 +75,7 @@ jobs:
   # V2 Desktop builds
   desktop-main:
     strategy:
+      fail-fast: false
       matrix:
         settings:
           # macOS builds
@@ -187,30 +90,35 @@ jobs:
             os: darwin
             arch: x86_64
           # Windows builds
-          # - host: windows-latest
-          #   target: x86_64-pc-windows-msvc
-          #   bundles: msi
-          #   os: windows
-          #   arch: x86_64
+          - host: blacksmith-4vcpu-windows-2025
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            os: windows
+            arch: x86_64
           # Linux builds
-          - host: ubuntu-22.04
-            target: blacksmith-4vcpu-ubuntu-2404
+          - host: blacksmith-16vcpu-ubuntu-2404
+            target: x86_64-unknown-linux-gnu
             bundles: deb
             os: linux
             arch: x86_64
+          - host: blacksmith-8vcpu-ubuntu-2404-arm
+            target: aarch64-unknown-linux-gnu
+            bundles: deb
+            os: linux
+            arch: aarch64
     name: Desktop - Main ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
     steps:
       - name: Maximize build space
-        if: ${{ runner.os == 'Linux' }}
+        if: ${{ runner.os == 'Linux' && matrix.settings.arch != 'aarch64' }}
         uses: easimon/maximize-build-space@master
         with:
           swap-size-mb: 3072
           root-reserve-mb: 6144
-          remove-dotnet: "true"
-          remove-codeql: "true"
-          remove-haskell: "true"
-          remove-docker-images: "true"
+          remove-dotnet: 'true'
+          remove-codeql: 'true'
+          remove-haskell: 'true'
+          remove-docker-images: 'true'
 
       - name: Symlink target to C:\
         if: ${{ runner.os == 'Windows' }}
@@ -222,10 +130,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.settings.target }}
+      - name: Install VA-API libraries
+        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
+        run: sudo apt-get update && sudo apt-get install -y libva-dev libva-drm2
+
+      - name: Install NASM
+        if: ${{ runner.os == 'Windows' }}
+        uses: ilammy/setup-nasm@v1
 
       - name: Install Apple API key
         if: ${{ runner.os == 'macOS' }}
@@ -251,9 +162,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           target: ${{ matrix.settings.target }}
 
-      - name: Install target
-        run: rustup target add ${{ matrix.settings.target }}
-
       - name: Setup Bun and dependencies
         uses: ./.github/actions/setup-bun
         with:
@@ -262,17 +170,36 @@ jobs:
       - name: Verify native deps were downloaded
         if: runner.os == 'Linux'
         run: |
-          echo "Checking apps/.deps directory:"
-          ls -la apps/.deps/ || echo "Directory doesn't exist"
-          echo "Checking apps/.deps/lib directory:"
-          ls -la apps/.deps/lib/ || echo "lib/ subdirectory doesn't exist - creating empty dir"
-          mkdir -p apps/.deps/lib
+          echo "=== Native dependencies verification ==="
+          if [ ! -d "apps/.deps/lib" ]; then
+            echo "ERROR: apps/.deps/lib directory does not exist"
+            exit 1
+          fi
 
-      - name: Build
-        working-directory: apps/tauri
+          echo "Contents of apps/.deps/lib/:"
+          ls -lh apps/.deps/lib/ | head -20
+
+          SO_COUNT=$(find apps/.deps/lib/ -name "*.so*" | wc -l)
+          echo "Found $SO_COUNT .so files"
+
+          if [ "$SO_COUNT" -eq 0 ]; then
+            echo "ERROR: No .so files found in apps/.deps/lib/"
+            exit 1
+          fi
+
+          echo "✓ Native dependencies verified"
+
+      - name: Set ARM crypto flags
+        if: ${{ matrix.settings.arch == 'aarch64' }}
+        shell: bash
         run: |
-          bun tauri build --ci -vv --target ${{ matrix.settings.target }} --bundles ${{ matrix.settings.bundles }}
+          echo "CFLAGS=-march=armv8.2-a+crypto" >> $GITHUB_ENV
+          echo "CXXFLAGS=-march=armv8.2-a+crypto" >> $GITHUB_ENV
+
+      - name: Build with tauri-action
+        uses: tauri-apps/tauri-action@v0
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           ENABLE_CODE_SIGNING: ${{ secrets.APPLE_CERTIFICATE }}
@@ -283,10 +210,15 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          CFLAGS: ${{ matrix.settings.arch == 'aarch64' && '-march=armv8.2-a+crypto' || '' }}
-          CXXFLAGS: ${{ matrix.settings.arch == 'aarch64' && '-march=armv8.2-a+crypto' || '' }}
           CPATH: ${{ github.workspace }}/apps/.deps/include
           C_INCLUDE_PATH: ${{ github.workspace }}/apps/.deps/include
+        with:
+          projectPath: apps/tauri
+          args: >-
+            --target ${{ matrix.settings.target }}
+            --bundles ${{ matrix.settings.bundles }}
+            ${{ matrix.settings.os == 'windows' && '--config src-tauri/tauri.windows.conf.json' || '' }}
+          includeUpdaterJson: true
 
       - name: Package frontend
         if: ${{ runner.os == 'Linux' }}
@@ -326,8 +258,10 @@ jobs:
             cli-*/*
             server-*/*
             */*.dmg
-            */*.msi
+            */*.exe
+            */*.nsis.zip
             */*.deb
             */*.tar.xz
             */*.tar.gz
             */*.sig
+            */*.json

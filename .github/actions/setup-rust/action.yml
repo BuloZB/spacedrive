@@ -15,12 +15,45 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Check if Rust is already installed
+      id: check-rust
+      shell: bash
+      run: |
+        if command -v rustc &> /dev/null && command -v rustup &> /dev/null; then
+          echo "installed=true" >> $GITHUB_OUTPUT
+        else
+          echo "installed=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: Install Rust
+      if: steps.check-rust.outputs.installed == 'false'
       id: toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ inputs.target }}
         components: clippy, rustfmt
+
+    - name: Ensure rustup binaries are used
+      shell: bash
+      run: |
+        # Ensure rustup's cargo/rustc are in PATH before Homebrew's
+        if [ -d "$HOME/.cargo/bin" ]; then
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        fi
+
+    - name: Add build target (self-hosted only)
+      if: ${{ inputs.target != '' && steps.check-rust.outputs.installed == 'true' }}
+      shell: bash
+      run: |
+        rustup target add ${{ inputs.target }}
+
+    - name: Verify Rust installation
+      shell: bash
+      run: |
+        rustc --version
+        rustup show
+        which rustc
+        which cargo
 
     - name: Cache Rust Dependencies
       if: ${{ inputs.restore-cache == 'true' }}
@@ -28,7 +61,7 @@ runs:
       with:
         key: ${{ inputs.target }}
         save-if: ${{ inputs.save-cache }}
-        shared-key: stable-cache
+        shared-key: stable-cache-v6
 
     # TODO: Re-enable cargo config generation when preprep.mjs is ported
     # For now, use cargo's defaults which work fine without native deps
