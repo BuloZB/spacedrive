@@ -53,7 +53,7 @@ export function useSyncMonitor() {
 			setState((prev) => ({
 				...prev,
 				currentState: normalizedState,
-				peers: data.peers.map((p) => ({
+				peers: data.peers.map((p: any): SyncPeerActivity => ({
 					deviceId: p.deviceId,
 					deviceName: p.deviceName,
 					isOnline: p.isOnline,
@@ -64,7 +64,7 @@ export function useSyncMonitor() {
 					watermarkLagMs: p.watermarkLagMs,
 				})),
 				errorCount: data.errorCount,
-				hasActivity: data.peers.some((p) => p.isOnline),
+				hasActivity: data.peers.some((p: any) => p.isOnline),
 			}));
 		}
 	}, [data]);

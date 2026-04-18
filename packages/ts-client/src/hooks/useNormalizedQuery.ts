@@ -26,7 +26,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useQuery, useQueryClient, QueryClient } from "@tanstack/react-query";
 import { useSpacedriveClient } from "./useClient";
 import type { Event } from "../generated/types";
-import type { SdPath } from "../types";
+import type { SdPath } from "../generated/types";
 import invariant from "tiny-invariant";
 import * as v from "valibot";
 import type { Simplify } from "type-fest";
@@ -423,7 +423,6 @@ export function filterBatchResources(
 		options.resourceType === "file" &&
 		!options.includeDescendants
 	) {
-		const beforeCount = filtered.length;
 		filtered = filtered.filter((resource: any) => {
 			// Get the scope path (must be Physical)
 			const scopeStr = (options.pathScope as any).Physical?.path;
@@ -506,7 +505,9 @@ export function updateSingleResource<O>(
 	}
 
 	queryClient.setQueryData<O>(queryKey, (oldData: any) => {
-		if (!oldData) return oldData;
+		if (!oldData) {
+			return { files: resourcesToUpdate, total_count: resourcesToUpdate.length, has_more: false } as O;
+		}
 
 		// Handle array responses
 		if (Array.isArray(oldData)) {
@@ -570,7 +571,13 @@ export function updateBatchResources<O>(
 		if (options.debug) {
 			console.log(`[useNormalizedQuery] ${wireMethod} setQueryData: oldData has`, Array.isArray(oldData) ? oldData.length : Object.keys(oldData || {}).join(','), `adding ${filteredResources.length} resources`);
 		}
-		if (!oldData) return oldData;
+		// If the query hasn't returned yet, seed the cache with the event data.
+		// This handles the race where the subscription's buffer replay delivers
+		// events before the initial query response arrives. Without this, the
+		// events would be silently dropped and the UI stays empty.
+		if (!oldData) {
+			return { files: filteredResources, total_count: filteredResources.length, has_more: false } as O;
+		}
 
 		// Handle array responses
 		if (Array.isArray(oldData)) {

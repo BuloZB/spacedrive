@@ -576,6 +576,58 @@ The Tauri app consists of:
 
 The app connects to `sd-daemon` which manages libraries and P2P connections. In dev mode, the daemon is started automatically by the `dev:with-daemon` script.
 
+## SpaceUI (Design System)
+
+Spacedrive's UI components come from [SpaceUI](https://github.com/spacedriveapp/spaceui), a standalone design system monorepo. SpaceUI provides shared primitives (Button, Input, Dialog, etc.), design tokens, form components, AI agent UI, and explorer components used across Spacedrive and Spacebot.
+
+### Packages
+
+| Package | Description |
+|---------|-------------|
+| `@spacedrive/tokens` | Design tokens, semantic color system, Tailwind v4 theme |
+| `@spacedrive/primitives` | Base UI components built on Radix UI |
+| `@spacedrive/forms` | Form field wrappers for react-hook-form |
+| `@spacedrive/ai` | AI agent interaction components |
+| `@spacedrive/explorer` | File management components |
+
+### Working on UI Alongside Spacedrive
+
+If you're contributing to both the UI layer and the app, clone SpaceUI as a sibling directory:
+
+```bash
+# From your workspace root (e.g., ~/Projects)
+git clone https://github.com/spacedriveapp/spacedrive
+git clone https://github.com/spacedriveapp/spaceui
+
+# Your directory should look like:
+# ~/Projects/
+# ├── spacedrive/
+# └── spaceui/
+```
+
+Then link SpaceUI for local development:
+
+```bash
+# Register SpaceUI packages globally
+cd spaceui
+bun install
+bun run link
+
+# Link into Spacedrive
+cd ../spacedrive
+bun link @spacedrive/tokens @spacedrive/primitives @spacedrive/ai
+```
+
+With linking active, changes you make in `spaceui/` are picked up immediately by Spacedrive's Vite dev server — no rebuild needed. The Vite configs in `apps/tauri/` and `apps/web/` already have the necessary source aliases, `optimizeDeps.exclude`, and `server.fs.allow` settings configured.
+
+### If You're Only Working on Spacedrive
+
+If you're not modifying SpaceUI itself, you don't need to clone it. Spacedrive consumes published `@spacedrive/*` packages from npm. Just run `bun install` and everything resolves from the registry.
+
+### SpaceUI Integration Guide
+
+For full details on how SpaceUI is integrated (Vite aliases, Tailwind `@source` scanning, React deduplication, publishing workflow), see the [SpaceUI Integration Guide](https://github.com/spacedriveapp/spaceui/blob/main/INTEGRATION.md).
+
 ## Extension Development
 
 Spacedrive supports WASM-based extensions for adding custom functionality. Extensions run in sandboxed environments with full access to the Spacedrive SDK.

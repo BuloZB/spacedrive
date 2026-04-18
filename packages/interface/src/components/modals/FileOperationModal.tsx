@@ -4,22 +4,17 @@ import {
 	Files,
 	FolderOpen,
 	Warning,
-	CheckCircle,
 	CircleNotch,
 	ArrowRight,
 	Copy as CopyIcon,
 	ArrowsLeftRight,
-	File as FileIcon,
-	Image,
-	FileText,
-	FilmStrip,
-	MusicNote,
 } from "@phosphor-icons/react";
 import {
 	Dialog,
 	dialogManager,
 	useDialog,
-} from "@sd/ui";
+	type UseDialogProps,
+} from "@spacedrive/primitives";
 import type { SdPath, File as FileType } from "@sd/ts-client";
 import { useLibraryMutation, useLibraryQuery } from "../../contexts/SpacedriveContext";
 import { File, FileStack } from "../../routes/explorer/File";
@@ -41,8 +36,8 @@ type DialogPhase =
 
 export function useFileOperationDialog() {
 	return (options: Omit<FileOperationDialogProps, "id">) => {
-		return dialogManager.create((props: FileOperationDialogProps) => (
-			<FileOperationDialog {...props} {...options} />
+		return dialogManager.create((props: UseDialogProps) => (
+			<FileOperationDialog {...(props as FileOperationDialogProps)} {...options} />
 		));
 	};
 }
@@ -59,14 +54,13 @@ function FileOperationDialog(props: FileOperationDialogProps) {
 	// Fetch file info for sources (up to 3 for FileStack)
 	const sourcePaths = props.sources.slice(0, 3).map(s =>
 		"Physical" in s ? s.Physical.path : null
-	).filter(Boolean);
+	).filter((p): p is string => p !== null);
 
 	const sourceFileQueries = sourcePaths.map(path =>
-		useLibraryQuery({
-			type: "files.by_path",
-			input: { path },
-			enabled: !!path,
-		})
+		useLibraryQuery(
+			{ type: "files.by_path", input: { path } },
+			{ enabled: !!path }
+		)
 	);
 
 	const sourceFiles = sourceFileQueries
@@ -74,15 +68,14 @@ function FileOperationDialog(props: FileOperationDialogProps) {
 		.filter((f): f is FileType => f !== undefined && f !== null);
 
 	// Fetch destination folder info
-	const destPath = "Physical" in props.destination
+	const destPath: string | null = "Physical" in props.destination
 		? props.destination.Physical.path
 		: null;
 
-	const { data: destFile } = useLibraryQuery({
-		type: "files.by_path",
-		input: { path: destPath },
-		enabled: !!destPath,
-	});
+	const { data: destFile } = useLibraryQuery(
+		{ type: "files.by_path", input: { path: destPath! } },
+		{ enabled: !!destPath }
+	);
 
 	// Check if any source is the same as destination
 	const hasSameSourceDest = props.sources.some((source) => {
@@ -213,7 +206,7 @@ function FileOperationDialog(props: FileOperationDialogProps) {
 				title="Operation Failed"
 				icon={<Warning size={20} weight="fill" className="text-red-500" />}
 				ctaLabel="Close"
-				onSubmit={handleCancel}
+				onSubmit={form.handleSubmit(handleCancel)}
 			>
 				<div className="flex flex-col gap-4 py-4">
 					<div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-md">
@@ -239,7 +232,7 @@ function FileOperationDialog(props: FileOperationDialogProps) {
 			title="File Operation"
 			icon={<Files size={20} weight="bold" />}
 			ctaLabel={operation === "copy" ? "Copy" : "Move"}
-			onSubmit={handleSubmit}
+			onSubmit={form.handleSubmit(handleSubmit)}
 			onCancelled={handleCancel}
 			formClassName="!min-w-[400px] !max-w-[400px]"
 		>
@@ -404,26 +397,3 @@ function getFileName(path: SdPath): string {
 	return "Unknown";
 }
 
-function formatDestination(path: SdPath): string {
-	if (!path || typeof path !== "object") {
-		return "Unknown";
-	}
-
-	if ("Physical" in path && path.Physical) {
-		return path.Physical.path || "Unknown";
-	}
-
-	if ("Cloud" in path && path.Cloud) {
-		return path.Cloud.path || "Unknown";
-	}
-
-	if ("Content" in path && path.Content) {
-		return `Content: ${path.Content.content_id}`;
-	}
-
-	if ("Sidecar" in path && path.Sidecar) {
-		return `Sidecar: ${path.Sidecar.entry_id}`;
-	}
-
-	return "Unknown";
-}

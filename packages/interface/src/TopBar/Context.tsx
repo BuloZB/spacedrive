@@ -24,10 +24,10 @@ interface TopBarContextValue {
 	unregisterItem: (id: string) => void;
 	updateItemWidth: (id: string, width: number) => void;
 
-	leftContainerRef: React.RefObject<HTMLDivElement> | null;
-	rightContainerRef: React.RefObject<HTMLDivElement> | null;
-	setLeftContainerRef: (ref: React.RefObject<HTMLDivElement>) => void;
-	setRightContainerRef: (ref: React.RefObject<HTMLDivElement>) => void;
+	leftContainerRef: React.RefObject<HTMLDivElement | null> | null;
+	rightContainerRef: React.RefObject<HTMLDivElement | null> | null;
+	setLeftContainerRef: (ref: React.RefObject<HTMLDivElement | null>) => void;
+	setRightContainerRef: (ref: React.RefObject<HTMLDivElement | null>) => void;
 
 	recalculate: () => void;
 }
@@ -38,8 +38,8 @@ export function TopBarProvider({ children }: { children: React.ReactNode }) {
 	const [items, setItems] = useState<Map<string, TopBarItem>>(new Map());
 	const [visibleItems, setVisibleItemsState] = useState<Set<string>>(new Set());
 	const [overflowItems, setOverflowItemsState] = useState<Map<TopBarPosition, TopBarItem[]>>(new Map());
-	const [leftContainerRef, setLeftContainerRef] = useState<React.RefObject<HTMLDivElement> | null>(null);
-	const [rightContainerRef, setRightContainerRef] = useState<React.RefObject<HTMLDivElement> | null>(null);
+	const [leftContainerRef, setLeftContainerRef] = useState<React.RefObject<HTMLDivElement | null> | null>(null);
+	const [rightContainerRef, setRightContainerRef] = useState<React.RefObject<HTMLDivElement | null> | null>(null);
 	const [recalculationTrigger, setRecalculationTrigger] = useState(0);
 	const elementsRef = useRef<Map<string, React.ReactNode>>(new Map());
 	const submenuContentRef = useRef<Map<string, React.ReactNode>>(new Map());

@@ -37,7 +37,11 @@ impl VolumeFingerprint {
 
 		// Trim trailing slash/backslash for consistency, but preserve root paths (e.g. "C:\", "/")
 		let trimmed = normalized.trim_end_matches(['/', '\\']);
-		let final_path = if trimmed.is_empty() { &normalized } else { trimmed };
+		let final_path = if trimmed.is_empty() {
+			&normalized
+		} else {
+			trimmed
+		};
 
 		hasher.update(final_path.as_bytes());
 		hasher.update(device_id.as_bytes());
@@ -320,18 +324,18 @@ pub struct Volume {
 	pub mount_points: Vec<PathBuf>,
 
 	/// Volume type/category
-	#[serde(skip_serializing_if = "is_unknown_volume_type")]
+	#[serde(default, skip_serializing_if = "is_unknown_volume_type")]
 	pub volume_type: VolumeType,
 
 	/// Mount type classification
 	pub mount_type: MountType,
 
 	/// Disk type (SSD, HDD, etc.)
-	#[serde(skip_serializing_if = "is_unknown_disk_type")]
+	#[serde(default, skip_serializing_if = "is_unknown_disk_type")]
 	pub disk_type: DiskType,
 
 	/// Filesystem type
-	#[serde(skip_serializing_if = "is_unknown_file_system")]
+	#[serde(default, skip_serializing_if = "is_unknown_file_system")]
 	pub file_system: FileSystem,
 
 	/// Total capacity in bytes
@@ -429,6 +433,12 @@ pub enum VolumeType {
 	Virtual,
 	/// Unknown or unclassified volumes
 	Unknown,
+}
+
+impl Default for VolumeType {
+	fn default() -> Self {
+		Self::Unknown
+	}
 }
 
 impl VolumeType {
@@ -531,6 +541,12 @@ pub enum DiskType {
 	Unknown,
 }
 
+impl Default for DiskType {
+	fn default() -> Self {
+		Self::Unknown
+	}
+}
+
 impl fmt::Display for DiskType {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
@@ -593,6 +609,12 @@ pub enum FileSystem {
 
 	/// Other filesystem
 	Other(String),
+}
+
+impl Default for FileSystem {
+	fn default() -> Self {
+		Self::Other("Unknown".to_string())
+	}
 }
 
 impl Identifiable for Volume {

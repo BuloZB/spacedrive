@@ -54,7 +54,6 @@ pub struct DeleteJob {
 	started_at: Instant,
 }
 
-
 impl Job for DeleteJob {
 	const NAME: &'static str = "delete_files";
 	const RESUMABLE: bool = true;
@@ -87,9 +86,10 @@ impl JobHandler for DeleteJob {
 		));
 
 		// Phase: Preparing
-		ctx.progress(Progress::Indeterminate(
-			format!("Validating {} targets", total_files),
-		));
+		ctx.progress(Progress::Indeterminate(format!(
+			"Validating {} targets",
+			total_files
+		)));
 
 		// Safety check for permanent deletion
 		if matches!(self.mode, DeleteMode::Permanent | DeleteMode::Secure)
@@ -128,9 +128,10 @@ impl JobHandler for DeleteJob {
 		ctx.log(format!("Using strategy: {}", strategy_description));
 
 		// Phase: Deleting
-		ctx.progress(Progress::Indeterminate(
-			format!("Deleting {} files ({})", total_files, mode_str),
-		));
+		ctx.progress(Progress::Indeterminate(format!(
+			"Deleting {} files ({})",
+			total_files, mode_str
+		)));
 
 		// Execute deletion using selected strategy
 		let results = strategy

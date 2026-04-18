@@ -7,8 +7,6 @@
 import { useState, useMemo } from "react";
 import { HeroStats } from "./HeroStats";
 import { DevicePanel } from "./DevicePanel";
-import { ProjectCards } from "./ProjectCards";
-import { ContentBreakdown } from "./ContentBreakdown";
 import { OverviewTopBar } from "./OverviewTopBar";
 import { useNormalizedQuery } from "../../contexts/SpacedriveContext";
 import type {
@@ -28,7 +26,6 @@ export function Overview() {
 	const {
 		data: libraryInfo,
 		isLoading,
-		error,
 	} = useNormalizedQuery<null, Library>({
 		query: "libraries.info",
 		input: null,
@@ -82,16 +79,16 @@ export function Overview() {
 					<div className="flex-1 overflow-auto p-3 space-y-4">
 						{/* Hero Stats */}
 						<HeroStats
-							totalStorage={stats.total_capacity}
+							totalStorage={stats.total_capacity ?? 0}
 							usedStorage={
-								stats.total_capacity - stats.available_capacity
+								(stats.total_capacity ?? 0) - (stats.available_capacity ?? 0)
 							}
 							totalFiles={Number(stats.total_files)}
 							locationCount={stats.location_count}
 							tagCount={stats.tag_count}
-							deviceCount={stats.device_count}
+							deviceCount={stats.device_count ?? 0}
 							uniqueContentCount={Number(
-								stats.unique_content_count,
+								stats.unique_content_count ?? 0,
 							)}
 							databaseSize={Number(stats.database_size)}
 							sidecarCount={Number(stats.sidecar_count ?? 0)}

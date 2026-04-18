@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect, memo } from "react";
-import clsx from "clsx";
+import { useState, useRef, memo } from "react";
 import type { File } from "@sd/ts-client";
 import { useServer } from "../../../contexts/ServerContext";
 

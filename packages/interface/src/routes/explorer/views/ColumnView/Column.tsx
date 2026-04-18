@@ -119,11 +119,9 @@ interface ColumnProps {
 export const Column = memo(function Column({
 	path,
 	isSelected,
-	selectedFileIds,
 	onSelectFile,
 	onNavigate,
 	nextColumnPath,
-	columnIndex,
 	isActive,
 	virtualFiles,
 }: ColumnProps) {

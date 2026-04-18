@@ -44,6 +44,7 @@ export function GroupHeader({
       await updateGroup.mutateAsync({
         group_id: group.id,
         name: newName.trim(),
+        is_collapsed: null,
       });
       setIsRenaming(false);
     } catch (error) {

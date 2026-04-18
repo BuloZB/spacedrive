@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import type { DirectorySortBy, File, FileSearchInput, FileSearchOutput } from "@sd/ts-client";
 import { useNormalizedQuery } from "../../../contexts/SpacedriveContext";
 import { useExplorer } from "../context";
-import type { SearchScope } from "../context";
 import { useVirtualListing } from "./useVirtualListing";
 
 export type FileSource = "search" | "virtual" | "directory" | "recents";

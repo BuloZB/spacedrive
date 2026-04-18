@@ -39,7 +39,7 @@ export const TableRow = memo(
 		files,
 		index,
 		isSelected,
-		isFocused,
+		isFocused: _isFocused,
 		isPreviousSelected,
 		isNextSelected,
 		measureRef,

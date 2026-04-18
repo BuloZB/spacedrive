@@ -55,7 +55,7 @@ export function VideoPlayer({
 	} | null>(null);
 	const hideControlsTimeout = useRef<number | undefined>(undefined);
 	const { zoom, zoomIn, zoomOut, reset, isZoomed, transform } =
-		useZoomPan(videoContainerRef);
+		useZoomPan(videoContainerRef as React.RefObject<HTMLElement>);
 
 	// Expose controls state to parent
 	useEffect(() => {
@@ -159,7 +159,7 @@ export function VideoPlayer({
 			clearTimeout(hideControlsTimeout.current);
 		}
 		if (playing) {
-			hideControlsTimeout.current = setTimeout(() => {
+			hideControlsTimeout.current = window.setTimeout(() => {
 				setShowControls(false);
 			}, 1000);
 		}

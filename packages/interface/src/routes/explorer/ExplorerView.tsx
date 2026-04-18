@@ -5,14 +5,14 @@ import {
 	SidebarSimple,
 	Tag as TagIcon
 } from '@phosphor-icons/react';
-import {TopBarButton, TopBarButtonGroup} from '@sd/ui';
+import {CircleButton, CircleButtonGroup} from '@spacedrive/primitives';
 import clsx from 'clsx';
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {TopBarItem, TopBarPortal} from '../../TopBar';
 import {ExpandableSearchButton} from './components/ExpandableSearchButton';
 import {PathBar} from './components/PathBar';
 import {VirtualPathBar} from './components/VirtualPathBar';
-import {useExplorer} from './context';
+import {useExplorer, type ViewMode} from './context';
 import {useVirtualListing} from './hooks/useVirtualListing';
 import {SearchToolbar} from './SearchToolbar';
 import {SortMenu, SortMenuPanel} from './SortMenu';
@@ -34,7 +34,6 @@ export function ExplorerView() {
 		setSidebarVisible,
 		inspectorVisible,
 		setInspectorVisible,
-		activeTabId,
 		tagModeActive,
 		setTagModeActive,
 		viewMode,
@@ -55,11 +54,20 @@ export function ExplorerView() {
 		mode,
 		enterSearchMode,
 		exitSearchMode,
-		currentFiles
+		currentFiles,
+		columnStack
 	} = useExplorer();
 
 	const {isVirtualView} = useVirtualListing();
 	const isPreviewActive = !!quickPreviewFileId;
+
+	// In column view, the path bar should reflect the deepest column, not the root
+	const pathBarPath = useMemo(() => {
+		if (viewMode === 'column' && columnStack.length > 1) {
+			return columnStack[columnStack.length - 1];
+		}
+		return currentPath;
+	}, [viewMode, columnStack, currentPath]);
 
 	const [searchValue, setSearchValue] = useState('');
 
@@ -90,15 +98,31 @@ export function ExplorerView() {
 		}
 	}, [mode.type]);
 
+	// When leaving column view, navigate to the deepest column so the
+	// new view shows the directory the user was actually looking at.
+	const handleViewModeChange = useCallback(
+		(newMode: string) => {
+			if (
+				viewMode === 'column' &&
+				newMode !== 'column' &&
+				columnStack.length > 1
+			) {
+				navigateToPath(columnStack[columnStack.length - 1]);
+			}
+			setViewMode(newMode as ViewMode);
+		},
+		[viewMode, columnStack, navigateToPath, setViewMode]
+	);
+
 	// Memoize submenu content to prevent infinite re-renders
 	const viewModeSubmenu = useMemo(
 		() => (
 			<ViewModeMenuPanel
 				viewMode={viewMode}
-				onViewModeChange={setViewMode}
+				onViewModeChange={handleViewModeChange}
 			/>
 		),
-		[viewMode, setViewMode]
+		[viewMode, handleViewModeChange]
 	);
 
 	const viewSettingsSubmenu = useMemo(
@@ -143,12 +167,12 @@ export function ExplorerView() {
 									setSidebarVisible(!sidebarVisible)
 								}
 							>
-								<TopBarButton
+								<CircleButton
 									icon={SidebarSimple}
 									onClick={() =>
 										setSidebarVisible(!sidebarVisible)
 									}
-									active={sidebarVisible}
+									active={!sidebarVisible}
 								/>
 							</TopBarItem>
 							<TopBarItem
@@ -156,27 +180,27 @@ export function ExplorerView() {
 								label="Navigation"
 								priority="high"
 							>
-								<TopBarButtonGroup>
-									<TopBarButton
+								<CircleButtonGroup>
+									<CircleButton
 										icon={ArrowLeft}
 										onClick={goBack}
 										disabled={!canGoBack}
 									/>
-									<TopBarButton
+									<CircleButton
 										icon={ArrowRight}
 										onClick={goForward}
 										disabled={!canGoForward}
 									/>
-								</TopBarButtonGroup>
+								</CircleButtonGroup>
 							</TopBarItem>
-							{currentPath && (
+							{pathBarPath && (
 								<TopBarItem
 									id="path-bar"
 									label="Path"
 									priority="high"
 								>
 									<PathBar
-										path={currentPath}
+										path={pathBarPath}
 										devices={devices}
 										onNavigate={navigateToPath}
 									/>
@@ -220,7 +244,7 @@ export function ExplorerView() {
 								priority="low"
 								onClick={() => setTagModeActive(!tagModeActive)}
 							>
-								<TopBarButton
+								<CircleButton
 									icon={TagIcon}
 									onClick={() =>
 										setTagModeActive(!tagModeActive)
@@ -236,7 +260,7 @@ export function ExplorerView() {
 							>
 								<ViewModeMenu
 									viewMode={viewMode}
-									onViewModeChange={setViewMode}
+									onViewModeChange={handleViewModeChange}
 								/>
 							</TopBarItem>
 							<TopBarItem
@@ -245,7 +269,9 @@ export function ExplorerView() {
 								priority="low"
 								submenuContent={viewSettingsSubmenu}
 							>
-								<ViewSettings totalFileCount={currentFiles.length} />
+								<ViewSettings
+									totalFileCount={currentFiles.length}
+								/>
 							</TopBarItem>
 							<TopBarItem
 								id="sort"
@@ -267,12 +293,12 @@ export function ExplorerView() {
 									setInspectorVisible(!inspectorVisible)
 								}
 							>
-								<TopBarButton
+								<CircleButton
 									icon={Info}
 									onClick={() =>
 										setInspectorVisible(!inspectorVisible)
 									}
-									active={inspectorVisible}
+									active={!inspectorVisible}
 								/>
 							</TopBarItem>
 						</>
@@ -280,15 +306,21 @@ export function ExplorerView() {
 				/>
 			)}
 
-			<div className={clsx(
-				"relative flex h-full w-full flex-col overflow-hidden pt-1.5",
-				viewMode === 'size' ? "bg-transparent" : "bg-app/80"
-			)}>
+			<div
+				className={clsx(
+					'relative flex h-full w-full flex-col overflow-hidden pt-1.5',
+					viewMode === 'size' ? 'bg-transparent' : 'bg-app/80'
+				)}
+			>
 				{mode.type === 'search' && <SearchToolbar />}
-				<div className={clsx(
-					"flex-1",
-					viewMode === 'size' ? "overflow-visible" : "overflow-auto"
-				)}>
+				<div
+					className={clsx(
+						'flex-1',
+						viewMode === 'size'
+							? 'overflow-visible'
+							: 'overflow-auto'
+					)}
+				>
 					<TabNavigationGuard>
 						{mode.type === 'search' ? (
 							<SearchView />

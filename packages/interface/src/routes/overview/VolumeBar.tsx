@@ -1,19 +1,10 @@
 import {ArrowDown, ArrowUp, DotsThree, EyeSlash} from '@phosphor-icons/react';
-import DatabaseIcon from '@sd/assets/icons/Database.png';
-import DriveAmazonS3Icon from '@sd/assets/icons/Drive-AmazonS3.png';
-import DriveDropboxIcon from '@sd/assets/icons/Drive-Dropbox.png';
-import DriveGoogleDriveIcon from '@sd/assets/icons/Drive-GoogleDrive.png';
-import DriveIcon from '@sd/assets/icons/Drive.png';
-import HDDIcon from '@sd/assets/icons/HDD.png';
-import ServerIcon from '@sd/assets/icons/Server.png';
-import type {Device, Volume} from '@sd/ts-client';
-import {TopBarButton} from '@sd/ui';
+import type {Volume} from '@sd/ts-client';
+import {CircleButton} from '@spacedrive/primitives';
 import {motion} from 'framer-motion';
 import {useEffect, useState} from 'react';
 import {useVolumeContextMenu} from '../../components/SpacesSidebar/hooks/useVolumeContextMenu';
 import {
-	useLibraryMutation,
-	useNormalizedQuery,
 	useSpacedriveClient
 } from '../../contexts/SpacedriveContext';
 import {useVolumeIndexingStore} from '../../stores/volumeIndexingStore';
@@ -41,11 +32,6 @@ export function VolumeBar({volume, index}: VolumeBarProps) {
 	const client = useSpacedriveClient();
 
 	const contextMenu = useVolumeContextMenu({volume: volume as any});
-
-	// Get the job ID for this volume from the store
-	const jobId = useVolumeIndexingStore((state) =>
-		state.getJobId(volume.fingerprint)
-	);
 
 	// Subscribe to job events for this volume
 	useEffect(() => {
@@ -137,15 +123,6 @@ export function VolumeBar({volume, index}: VolumeBarProps) {
 		};
 	}, [client, volume.fingerprint]);
 
-	// Get current device to check if this volume is local
-	const devicesQuery = useNormalizedQuery<any, Device[]>({
-		query: 'devices.list',
-		input: {include_offline: true, include_details: false},
-		resourceType: 'device'
-	});
-
-	const currentDevice = devicesQuery.data?.find((d) => d.is_current);
-
 	if (!volume.total_capacity) {
 		return null;
 	}
@@ -154,7 +131,7 @@ export function VolumeBar({volume, index}: VolumeBarProps) {
 	const availableBytes = volume.available_space || 0;
 	const usedBytes = totalCapacity - availableBytes;
 
-	const uniqueBytes = volume.unique_bytes ?? Math.floor(usedBytes * 0.7);
+	const uniqueBytes = (volume as any).unique_bytes ?? Math.floor(usedBytes * 0.7);
 	const duplicateBytes = usedBytes - uniqueBytes;
 
 	const uniquePercent = (uniqueBytes / totalCapacity) * 100;
@@ -205,7 +182,7 @@ export function VolumeBar({volume, index}: VolumeBarProps) {
 				{/* Icon */}
 				<img
 					src={iconSrc}
-					alt={volumeTypeStr}
+					alt={volumeTypeStr ?? undefined}
 					className="size-10 flex-shrink-0 opacity-80"
 				/>
 
@@ -287,7 +264,7 @@ export function VolumeBar({volume, index}: VolumeBarProps) {
 				</div>
 
 				{/* Three dots button - far right */}
-				<TopBarButton
+				<CircleButton
 					icon={DotsThree}
 					onClick={(e) => {
 						e.stopPropagation();

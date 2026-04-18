@@ -5,14 +5,13 @@ import {
 	useState,
 	useEffect,
 	useLayoutEffect,
-	useCallback,
 } from "react";
 import { useExplorer } from "../../context";
 import { useSelection } from "../../SelectionContext";
 import { useNormalizedQuery } from "../../../../contexts/SpacedriveContext";
 import type { File } from "@sd/ts-client";
 import { MediaViewItem } from "./MediaViewItem";
-import { DateHeader, DATE_HEADER_HEIGHT } from "./DateHeader";
+import { DateHeader } from "./DateHeader";
 import { formatDate, getItemDate, normalizeDateToMidnight } from "./utils";
 import { useExplorerFiles } from "../../hooks/useExplorerFiles";
 
@@ -29,12 +28,10 @@ export function MediaView() {
 	const { currentPath, viewSettings, sortBy, setSortBy, setCurrentFiles, mode } =
 		useExplorer();
 	const {
-		selectedFiles,
 		selectFile,
 		focusedIndex,
 		setFocusedIndex,
 		setSelectedFiles,
-		isSelected,
 		selectedFileIds,
 		restoreSelectionFromFiles,
 	} = useSelection();
@@ -127,7 +124,7 @@ export function MediaView() {
 	}, []);
 
 	// Get files from centralized hook (handles search mode automatically)
-	const { files: explorerFiles, source } = useExplorerFiles();
+	const { files: explorerFiles } = useExplorerFiles();
 	const isSearchMode = mode.type === "search";
 
 	// Query for all media files from current path with descendants (only when NOT in search mode)
@@ -143,7 +140,7 @@ export function MediaView() {
 				}
 			: null!,
 		resourceType: "file",
-		pathScope: currentPath,
+		pathScope: currentPath ?? undefined,
 		includeDescendants: true, // Recursive - show all media in subdirectories
 		enabled: !!currentPath && !isSearchMode,
 		// No resourceFilter needed - the backend query already filters for media

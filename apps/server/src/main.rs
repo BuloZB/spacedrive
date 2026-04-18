@@ -1,22 +1,40 @@
 use axum::{
+	body::Body,
 	extract::{FromRequestParts, Request, State},
-	http::StatusCode,
+	http::{header, StatusCode, Uri},
 	middleware::{self, Next},
-	response::{IntoResponse, Response},
+	response::{
+		sse::{Event as SseEvent, KeepAlive, Sse},
+		IntoResponse, Response,
+	},
 	routing::{get, post},
 	Json, Router,
 };
 use axum_extra::{headers::authorization::Basic, headers::Authorization, TypedHeader};
 use clap::Parser;
+use futures::stream::{Stream, StreamExt};
+use rust_embed::Embed;
 use secstr::SecStr;
-use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{
+	collections::HashMap, convert::Infallible, net::SocketAddr, path::PathBuf, sync::Arc,
+	time::Duration,
+};
 use tokio::{
 	io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
 	net::TcpStream,
 	signal,
-	sync::RwLock,
+	sync::{mpsc, RwLock},
 };
+use tokio_stream::wrappers::ReceiverStream;
 use tracing::{info, warn};
+
+/// Embedded web UI assets, built from `apps/web` via `bun run build`.
+/// In debug builds, files are read from disk at request time, so editing
+/// `apps/web/dist/` after a rebuild of the frontend is picked up live.
+/// In release builds, contents are baked into the binary.
+#[derive(Embed)]
+#[folder = "../web/dist/"]
+struct WebAssets;
 
 #[derive(Clone)]
 struct AppState {
@@ -64,6 +82,127 @@ async fn basic_auth(State(state): State<AppState>, request: Request, next: Next)
 /// Health check endpoint
 async fn health() -> &'static str {
 	"OK"
+}
+
+/// Serve the embedded web UI. Looks up the requested path in `WebAssets`;
+/// if not found, falls back to `index.html` so client-side routing in the
+/// SPA continues to work for deep links like `/explorer/foo/bar`.
+async fn serve_web(uri: Uri) -> Response {
+	let path = uri.path().trim_start_matches('/');
+	let lookup = if path.is_empty() { "index.html" } else { path };
+
+	if let Some(asset) = WebAssets::get(lookup) {
+		let mime = mime_guess::from_path(lookup).first_or_octet_stream();
+		return Response::builder()
+			.header(header::CONTENT_TYPE, mime.as_ref())
+			.body(Body::from(asset.data.into_owned()))
+			.expect("static asset response is well-formed");
+	}
+
+	if let Some(index) = WebAssets::get("index.html") {
+		return Response::builder()
+			.header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+			.body(Body::from(index.data.into_owned()))
+			.expect("index.html response is well-formed");
+	}
+
+	// Web bundle is missing entirely — sd-server was built without `apps/web/dist`.
+	Response::builder()
+		.status(StatusCode::NOT_FOUND)
+		.header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
+		.body(Body::from(
+			"Spacedrive web UI is not bundled in this build. \
+			 Run `bun run build` in `apps/web/` and rebuild sd-server.",
+		))
+		.expect("missing-bundle response is well-formed")
+}
+
+/// Bridge the daemon's event stream to a browser SSE connection.
+///
+/// Opens a dedicated TCP connection to the daemon, sends a Subscribe request
+/// covering the full set of broadcast events, and forwards each Event /
+/// LogMessage line as an SSE message. The browser receives a continuous
+/// stream of typed JSON payloads as long as the connection is held open.
+///
+/// When the SSE client disconnects, the spawned task's send fails and the
+/// task exits, dropping the daemon TCP connection.
+async fn events_sse(
+	State(state): State<AppState>,
+) -> Sse<impl Stream<Item = Result<SseEvent, Infallible>>> {
+	let (tx, rx) = mpsc::channel::<String>(64);
+	let socket_addr = state.socket_addr.clone();
+
+	tokio::spawn(async move {
+		if let Err(e) = bridge_daemon_events(socket_addr, tx).await {
+			tracing::warn!("event bridge ended: {}", e);
+		}
+	});
+
+	let stream = ReceiverStream::new(rx)
+		.map(|line| Ok::<SseEvent, Infallible>(SseEvent::default().data(line)));
+
+	Sse::new(stream).keep_alive(
+		KeepAlive::new()
+			.interval(Duration::from_secs(15))
+			.text("keep-alive"),
+	)
+}
+
+/// Connect to the daemon socket, subscribe to its event stream, and forward
+/// each Event/LogMessage line into the channel. Returns Err on transport
+/// failure or when the receiver is dropped.
+async fn bridge_daemon_events(
+	socket_addr: String,
+	tx: mpsc::Sender<String>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+	let stream = TcpStream::connect(&socket_addr).await?;
+	let (reader, mut writer) = stream.into_split();
+
+	// Subscribe with empty event_types meaning "all", and no filter.
+	let subscribe = serde_json::json!({
+		"Subscribe": {
+			"event_types": [],
+			"filter": null,
+		}
+	});
+	let line = serde_json::to_string(&subscribe)?;
+	writer.write_all(line.as_bytes()).await?;
+	writer.write_all(b"\n").await?;
+
+	let mut reader = BufReader::new(reader);
+	let mut buf = String::new();
+
+	loop {
+		buf.clear();
+		let n = reader.read_line(&mut buf).await?;
+		if n == 0 {
+			// Daemon closed the connection.
+			return Ok(());
+		}
+		let trimmed = buf.trim();
+		if trimmed.is_empty() {
+			continue;
+		}
+
+		// Forward only Event/LogMessage lines; skip Subscribed/Unsubscribed
+		// acks and anything else the daemon might emit.
+		match serde_json::from_str::<serde_json::Value>(trimmed) {
+			Ok(value) => {
+				let is_payload = value.get("Event").is_some() || value.get("LogMessage").is_some();
+				if !is_payload {
+					continue;
+				}
+				if tx.send(trimmed.to_string()).await.is_err() {
+					// Receiver dropped — client disconnected.
+					return Ok(());
+				}
+			}
+			Err(e) => {
+				tracing::debug!("daemon emitted non-JSON line: {}", e);
+				continue;
+			}
+		}
+	}
 }
 
 /// Proxy RPC requests to the daemon via TCP
@@ -210,16 +349,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let app = Router::new()
 		.route("/health", get(health))
 		.route("/rpc", post(daemon_rpc))
-		.route(
-			"/",
-			get(|| async { "Spacedrive Server - RPC only (no web UI)" }),
-		)
-		.fallback(|| async {
-			(
-				StatusCode::NOT_FOUND,
-				"404 Not Found: We're past the event horizon...",
-			)
-		})
+		.route("/events", get(events_sse))
+		.fallback(serve_web)
 		.layer(middleware::from_fn_with_state(state.clone(), basic_auth))
 		.with_state(state);
 
@@ -231,6 +362,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		"Spacedrive Server listening on http://localhost:{}",
 		args.port
 	);
+	info!("Web UI available at /");
 	info!("RPC endpoint available at /rpc");
 
 	// Setup graceful shutdown
@@ -310,19 +442,21 @@ async fn start_daemon_if_needed(
 		}
 	});
 
-	// Wait for daemon to be ready
-	for i in 0..30 {
+	// Wait for daemon to be ready. Networking init (Iroh + relays) can take a
+	// while when relays are unreachable, so we give it a generous window before
+	// failing — better to wait than to spuriously crash on a flaky relay.
+	for i in 0..300 {
 		tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 		if TcpStream::connect(&socket_addr).await.is_ok() {
 			info!("✓ Daemon started successfully");
 			return Ok(Some(Arc::new(RwLock::new(handle))));
 		}
-		if i == 10 {
+		if i == 30 {
 			warn!("Daemon taking longer than expected to start...");
 		}
 	}
 
-	Err("Daemon failed to start (connection not available after 3 seconds)".into())
+	Err("Daemon failed to start (connection not available after 30 seconds)".into())
 }
 
 /// Check if daemon is running by sending a ping

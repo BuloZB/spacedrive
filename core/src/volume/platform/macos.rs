@@ -12,10 +12,13 @@ use tokio::task;
 use tracing::debug;
 use uuid::Uuid;
 
-/// Detect non-APFS volumes using traditional df method
+/// Detect non-APFS volumes using traditional df method.
+/// `apfs_mount_points` contains mount points already detected by the APFS detector,
+/// so they can be skipped here to avoid duplicates.
 pub async fn detect_non_apfs_volumes(
 	device_id: Uuid,
 	config: &VolumeDetectionConfig,
+	apfs_mount_points: std::collections::HashSet<String>,
 ) -> VolumeResult<Vec<Volume>> {
 	let config = config.clone(); // Clone to move into async block
 	task::spawn_blocking(move || {
@@ -43,9 +46,9 @@ pub async fn detect_non_apfs_volumes(
 					mount_point = mount_point[2..].to_string();
 				}
 
-				// Skip APFS filesystems (already handled by APFS detection)
-				if filesystem.starts_with("/dev/disk") && mount_point.starts_with("/") {
-					continue; // Skip APFS volumes
+				// Skip volumes already detected by the APFS detector
+				if apfs_mount_points.contains(&mount_point) {
+					continue;
 				}
 
 				// Skip certain filesystems
@@ -113,7 +116,7 @@ pub async fn detect_non_apfs_volumes(
 				};
 
 				// Check if volume should be user-visible
-				let is_user_visible = should_be_user_visible(&mount_path, &name);
+				let is_user_visible = should_be_user_visible(&mount_path, &name, filesystem);
 
 				// Auto-track eligibility: Only Primary volumes that are user-visible
 				let auto_track_eligible =
@@ -163,6 +166,7 @@ pub async fn detect_non_apfs_volumes(
 					color: None,
 					icon: None,
 					error_message: None,
+					supports_block_cloning: false,
 				};
 				volumes.push(volume);
 			}
@@ -259,13 +263,31 @@ fn detect_filesystem(mount_point: &PathBuf) -> VolumeResult<FileSystem> {
 }
 
 /// Determine if a non-APFS volume should be visible to the user
-fn should_be_user_visible(mount_point: &PathBuf, name: &str) -> bool {
+fn should_be_user_visible(mount_point: &PathBuf, name: &str, filesystem: &str) -> bool {
 	let mount_str = mount_point.to_string_lossy();
+
+	// Hide autofs mounts (e.g., map auto_home)
+	if filesystem.starts_with("map ") {
+		debug!(
+			"VISIBILITY: Hiding autofs volume: name='{}' mount='{}'",
+			name, mount_str
+		);
+		return false;
+	}
 
 	// Hide home autofs mounts (e.g., /System/Volumes/Data/home)
 	if name.to_lowercase() == "home" && mount_str.ends_with("/home") {
 		debug!(
 			"VISIBILITY: Hiding home volume (non-APFS): name='{}' mount='{}'",
+			name, mount_str
+		);
+		return false;
+	}
+
+	// Hide all system volumes (under /System/Volumes/)
+	if mount_str.starts_with("/System/Volumes/") {
+		debug!(
+			"VISIBILITY: Hiding system volume: name='{}' mount='{}'",
 			name, mount_str
 		);
 		return false;
@@ -285,6 +307,15 @@ fn should_be_user_visible(mount_point: &PathBuf, name: &str) -> bool {
 	if mount_str.starts_with("/private/var/run/com.apple.security.cryptexd/") {
 		debug!(
 			"VISIBILITY: Hiding cryptex volume: name='{}' mount='{}'",
+			name, mount_str
+		);
+		return false;
+	}
+
+	// Hide mounted disk images (e.g., /Volumes/dmg.XXXXX)
+	if name.starts_with("dmg.") {
+		debug!(
+			"VISIBILITY: Hiding disk image volume: name='{}' mount='{}'",
 			name, mount_str
 		);
 		return false;

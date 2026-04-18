@@ -2,7 +2,6 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ArrowLeft, ArrowRight } from "@phosphor-icons/react";
 import { useEffect, useState, useMemo } from "react";
-import type { File } from "@sd/ts-client";
 import { ContentRenderer } from "./ContentRenderer";
 import {
 	VideoControls,
@@ -60,7 +59,7 @@ export function QuickPreviewFullscreen({
 
 	// No query needed - files are already loaded by the explorer views
 	const isLoading = false;
-	const error = null;
+	const error = null as Error | null;
 
 	// Find portal target on mount
 	useEffect(() => {

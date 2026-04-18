@@ -62,7 +62,7 @@ export function SelectionProvider({
 	// Local state for File objects (not serializable, can't be stored in TabManager)
 	const [selectedFiles, setSelectedFilesInternal] = useState<File[]>([]);
 	const [focusedIndex, setFocusedIndex] = useState(-1);
-	const [lastSelectedIndex, setLastSelectedIndex] = useState(-1);
+	const [, setLastSelectedIndex] = useState(-1);
 	const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
 
 	// Track the stored IDs for the active tab (separate from File objects)

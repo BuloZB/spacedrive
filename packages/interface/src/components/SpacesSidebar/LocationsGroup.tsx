@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { useNormalizedQuery } from "@sd/ts-client";
 import { SpaceItem } from "./SpaceItem";
 import { GroupHeader } from "./GroupHeader";
@@ -16,8 +15,6 @@ export function LocationsGroup({
   sortableAttributes,
   sortableListeners,
 }: LocationsGroupProps) {
-  const navigate = useNavigate();
-
   const { data: locationsData } = useNormalizedQuery({
     query: "locations.list",
     input: null, // Unit struct serializes as null, not {}
@@ -39,7 +36,7 @@ export function LocationsGroup({
       {/* Items */}
       {!isCollapsed && (
         <div className="space-y-0.5">
-          {locations.map((location, index) => (
+          {locations.map((location: any, index: number) => (
             <SpaceItem
               key={location.id}
               item={location}

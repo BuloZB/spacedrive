@@ -3,7 +3,7 @@ import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { convertFileSrc as tauriConvertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import type { Platform } from "@sd/interface/platform";
+import type { Platform } from "@sd/interface";
 import { beginDrag, onDragBegan, onDragMoved, onDragEntered, onDragLeft, onDragEnded } from "./lib/drag";
 
 let _isDragging = false;
@@ -150,6 +150,10 @@ export const platform: Platform = {
 		await invoke("close_window", { label });
 	},
 
+	async toggleVoiceOverlay() {
+		await invoke("toggle_voice_overlay");
+	},
+
 	async onWindowEvent(event: string, callback: () => void) {
 		const unlisten = await listen(event, () => {
 			callback();
@@ -245,6 +249,10 @@ export const platform: Platform = {
 		await invoke("apply_macos_styling");
 	},
 
+	async resizeWindow(label: string, width: number, height: number) {
+		await invoke("resize_overlay_window", { label, width, height });
+	},
+
 	async startDrag(config) {
 		const currentWindow = getCurrentWebviewWindow();
 		const sessionId = await beginDrag(
@@ -264,7 +272,7 @@ export const platform: Platform = {
 	},
 
 	async onDragEvent(event, callback) {
-		const handlers: Record<string, typeof onDragBegan> = {
+		const handlers: Record<string, (handler: (payload: any) => void) => Promise<() => void>> = {
 			began: onDragBegan,
 			moved: onDragMoved,
 			entered: onDragEntered,

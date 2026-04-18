@@ -1,8 +1,7 @@
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag as TagIcon, X } from '@phosphor-icons/react';
+import { Tag as TagIcon } from '@phosphor-icons/react';
 import clsx from 'clsx';
-import { Button } from '@sd/ui';
+import { Button } from '@spacedrive/primitives';
 import { useNormalizedQuery, useLibraryMutation } from '../../contexts/SpacedriveContext';
 import { useSelection } from './SelectionContext';
 import { useKeybind } from '../../hooks/useKeybind';
@@ -24,8 +23,6 @@ interface TagAssignmentModeProps {
  */
 export function TagAssignmentMode({ isActive, onExit }: TagAssignmentModeProps) {
 	const { selectedFiles } = useSelection();
-	const [currentPaletteIndex, setCurrentPaletteIndex] = useState(0);
-
 	const applyTag = useLibraryMutation('tags.apply');
 
 	// Fetch all tags (for now, we'll use the first 10 as the default palette)
@@ -74,7 +71,11 @@ export function TagAssignmentMode({ isActive, onExit }: TagAssignmentModeProps) 
 		try {
 			await applyTag.mutateAsync({
 				targets: { type: 'Content', ids: contentIds },
-				tag_ids: [tag.id]
+				tag_ids: [tag.id],
+				source: null,
+				confidence: null,
+				applied_context: null,
+				instance_attributes: null
 			});
 		} catch (err) {
 			console.error('Failed to apply tag:', err);

@@ -1,5 +1,4 @@
 import {CaretRight, Funnel} from '@phosphor-icons/react';
-import type {Tag} from '@sd/ts-client';
 import {Fragment} from 'react';
 import {useParams} from 'react-router-dom';
 import {useNormalizedQuery} from '../../contexts/SpacedriveContext';
@@ -90,7 +89,7 @@ export function TagView() {
 				<div className="border-app-line space-y-3 border-b px-4 py-3">
 					{/* Breadcrumb */}
 					<div className="flex items-center gap-2 text-sm">
-						{ancestors.map((ancestor, i) => (
+						{ancestors.map((ancestor: any) => (
 							<Fragment key={ancestor.id}>
 								<button
 									onClick={() =>
@@ -149,7 +148,7 @@ export function TagView() {
 							<span className="text-ink-dull text-xs font-semibold">
 								Children:
 							</span>
-							{children.map((child) => (
+							{children.map((child: any) => (
 								<button
 									key={child.id}
 									onClick={() =>
@@ -203,7 +202,7 @@ export function TagView() {
 							Related Tags
 						</h4>
 						<div className="space-y-1">
-							{related.map((relatedTag) => (
+							{related.map((relatedTag: any) => (
 								<button
 									key={relatedTag.id}
 									onClick={() =>

@@ -2,10 +2,10 @@ import {
 	House,
 	Clock,
 	Heart,
-	Folder,
 	HardDrive,
 	Tag as TagIcon,
 	Folders,
+	Database,
 } from "@phosphor-icons/react";
 import { Location } from "@sd/assets/icons";
 import type {
@@ -65,6 +65,16 @@ export function isPathItem(t: ItemType): t is { Path: { sd_path: SdPath } } {
 	return typeof t === "object" && "Path" in t;
 }
 
+export function isSourcesItem(t: ItemType): t is "Sources" {
+	return t === "Sources";
+}
+
+export function isSourceItem(
+	t: ItemType,
+): t is { Source: { source_id: string } } {
+	return typeof t === "object" && "Source" in t;
+}
+
 // Check if item is a "raw" location (legacy format with name/sd_path but no item_type)
 export function isRawLocation(
 	item: SpaceItemType | Record<string, unknown>,
@@ -78,10 +88,12 @@ function getItemIcon(itemType: ItemType): IconData {
 	if (isRecentsItem(itemType)) return { type: "component", icon: Clock };
 	if (isFavoritesItem(itemType)) return { type: "component", icon: Heart };
 	if (isFileKindsItem(itemType)) return { type: "component", icon: Folders };
+	if (isSourcesItem(itemType)) return { type: "component", icon: Database };
 	if (isLocationItem(itemType)) return { type: "image", icon: Location };
 	if (isVolumeItem(itemType)) return { type: "component", icon: HardDrive };
 	if (isTagItem(itemType)) return { type: "component", icon: TagIcon };
 	if (isPathItem(itemType)) return { type: "image", icon: Location };
+	if (isSourceItem(itemType)) return { type: "component", icon: Database };
 	return { type: "image", icon: Location };
 }
 
@@ -91,9 +103,10 @@ function getItemLabel(itemType: ItemType, resolvedFile?: File | null): string {
 	if (isRecentsItem(itemType)) return "Recents";
 	if (isFavoritesItem(itemType)) return "Favorites";
 	if (isFileKindsItem(itemType)) return "File Kinds";
-	if (isLocationItem(itemType)) return itemType.Location.name || "Unnamed Location";
-	if (isVolumeItem(itemType)) return itemType.Volume.name || "Unnamed Volume";
-	if (isTagItem(itemType)) return itemType.Tag.name || "Unnamed Tag";
+	if (isSourcesItem(itemType)) return "Sources";
+	if (isLocationItem(itemType)) return resolvedFile?.name || "Unnamed Location";
+	if (isVolumeItem(itemType)) return resolvedFile?.name || (itemType as { Volume: { volume_id: string; name?: string } }).Volume.name || "Unnamed Volume";
+	if (isTagItem(itemType)) return resolvedFile?.name || "Unnamed Tag";
 	if (isPathItem(itemType)) {
 		// Use resolved file name if available, otherwise extract from path
 		if (resolvedFile?.name) return resolvedFile.name;
@@ -106,6 +119,7 @@ function getItemLabel(itemType: ItemType, resolvedFile?: File | null): string {
 		}
 		return "Path";
 	}
+	if (isSourceItem(itemType)) return "Source";
 	return "Unknown";
 }
 
@@ -119,6 +133,7 @@ function getItemPath(
 	if (isRecentsItem(itemType)) return "/recents";
 	if (isFavoritesItem(itemType)) return "/favorites";
 	if (isFileKindsItem(itemType)) return "/file-kinds";
+	if (isSourcesItem(itemType)) return "/sources";
 
 	if (isLocationItem(itemType)) {
 		// Use explorer route with location's SD path (passed from item.sd_path)
@@ -149,6 +164,10 @@ function getItemPath(
 	if (isPathItem(itemType)) {
 		// Navigate to explorer with the SD path
 		return `/explorer?path=${encodeURIComponent(JSON.stringify(itemType.Path.sd_path))}`;
+	}
+
+	if (isSourceItem(itemType)) {
+		return `/sources/${itemType.Source.source_id}`;
 	}
 
 	return null;

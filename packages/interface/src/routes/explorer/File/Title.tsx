@@ -12,8 +12,8 @@ interface TitleProps {
 
 export function Title({
   file,
-  editable = false,
-  selected = false,
+  editable: _editable = false,
+  selected: _selected = false,
   onRename,
   className,
 }: TitleProps) {

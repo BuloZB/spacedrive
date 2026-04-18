@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type {
+	ContentKind,
 	File,
 	FileSearchInput,
 	FileSearchOutput,
@@ -31,12 +32,12 @@ export interface UseSearchFilesOptions {
 		tags?: { include: string[]; exclude: string[] } | null;
 		date_range?: {
 			field: "CreatedAt" | "ModifiedAt" | "AccessedAt" | "IndexedAt";
-			start?: Date | null;
-			end?: Date | null;
+			start?: string | null;
+			end?: string | null;
 		} | null;
 		size_range?: { min?: number | null; max?: number | null } | null;
 		locations?: string[] | null;
-		content_types?: string[] | null;
+		content_types?: ContentKind[] | null;
 		include_hidden?: boolean | null;
 		include_archived?: boolean | null;
 	};
@@ -104,8 +105,19 @@ export function useSearchFiles(
 			filters: {
 				file_types: filters?.file_types ?? null,
 				tags: filters?.tags ?? null,
-				date_range: filters?.date_range ?? null,
-				size_range: filters?.size_range ?? null,
+				date_range: filters?.date_range
+				? {
+						field: filters.date_range.field,
+						start: filters.date_range.start ?? null,
+						end: filters.date_range.end ?? null,
+					}
+				: null,
+				size_range: filters?.size_range
+				? {
+						min: filters.size_range.min ?? null,
+						max: filters.size_range.max ?? null,
+					}
+				: null,
 				locations: filters?.locations ?? null,
 				content_types: filters?.content_types ?? null,
 				include_hidden: filters?.include_hidden ?? null,

@@ -35,7 +35,7 @@ export const FileCard = memo(
 		fileIndex,
 		allFiles,
 		selected,
-		focused,
+		focused: _focused,
 		selectedFiles,
 		selectFile,
 	}: FileCardProps) {

@@ -1,4 +1,4 @@
-import { ShinyButton } from "@sd/ui";
+import { ShinyButton } from "@spacedrive/primitives";
 import { SpacedriveProvider } from "../contexts/SpacedriveContext";
 import { useLibraries } from "../hooks/useLibraries";
 import { useAllEvents } from "../hooks/useEvent";
@@ -24,7 +24,8 @@ interface AppProps {
 }
 
 function LibrariesView() {
-	const { data: libraries, isLoading, error, refetch } = useLibraries(true);
+	const { data: librariesRaw, isLoading, error, refetch } = useLibraries(true);
+	const libraries = librariesRaw as LibraryInfo[] | undefined;
 	const [lastEvent, setLastEvent] = useState<any>(null);
 	const [eventCount, setEventCount] = useState(0);
 	const [windowError, setWindowError] = useState<string | null>(null);
@@ -189,7 +190,6 @@ function LibrariesView() {
 						</h2>
 						<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
 							<ShinyButton
-								variant="accent"
 								onClick={() => refetch()}
 								disabled={isLoading}
 							>

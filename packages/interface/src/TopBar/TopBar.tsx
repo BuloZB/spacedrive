@@ -15,7 +15,7 @@ const MACOS_TRAFFIC_LIGHT_WIDTH = 90;
 const isMacOS = typeof navigator !== 'undefined' &&
 	(navigator.platform.toLowerCase().includes('mac') || navigator.userAgent.includes('Mac'));
 
-export const TopBar = memo(function TopBar({ sidebarWidth = 0, inspectorWidth = 0, isPreviewActive = false }: TopBarProps) {
+export const TopBar = memo(function TopBar({ sidebarWidth = 0, inspectorWidth = 0 }: TopBarProps) {
 	const containerRef = useOverflowCalculation();
 
 	const isSidebarCollapsed = sidebarWidth === 0;

@@ -4,6 +4,22 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Spacedrive</title>
+		<script>
+			if (typeof crypto.randomUUID !== "function") {
+				crypto.randomUUID = function () {
+					return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, function (c) {
+						return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);
+					});
+				};
+			}
+		</script>
+		<script type="importmap">
+			{
+				"imports": {
+					"@spacebot/api-client": "data:text/javascript,export default {};export const apiClient={ttsProfiles:()=>Promise.resolve([]),webChatSendAudio:()=>Promise.resolve({ok:false})};export function getEventsUrl(){return''};export function setServerUrl(){}"
+				}
+			}
+		</script>
 	</head>
 	<body>
 		<div id="root"></div>

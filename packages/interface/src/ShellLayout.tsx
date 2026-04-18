@@ -97,7 +97,7 @@ function ShellLayoutContent() {
 
 		(async () => {
 			try {
-				unlisten = await platform.onWindowEvent(
+				unlisten = await platform.onWindowEvent!(
 					'inspector-window-closed',
 					() => {
 						// Show embedded inspector when floating window closes

@@ -1,5 +1,4 @@
 export { ExplorerView } from "../routes/explorer/ExplorerView";
-export { Sidebar } from "../routes/explorer/Sidebar";
 export { ExplorerProvider, useExplorer } from "../routes/explorer/context";
 export * from "../routes/explorer/utils";
 export * from "../routes/explorer/File";

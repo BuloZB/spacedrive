@@ -1,4 +1,4 @@
-import type { JobStatus, JobListItem as GeneratedJobListItem, JsonValue, SdPath, ExtendedJobListItem, GenericProgress } from "@sd/ts-client";
+import type { JsonValue, ExtendedJobListItem, GenericProgress } from "@sd/ts-client";
 
 // Re-export for backwards compatibility
 export type JobListItem = ExtendedJobListItem;
@@ -78,7 +78,8 @@ export function getJobDisplayName(job: JobListItem): string {
       case "indexing.start":
         return "Indexing Location";
       case "volumes.index": {
-        const volumeName = job.action_context?.context?.volume_name;
+        const context = job.action_context?.context as Record<string, unknown> | null;
+        const volumeName = context?.volume_name;
         if (volumeName && typeof volumeName === 'string') {
           return `Indexing ${volumeName}`;
         }

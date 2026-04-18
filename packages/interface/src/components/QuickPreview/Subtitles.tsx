@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import type { File } from "@sd/ts-client";
 import { useServer } from "../../contexts/ServerContext";
 

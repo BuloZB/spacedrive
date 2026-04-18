@@ -1,14 +1,14 @@
+import type {Icon} from '@phosphor-icons/react';
 import {
 	Camera,
 	ChartPieSlice,
-	Clock,
 	Columns,
 	GridFour,
 	Rows,
 	Sparkle,
 	SquaresFour
 } from '@phosphor-icons/react';
-import {TopBarButton} from '@sd/ui';
+import {CircleButton} from '@spacedrive/primitives';
 import clsx from 'clsx';
 import {AnimatePresence, motion} from 'framer-motion';
 import {useEffect, useRef, useState} from 'react';
@@ -19,7 +19,7 @@ type ViewMode = 'list' | 'grid' | 'column' | 'media' | 'size' | 'knowledge';
 interface ViewOption {
 	id: ViewMode | 'timeline';
 	label: string;
-	icon: React.ElementType;
+	icon: Icon;
 	color: string;
 	keybind: string;
 }
@@ -173,14 +173,14 @@ export function ViewModeMenu({viewMode, onViewModeChange}: ViewModeMenuProps) {
 
 	return (
 		<>
-			<TopBarButton
+			<CircleButton
 				ref={buttonRef}
 				icon={SquaresFour}
 				onClick={() => setIsOpen(!isOpen)}
 				active={isOpen}
 			>
 				Views
-			</TopBarButton>
+			</CircleButton>
 
 			{isOpen &&
 				createPortal(

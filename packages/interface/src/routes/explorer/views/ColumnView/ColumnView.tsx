@@ -32,7 +32,7 @@ export function ColumnView() {
 	const { files: virtualFiles, isVirtualView } = useVirtualListing();
 
 	// Get files from centralized hook (handles search mode automatically)
-	const { files: searchFiles, source } = useExplorerFiles();
+	const { files: searchFiles } = useExplorerFiles();
 	const isSearchMode = mode.type === "search";
 	const {
 		selectedFiles,

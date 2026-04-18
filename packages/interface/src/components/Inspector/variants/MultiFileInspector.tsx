@@ -2,7 +2,6 @@ import {
 	Files,
 	Tag as TagIcon,
 	Calendar,
-	HardDrive,
 	Folder,
 } from "@phosphor-icons/react";
 import { useMemo } from "react";

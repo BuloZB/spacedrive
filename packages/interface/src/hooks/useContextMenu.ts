@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { Icon } from '@phosphor-icons/react';
 import { usePlatform } from '../contexts/PlatformContext';
 import type { KeybindId } from '../util/keybinds/registry';
@@ -132,8 +132,8 @@ export function useContextMenu(config: ContextMenuConfig): ContextMenuResult {
 				try {
 					// Call the platform-specific context menu handler
 					// This will be provided by the Tauri app wrapper
-					if (window.__SPACEDRIVE__?.showContextMenu) {
-						await window.__SPACEDRIVE__.showContextMenu(visibleItems, {
+					if ((window as any).__SPACEDRIVE__?.showContextMenu) {
+						await (window as any).__SPACEDRIVE__.showContextMenu(visibleItems, {
 							x: e.clientX,
 							y: e.clientY,
 						});

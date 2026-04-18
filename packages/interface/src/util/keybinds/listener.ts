@@ -1,4 +1,4 @@
-import type { KeyCombo, Modifier, Platform } from './types';
+import type { KeyCombo, Platform } from './types';
 import { getCurrentPlatform, isInputFocused, normalizeModifiers } from './platform';
 
 export type KeybindHandler = () => void | Promise<void>;

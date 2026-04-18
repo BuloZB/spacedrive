@@ -1,4 +1,4 @@
-import { WifiHigh, WifiNoneIcon, WifiSlashIcon, Trash } from "@phosphor-icons/react";
+import { WifiHigh, WifiSlashIcon, Trash } from "@phosphor-icons/react";
 import { useNormalizedQuery, getDeviceIcon, useCoreMutation } from "../../contexts/SpacedriveContext";
 import { useExplorer } from "../../routes/explorer/context";
 import { SpaceItem } from "./SpaceItem";
@@ -72,9 +72,9 @@ export function DevicesGroup({
 		];
 
 		// Show platform-appropriate context menu
-		if (window.__SPACEDRIVE__?.showContextMenu) {
+		if ((window as any).__SPACEDRIVE__?.showContextMenu) {
 			// Tauri native menu
-			await window.__SPACEDRIVE__.showContextMenu(items, {
+			await (window as any).__SPACEDRIVE__.showContextMenu(items, {
 				x: e.clientX,
 				y: e.clientY,
 			});

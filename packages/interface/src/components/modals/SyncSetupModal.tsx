@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   ArrowsClockwise,
@@ -13,7 +13,7 @@ import type {
   PairedDeviceInfo,
   RemoteLibraryInfo,
 } from "@sd/ts-client";
-import { Button, Dialog, dialogManager, useDialog } from "@sd/ui";
+import { Button, Dialog, dialogManager, useDialog } from "@spacedrive/primitives";
 import { useCoreQuery, useCoreMutation, useSpacedriveClient } from "../../contexts/SpacedriveContext";
 
 interface SyncSetupDialogProps {
@@ -120,7 +120,7 @@ function SyncSetupDialog(props: SyncSetupDialogProps) {
 
     // Build the LibrarySyncAction
     let action: LibrarySyncAction;
-    let remoteLibraryId: string | undefined;
+    let remoteLibraryId: string | null = null;
 
     // Get current library info
     const currentLibrary = coreStatus?.libraries.find(
@@ -210,7 +210,7 @@ function SyncSetupDialog(props: SyncSetupDialogProps) {
       title="Setup Library Sync"
       description="Sync your library with another device"
       icon={<ArrowsClockwise />}
-      closeBtn
+      cancelBtn
       hideButtons
     >
       <div className="min-h-[400px]">{renderContent()}</div>

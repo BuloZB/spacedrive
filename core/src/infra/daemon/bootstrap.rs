@@ -157,13 +157,22 @@ fn initialize_tracing_with_file_logging(
 			}
 		}
 
-		// Set up layered subscriber with all streams plus the log event streaming layer
+		// Set up layered subscriber with all streams plus the log event streaming layer.
+		// If a tracing subscriber is already installed (e.g. when the daemon is embedded
+		// inside sd-server which sets up its own basic subscriber first), fall back to
+		// the existing one — losing the daemon's file logging is preferable to crashing.
 		if let Err(e) = tracing_subscriber::registry()
 			.with(layers)
 			.with(LogEventLayer::new())
 			.try_init()
 		{
-			result = Err(format!("Failed to initialize tracing: {}", e).into());
+			eprintln!(
+				"Note: daemon tracing setup skipped — a global subscriber is already \
+				 installed by the host process. File logging to {}/daemon.log is disabled. \
+				 Underlying error: {}",
+				logs_dir.display(),
+				e
+			);
 		}
 	});
 

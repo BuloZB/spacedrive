@@ -29,7 +29,7 @@ export interface JobConfig {
  * ```
  */
 export function useJobDispatch() {
-	const dispatchJob = useLibraryMutation("jobs.dispatch");
+	const dispatchJob = useLibraryMutation("jobs.dispatch" as any);
 
 	const runJob = async (jobType: string, params: any) => {
 		try {

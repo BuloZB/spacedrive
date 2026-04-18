@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import { UnixSocketTransport, TcpSocketTransport, TauriTransport } from "./transport";
 import type { Event } from "./generated/types";
-import { DEFAULT_EVENT_SUBSCRIPTION } from "./event-filter";
+
 import { SubscriptionManager } from "./subscriptionManager";
 
 /**
@@ -244,7 +244,7 @@ export class SpacedriveClient extends SimpleEventEmitter {
 	async subscribeFiltered(
 		filter: {
 			resource_type?: string;
-			path_scope?: import("./types").SdPath;
+			path_scope?: import("./generated/types").SdPath;
 			library_id?: string;
 			include_descendants?: boolean;
 			event_types?: string[];

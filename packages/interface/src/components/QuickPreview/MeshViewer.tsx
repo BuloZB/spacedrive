@@ -9,7 +9,7 @@ import { File as FileComponent } from "../../routes/explorer/File";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
 import * as GaussianSplats3D from "@mkkellogg/gaussian-splats-3d";
 import * as THREE from "three";
-import { TopBarButton, TopBarButtonGroup } from "@sd/ui";
+import { CircleButton } from "@spacedrive/primitives";
 import {
 	Play,
 	Pause,
@@ -72,15 +72,12 @@ function MeshScene({ url }: MeshSceneProps) {
 	}
 
 	return (
-		// @ts-expect-error - React Three Fiber JSX types
 		<mesh ref={meshRef} geometry={geometry}>
-			{/* @ts-expect-error - React Three Fiber JSX types */}
 			<meshStandardMaterial
 				color="#888888"
 				metalness={0.3}
 				roughness={0.7}
 			/>
-			{/* @ts-expect-error - React Three Fiber JSX types */}
 		</mesh>
 	);
 }
@@ -167,7 +164,7 @@ function GaussianSplatViewer({
 					showLoadingUI: false,
 					progressiveLoad: true,
 					splatAlphaRemovalThreshold: 5,
-					onProgress: (percent, label, status) => {
+					onProgress: (percent: number, label: string, _status: string) => {
 						console.log(
 							`[GaussianSplatViewer] Load progress: ${percent}% - ${label}`,
 						);
@@ -815,7 +812,7 @@ export function MeshViewerUI({
 		<>
 			{/* Button controls */}
 			<div className="pointer-events-auto absolute bottom-4 right-4 flex gap-1">
-				<TopBarButton
+				<CircleButton
 					icon={Sliders}
 					onClick={() => setShowSettings(!showSettings)}
 					title="Settings"
@@ -823,13 +820,13 @@ export function MeshViewerUI({
 					activeAccent={true}
 				/>
 				{onResetFocalPoint && (
-					<TopBarButton
+					<CircleButton
 						icon={ArrowCounterClockwise}
 						onClick={onResetFocalPoint}
 						title="Reset focal point"
 					/>
 				)}
-				<TopBarButton
+				<CircleButton
 					icon={autoRotate ? Pause : Play}
 					onClick={() => setAutoRotate(!autoRotate)}
 					title={autoRotate ? "Pause" : "Play"}
@@ -917,7 +914,7 @@ export function MeshViewerUI({
 
 export function MeshViewer({
 	file,
-	onZoomChange,
+	onZoomChange: _onZoomChange,
 	splatUrl,
 	onSplatLoaded,
 	autoRotate: autoRotateProp = true,
@@ -1105,16 +1102,13 @@ export function MeshViewer({
 			) : (
 				<Canvas style={{ width: "100%", height: "100%" }}>
 					<PerspectiveCamera makeDefault position={[0, 0, 5]} />
-					{/* @ts-expect-error - React Three Fiber JSX types */}
 					<ambientLight intensity={0.5} />
-					{/* @ts-expect-error - React Three Fiber JSX types */}
 					<spotLight
 						position={[10, 10, 10]}
 						angle={0.3}
 						penumbra={0.5}
 						intensity={1}
 					/>
-					{/* @ts-expect-error - React Three Fiber JSX types */}
 					<spotLight
 						position={[-10, -10, -10]}
 						angle={0.3}

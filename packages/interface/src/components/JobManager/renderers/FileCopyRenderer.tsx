@@ -8,7 +8,7 @@ import type { Device } from "@sd/ts-client";
 /**
  * Map strategy name to display label (enables i18n in future)
  */
-function getStrategyLabel(strategyName: string | undefined, isMove: boolean): string | null {
+function getStrategyLabel(strategyName: string | undefined, _isMove: boolean): string | null {
 	if (!strategyName) return null;
 
 	switch (strategyName) {
@@ -47,11 +47,11 @@ function extractFirstFileName(job: JobRendererProps["job"]): string {
 			if (
 				typeof firstPath === "object" &&
 				firstPath !== null &&
-				"Local" in firstPath
+				"Physical" in firstPath
 			) {
-				const local = firstPath.Local;
-				if (typeof local === "object" && local !== null && "path" in local) {
-					const path = String(local.path);
+				const physical = firstPath.Physical;
+				if (typeof physical === "object" && physical !== null && "path" in physical) {
+					const path = String(physical.path);
 					return path.split("/").pop() || path;
 				}
 			}
@@ -117,7 +117,7 @@ function FileCopyCardContent({
 	onCancel,
 }: JobRendererProps) {
 	const generic = job.generic_progress;
-	const metadata = generic?.metadata as any;
+	const metadata = (generic as any)?.metadata as any;
 	const strategyName = metadata?.strategy?.strategy_name;
 	const strategyLabel = getStrategyLabel(strategyName, job.action_context?.action_type === "files.move");
 

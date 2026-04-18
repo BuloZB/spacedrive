@@ -1,3 +1,4 @@
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
 	Sparkle,
 	Tag as TagIcon,
@@ -19,7 +20,7 @@ import { useMemo } from "react";
 import clsx from "clsx";
 import { File as FileComponent } from "../File";
 
-const CONTENT_KIND_ICONS: Record<ContentKind, React.ElementType> = {
+const CONTENT_KIND_ICONS: Record<ContentKind, PhosphorIcon> = {
 	image: Image,
 	video: FilmStrip,
 	audio: MusicNote,
@@ -45,6 +46,7 @@ const CONTENT_KIND_ICONS: Record<ContentKind, React.ElementType> = {
 	shortcut: FileIcon,
 	package: Folder,
 	model_entry: FileIcon,
+	memory: FileIcon,
 	unknown: FileIcon,
 };
 
@@ -74,6 +76,7 @@ const CONTENT_KIND_LABELS: Record<ContentKind, string> = {
 	shortcut: "Shortcuts",
 	package: "Packages",
 	model_entry: "Models",
+	memory: "Memory",
 	unknown: "Other",
 };
 
@@ -295,7 +298,7 @@ function Section({
 	children,
 }: {
 	title: string;
-	icon: React.ElementType;
+	icon: PhosphorIcon;
 	children: React.ReactNode;
 }) {
 	return (

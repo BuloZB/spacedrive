@@ -7,7 +7,7 @@ import { SELECTABLE_DATA_ATTRIBUTE } from "../../components/DragSelect/utils";
 interface DragSelectProps {
 	children: ReactNode;
 	files: File[];
-	scrollRef: React.RefObject<HTMLElement>;
+	scrollRef: React.RefObject<HTMLElement | null>;
 }
 
 const CHROME_REGEX = /Chrome/;
@@ -62,7 +62,7 @@ export function DragSelect({ children, files, scrollRef }: DragSelectProps) {
 				continueSelect={false}
 				continueSelectWithoutDeselect={false}
 				toggleContinueSelect={[["shift"], [isWindows ? "ctrl" : "meta"]]}
-				toggleContinueSelectWithoutDeselect={false}
+				toggleContinueSelectWithoutDeselect={[] as string[][]}
 				hitRate={0}
 				ratio={0}
 				dragCondition={(e) => {

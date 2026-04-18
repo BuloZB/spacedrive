@@ -557,7 +557,7 @@ function QRCodeCanvas({ data, size }: { data: string; size: number }) {
         width: size,
         margin: 1,
         errorCorrectionLevel: "M",
-      }).catch((err) => {
+      }).catch((err: unknown) => {
         console.error("Failed to generate QR code:", err);
       });
     }

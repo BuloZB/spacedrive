@@ -1,7 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowLeft, ArrowRight } from '@phosphor-icons/react';
 import { useEffect } from 'react';
-import type { File } from '@sd/ts-client';
 import { useLibraryQuery } from '../../contexts/SpacedriveContext';
 import { Inspector } from '../Inspector/Inspector';
 import { ContentRenderer } from './ContentRenderer';
@@ -138,7 +137,7 @@ export function QuickPreviewModal({
 
 									{/* Inspector Sidebar */}
 									<div className="w-[280px] min-w-[280px] overflow-hidden border-l border-app-line bg-app">
-										<Inspector variant={{ type: "file", file }} showPopOutButton={false} />
+										<Inspector showPopOutButton={false} />
 									</div>
 								</div>
 

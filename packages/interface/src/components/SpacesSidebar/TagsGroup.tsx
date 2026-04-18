@@ -164,7 +164,7 @@ export function TagsGroup({
 					) : tags.length === 0 ? (
 						<div className="px-2 py-1 text-xs text-sidebar-ink-faint">No tags yet</div>
 					) : (
-						tags.map((tag) => <TagItem key={tag.id} tag={tag} />)
+						tags.map((tag: Tag) => <TagItem key={tag.id} tag={tag} />)
 					)}
 
 					{/* Create Tag Button/Input */}

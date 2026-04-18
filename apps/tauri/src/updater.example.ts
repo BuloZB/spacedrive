@@ -5,7 +5,7 @@
  * You can adapt this code to fit your UI/UX requirements.
  */
 
-import { check, Update } from '@tauri-apps/plugin-updater';
+import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 
 export interface UpdateCheckResult {

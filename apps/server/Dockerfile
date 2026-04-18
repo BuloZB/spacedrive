@@ -1,5 +1,10 @@
 # Spacedrive Server Docker Image
-# Single-stage build for RPC-only server (no web UI)
+# Builds sd-server with the apps/web bundle embedded via rust-embed.
+#
+# Prerequisite: `apps/web/dist/` must exist in the build context — run
+# `bun install && bun run build` in `apps/web/` before `docker build`.
+# CI workflows and the unified spacedrive+spacebot image handle this
+# automatically; this Dockerfile assumes the dist directory is ready.
 
 FROM debian:bookworm-slim AS builder
 
@@ -34,6 +39,9 @@ COPY .cargo ./.cargo
 COPY core ./core
 COPY crates ./crates
 COPY apps/server ./apps/server
+
+# Embedded web UI assets — must be pre-built before `docker build` runs.
+COPY apps/web/dist ./apps/web/dist
 
 # Build server with media processing features
 RUN --mount=type=cache,target=/root/.cargo/registry \

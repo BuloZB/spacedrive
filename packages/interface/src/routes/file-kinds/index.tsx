@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { useNormalizedQuery } from "../../contexts/SpacedriveContext";
 import type { ContentKind } from "@sd/ts-client";
 import { getIcon } from "@sd/assets/util";
@@ -63,8 +62,6 @@ function formatFileCount(count: number): string {
  * Shows content kinds (images, videos, audio, etc.) with file counts
  */
 export function FileKindsView() {
-	const navigate = useNavigate();
-
 	// Fetch content kind statistics
 	const { data: statsData, isLoading } = useNormalizedQuery<
 		Record<string, never>,

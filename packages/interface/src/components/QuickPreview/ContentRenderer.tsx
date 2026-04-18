@@ -1,4 +1,4 @@
-import type { File, ContentKind } from "@sd/ts-client";
+import type { File } from "@sd/ts-client";
 import { getContentKind } from "@sd/ts-client";
 import { File as FileComponent } from "../../routes/explorer/File";
 import { formatBytes } from "../../routes/explorer/utils";
@@ -27,9 +27,8 @@ import { AudioPlayer } from "./AudioPlayer";
 import { useZoomPan } from "./useZoomPan";
 import { TextViewer } from "./TextViewer";
 import { WithPrismTheme } from "./prism";
-import { SplatShimmerEffect } from "./SplatShimmerEffect";
 import { sounds } from "@sd/assets/sounds";
-import { TopBarButton } from "@sd/ui";
+import { CircleButton } from "@spacedrive/primitives";
 import { DirectoryPreview } from "./DirectoryPreview";
 
 const MeshViewer = lazy(() =>
@@ -57,10 +56,17 @@ function ImageRenderer({ file, onZoomChange }: ContentRendererProps) {
 	const [showSplat, setShowSplat] = useState(false);
 	const [splatLoaded, setSplatLoaded] = useState(false);
 	const { zoom, zoomIn, zoomOut, reset, isZoomed, transform } =
-		useZoomPan(containerRef);
+		useZoomPan(containerRef as React.RefObject<HTMLElement>);
 
 	// Track MeshViewer controls state
-	const [meshControls, setMeshControls] = useState({
+	const [meshControls, setMeshControls] = useState<{
+		autoRotate: boolean;
+		swayAmount: number;
+		swaySpeed: number;
+		cameraDistance: number;
+		isGaussianSplat: boolean;
+		onResetFocalPoint?: () => void;
+	}>({
 		autoRotate: true,
 		swayAmount: 0.25,
 		swaySpeed: 0.5,
@@ -250,7 +256,7 @@ function ImageRenderer({ file, onZoomChange }: ContentRendererProps) {
 				<div className="relative w-full h-full z-30 pointer-events-none">
 					{/* Toggle button */}
 					<div className="absolute top-4 left-4 pointer-events-auto">
-						<TopBarButton
+						<CircleButton
 							icon={Cube}
 							onClick={() => {
 								setShowSplat(false);
@@ -311,7 +317,7 @@ function ImageRenderer({ file, onZoomChange }: ContentRendererProps) {
 			{/* Splat Toggle (top-left) */}
 			{hasSplat && (
 				<div className="absolute top-4 left-4 z-10">
-					<TopBarButton
+					<CircleButton
 						icon={Cube}
 						onClick={() => {
 							sounds.splatTrigger();

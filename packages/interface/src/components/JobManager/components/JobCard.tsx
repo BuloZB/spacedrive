@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Pause, Play, X, CaretDown } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { JobListItem } from "../types";
 import type { SpeedSample } from "../hooks/useJobs";
@@ -25,9 +24,9 @@ export function JobCard({ job, onPause, onResume, onCancel, getSpeedHistory }: J
   const statusBadge = getStatusBadge(job);
 
   const showActionButton = job.status === "running" || job.status === "paused";
-  const canPause = job.status === "running" && onPause;
-  const canResume = job.status === "paused" && onResume;
-  const canCancel = (job.status === "running" || job.status === "paused") && onCancel;
+  const canPause = job.status === "running" && !!onPause;
+  const canResume = job.status === "paused" && !!onResume;
+  const canCancel = (job.status === "running" || job.status === "paused") && !!onCancel;
 
   const handleAction = (e: React.MouseEvent) => {
     e.stopPropagation();

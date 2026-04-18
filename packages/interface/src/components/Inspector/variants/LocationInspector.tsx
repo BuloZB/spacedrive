@@ -5,7 +5,6 @@ import {
 	ClockCounterClockwise,
 	HardDrive,
 	DotsThree,
-	Hash,
 	Sparkle,
 	Image,
 	MagnifyingGlass,
@@ -33,7 +32,7 @@ import {
 } from "../Inspector";
 import clsx from "clsx";
 import type { Location } from "@sd/ts-client";
-import { Button, Dialog, dialogManager, useDialog, TopBarButton, type UseDialogProps } from "@sd/ui";
+import { Button, Dialog, dialogManager, useDialog, CircleButton, type UseDialogProps } from "@spacedrive/primitives";
 import { useLibraryMutation } from "../../../contexts/SpacedriveContext";
 import { useContextMenu } from "../../../hooks/useContextMenu";
 import LocationIcon from "@sd/assets/icons/Location.png";
@@ -170,7 +169,7 @@ function OverviewTab({ location }: { location: Location }) {
 			{/* Action Buttons */}
 			<div className="px-2 mb-5 flex gap-2">
 				{isOverview && (
-					<TopBarButton
+					<CircleButton
 						icon={FolderOpen}
 						onClick={() => {
 							const encodedPath = encodeURIComponent(JSON.stringify(location.sd_path));
@@ -179,10 +178,10 @@ function OverviewTab({ location }: { location: Location }) {
 						className="flex-1"
 					>
 						Open Location
-					</TopBarButton>
+					</CircleButton>
 				)}
 
-				<TopBarButton
+				<CircleButton
 					icon={ArrowsClockwise}
 					onClick={reindexMenu.show}
 					title="Reindex location"
@@ -191,16 +190,16 @@ function OverviewTab({ location }: { location: Location }) {
 
 			{/* Details */}
 			<Section title="Details" icon={Info}>
-				<InfoRow label="Path" value={location.path} mono />
-			{location.total_file_count != null && (
+				<InfoRow label="Path" value={'Physical' in location.sd_path ? location.sd_path.Physical.path : 'Cloud' in location.sd_path ? location.sd_path.Cloud.path : location.name} mono />
+			{location.file_count != null && (
 				<InfoRow
 					label="Total Files"
-					value={location.total_file_count?.toLocaleString() ?? "0"}
+					value={location.file_count?.toLocaleString() ?? "0"}
 				/>
 			)}
 				<InfoRow
 					label="Total Size"
-					value={formatBytes(location.total_byte_size)}
+					value={formatBytes(location.total_size)}
 				/>
 				<InfoRow label="Scan State" value={formatScanState(location.scan_state)} />
 				{location.last_scan_at && (
@@ -304,6 +303,7 @@ function JobsTab({ location }: { location: Location }) {
 	) => {
 		await updateLocation.mutateAsync({
 			id: location.id,
+			name: null,
 			job_policies: {
 				...location.job_policies,
 				...updates,
@@ -333,7 +333,10 @@ function JobsTab({ location }: { location: Location }) {
 						onToggle={(enabled) =>
 							updatePolicy({
 								thumbnail: {
-									...(location.job_policies?.thumbnail ?? {}),
+									sizes: [],
+									quality: 80,
+									regenerate: false,
+									...location.job_policies?.thumbnail,
 									enabled,
 								},
 							})
@@ -354,7 +357,8 @@ function JobsTab({ location }: { location: Location }) {
 						onToggle={(enabled) =>
 							updatePolicy({
 								thumbstrip: {
-									...(location.job_policies?.thumbstrip ?? {}),
+									regenerate: false,
+									...location.job_policies?.thumbstrip,
 									enabled,
 								},
 							})
@@ -376,7 +380,8 @@ function JobsTab({ location }: { location: Location }) {
 						onToggle={(enabled) =>
 							updatePolicy({
 								proxy: {
-									...(location.job_policies?.proxy ?? {}),
+									regenerate: false,
+									...location.job_policies?.proxy,
 									enabled,
 								},
 							})
@@ -384,7 +389,7 @@ function JobsTab({ location }: { location: Location }) {
 						onTrigger={() =>
 							triggerJob.mutate({
 								location_id: location.id,
-								job_type: "proxy",
+								job_type: "thumbnail" as const,
 								force: false,
 							})
 						}
@@ -402,7 +407,13 @@ function JobsTab({ location }: { location: Location }) {
 						enabled={ocr}
 						onToggle={(enabled) =>
 							updatePolicy({
-								ocr: { ...(location.job_policies?.ocr ?? {}), enabled },
+								ocr: {
+									languages: ['eng'],
+									min_confidence: 0.5,
+									reprocess: false,
+									...location.job_policies?.ocr,
+									enabled,
+								},
 							})
 						}
 						onTrigger={() =>
@@ -421,7 +432,10 @@ function JobsTab({ location }: { location: Location }) {
 						onToggle={(enabled) =>
 							updatePolicy({
 								speech_to_text: {
-									...(location.job_policies?.speech_to_text ?? {}),
+									language: null,
+									model: 'base',
+									reprocess: false,
+									...location.job_policies?.speech_to_text,
 									enabled,
 								},
 							})
@@ -441,7 +455,7 @@ function JobsTab({ location }: { location: Location }) {
 	);
 }
 
-function ActivityTab({ location }: { location: Location }) {
+function ActivityTab({ location: _location }: { location: Location }) {
 	const activity = [
 		{ action: "Full Scan Completed", time: "10 min ago", files: 12456 },
 		{ action: "Thumbnails Generated", time: "1 hour ago", files: 234 },
@@ -483,7 +497,7 @@ function ActivityTab({ location }: { location: Location }) {
 	);
 }
 
-function DevicesTab({ location }: { location: Location }) {
+function DevicesTab({ location: _location }: { location: Location }) {
 	const devices = [
 		{
 			name: "MacBook Pro",
@@ -549,13 +563,13 @@ function DevicesTab({ location }: { location: Location }) {
 }
 
 interface DeleteLocationDialogProps extends UseDialogProps {
-	locationId: number;
+	locationId: string;
 	locationName: string;
 }
 
 function useDeleteLocationDialog() {
-	return (locationId: number, locationName: string) =>
-		dialogManager.create((props: DeleteLocationDialogProps) => (
+	return (locationId: string, locationName: string) =>
+		dialogManager.create((props: UseDialogProps) => (
 			<DeleteLocationDialog {...props} locationId={locationId} locationName={locationName} />
 		));
 }
@@ -601,7 +615,7 @@ function DeleteLocationDialog({ locationId, locationName, ...props }: DeleteLoca
 			ctaDanger
 			cancelLabel="Cancel"
 			cancelBtn
-			onSubmit={handleDelete}
+			onSubmit={form.handleSubmit(handleDelete)}
 			loading={removeLocation.isPending}
 		/>
 	);
@@ -672,7 +686,7 @@ interface RadioOptionProps {
 }
 
 function RadioOption({
-	value,
+	value: _value,
 	label,
 	description,
 	checked,

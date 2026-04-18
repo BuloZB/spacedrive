@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import {
 	Folder,
 	FolderOpen,
@@ -13,9 +13,12 @@ import {
 	Dialog,
 	dialogManager,
 	useDialog,
-	TopBarButton,
-} from "@sd/ui";
-import { Tabs } from "@sd/ui";
+	CircleButton,
+	TabsRoot,
+	TabsList,
+	TabsTrigger,
+	TabsContent,
+} from "@spacedrive/primitives";
 import type {
 	IndexMode,
 	LocationAddInput,
@@ -26,9 +29,8 @@ import type {
 	RiskLevel,
 	ValidationWarning as PathValidationWarning,
 	VolumeIndexingSuggestion,
-	IndexVolumeInput,
 } from "@sd/ts-client";
-import { useLibraryMutation, useLibraryQuery, useCoreQuery, useSpacedriveClient } from "../../../contexts/SpacedriveContext";
+import { useLibraryMutation, useLibraryQuery, useSpacedriveClient } from "../../../contexts/SpacedriveContext";
 import { usePlatform } from "../../../contexts/PlatformContext";
 import clsx from "clsx";
 
@@ -43,7 +45,6 @@ import DriveDropbox from "@sd/assets/icons/Drive-Dropbox.png";
 import DriveOneDrive from "@sd/assets/icons/Drive-OneDrive.png";
 import DriveBackBlaze from "@sd/assets/icons/Drive-BackBlaze.png";
 import DrivePCloud from "@sd/assets/icons/Drive-PCloud.png";
-import DriveMega from "@sd/assets/icons/Drive-Mega.png";
 import DriveDAV from "@sd/assets/icons/Drive-DAV.png";
 import DriveBox from "@sd/assets/icons/Drive-Box.png";
 
@@ -267,6 +268,8 @@ interface StorageDialogProps {
 	description: React.ReactNode;
 	onSubmit?: any;
 	ctaLabel?: string;
+	ctaDanger?: boolean;
+	submitDisabled?: boolean;
 	loading?: boolean;
 	showBackButton?: boolean;
 	onBack?: () => void;
@@ -282,6 +285,8 @@ function StorageDialog({
 	description,
 	onSubmit,
 	ctaLabel,
+	ctaDanger,
+	submitDisabled,
 	loading,
 	showBackButton,
 	onBack,
@@ -297,6 +302,8 @@ function StorageDialog({
 			icon={icon}
 			description={description}
 			ctaLabel={ctaLabel}
+			ctaDanger={ctaDanger}
+			submitDisabled={submitDisabled}
 			onCancelled={true}
 			loading={loading}
 			formClassName="!min-w-[480px] !max-w-[480px] max-h-[80vh] flex flex-col"
@@ -353,7 +360,7 @@ const jobOptions: JobOption[] = [
 ];
 
 export function useAddStorageDialog(
-	onStorageAdded?: (id: string) => void,
+	onStorageAdded?: (sdPath: any) => void,
 	initialPath?: string,
 ) {
 	return dialogManager.create((props) => (
@@ -367,7 +374,7 @@ export function useAddStorageDialog(
 
 function AddStorageDialog(props: {
 	id: number;
-	onStorageAdded?: (id: string) => void;
+	onStorageAdded?: (sdPath: any) => void;
 	initialPath?: string;
 }) {
 	const dialog = useDialog(props);
@@ -425,6 +432,11 @@ function AddStorageDialog(props: {
 
 	// Dummy form for non-form dialogs (to satisfy Dialog component)
 	const dummyForm = useForm();
+
+	// Subscribe to the local form's `path` field so the picker step's
+	// Continue button reacts as the user types into the input.
+	const localPathTyped =
+		useWatch({ control: localForm.control, name: "path" }) || "";
 
 	// Update selected jobs when preset mode changes
 	const currentMode = localForm.watch("mode");
@@ -505,10 +517,20 @@ function AddStorageDialog(props: {
 		setStep("local-config");
 	};
 
+	const onSubmitManualPath = localForm.handleSubmit((data) => {
+		const path = (data.path || "").trim();
+		if (!path) return;
+		if (!data.name) {
+			const folderName = path.split("/").filter(Boolean).pop() || path;
+			localForm.setValue("name", folderName);
+		}
+		setStep("local-config");
+	});
+
 	const handleVolumeSelect = async (volume: any) => {
 		try {
 			// Step 1: Track the volume
-			const trackResult = await trackVolume.mutateAsync({
+			await trackVolume.mutateAsync({
 				fingerprint: volume.fingerprint,
 				display_name: volume.display_name || volume.name,
 			});
@@ -529,8 +551,8 @@ function AddStorageDialog(props: {
 			const locationResult = await addLocation.mutateAsync(locationInput);
 			dialog.state.open = false;
 
-			if (locationResult?.id && props.onStorageAdded) {
-				props.onStorageAdded(locationResult.id);
+			if (locationResult?.path && props.onStorageAdded) {
+				props.onStorageAdded(locationResult.path);
 			}
 		} catch (error) {
 			console.error("Failed to track volume and add location:", error);
@@ -548,9 +570,9 @@ function AddStorageDialog(props: {
 			},
 		};
 
-		let validation;
+		let validation: { risk_level: RiskLevel; warnings: PathValidationWarning[]; suggested_alternative: VolumeIndexingSuggestion | null } | undefined;
 		try {
-			validation = await client.execute("query:locations.validate_path", validateInput);
+			validation = await client.execute("query:locations.validate_path", validateInput) as any;
 			console.log("Validation result:", validation);
 		} catch (error) {
 			console.error("Failed to validate path:", error);
@@ -594,8 +616,8 @@ function AddStorageDialog(props: {
 			const result = await addLocation.mutateAsync(input);
 			dialog.state.open = false;
 
-			if (result?.id && props.onStorageAdded) {
-				props.onStorageAdded(result.id);
+			if (result?.path && props.onStorageAdded) {
+				props.onStorageAdded(result.path);
 			}
 		} catch (error) {
 			console.error("Failed to add location:", error);
@@ -677,7 +699,7 @@ function AddStorageDialog(props: {
 
 		try {
 			// Step 1: Add the cloud volume and get fingerprint
-			const volumeResult = await addCloudVolume.mutateAsync(volumeInput);
+			await addCloudVolume.mutateAsync(volumeInput);
 
 			// Determine the cloud identifier based on provider type
 			let cloudIdentifier: string;
@@ -719,8 +741,8 @@ function AddStorageDialog(props: {
 			const locationResult = await addLocation.mutateAsync(locationInput);
 			dialog.state.open = false;
 
-			if (locationResult?.id && props.onStorageAdded) {
-				props.onStorageAdded(locationResult.id);
+			if (locationResult?.path && props.onStorageAdded) {
+				props.onStorageAdded(locationResult.path);
 			}
 		} catch (error) {
 			console.error("Failed to add cloud storage:", error);
@@ -935,7 +957,7 @@ function AddStorageDialog(props: {
 										</div>
 										<div className="text-xs text-ink-faint">
 											{volume.mount_point} •{" "}
-											{volume.filesystem}
+											{typeof volume.file_system === 'string' ? volume.file_system : (volume.file_system as any)?.Other ?? 'Unknown'}
 										</div>
 									</div>
 									<div className="text-xs text-ink-dull">
@@ -967,11 +989,13 @@ function AddStorageDialog(props: {
 		return (
 			<StorageDialog
 				dialog={dialog}
-				form={dummyForm}
+				form={localForm}
+				onSubmit={onSubmitManualPath}
 				title="Add Local Folder"
 				icon={<Folder size={20} weight="fill" />}
 				description="Choose a folder to index and manage"
-				hideButtons={true}
+				ctaLabel="Continue"
+				submitDisabled={!localPathTyped.trim()}
 				showBackButton={true}
 				onBack={handleBack}
 			>
@@ -980,15 +1004,18 @@ function AddStorageDialog(props: {
 						<Label>Browse</Label>
 						<div className="relative">
 							<Input
-								value={localForm.watch("path") || ""}
+								value={localPathTyped}
 								onChange={(e) =>
-									localForm.setValue("path", e.target.value)
+									localForm.setValue("path", e.target.value, {
+										shouldValidate: true,
+										shouldDirty: true,
+									})
 								}
-								placeholder="Select a custom folder"
+								placeholder="Type or paste a folder path"
 								size="lg"
 								className="pr-14"
 							/>
-							<TopBarButton
+							<CircleButton
 								icon={FolderOpen}
 								onClick={handleBrowse}
 								className="absolute right-2 top-1/2 -translate-y-1/2"
@@ -1114,20 +1141,20 @@ function AddStorageDialog(props: {
 						/>
 					</div>
 
-					<Tabs.Root
+					<TabsRoot
 						value={tab}
 						onValueChange={(v) => setTab(v as SettingsTab)}
 					>
-						<Tabs.List>
-							<Tabs.Trigger value="preset">Preset</Tabs.Trigger>
-							<Tabs.Trigger value="jobs">
+						<TabsList>
+							<TabsTrigger value="preset">Preset</TabsTrigger>
+							<TabsTrigger value="jobs">
 								Jobs{" "}
 								{selectedJobs.size > 0 &&
 									`(${selectedJobs.size})`}
-							</Tabs.Trigger>
-						</Tabs.List>
+							</TabsTrigger>
+						</TabsList>
 
-						<Tabs.Content value="preset" className="pt-3">
+						<TabsContent value="preset" className="pt-3">
 							<div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
 								<Label>Indexing Mode</Label>
 								<div className="grid grid-cols-3 gap-2">
@@ -1159,9 +1186,9 @@ function AddStorageDialog(props: {
 									})}
 								</div>
 							</div>
-						</Tabs.Content>
+						</TabsContent>
 
-						<Tabs.Content value="jobs" className="pt-3">
+						<TabsContent value="jobs" className="pt-3">
 							<div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
 								<p className="text-xs text-ink-faint">
 									Select which jobs to run after indexing.
@@ -1199,8 +1226,8 @@ function AddStorageDialog(props: {
 									})}
 								</div>
 							</div>
-						</Tabs.Content>
-					</Tabs.Root>
+						</TabsContent>
+					</TabsRoot>
 
 					{localForm.formState.errors.root && (
 						<p className="text-xs text-red-500">

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { DotsThree } from "@phosphor-icons/react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { TopBarButton } from "@sd/ui";
+import { CircleButton } from "@spacedrive/primitives";
 import { TopBarItem } from "./Context";
 
 interface OverflowButtonProps {
@@ -16,7 +16,7 @@ export function OverflowButton({ items }: OverflowButtonProps) {
 	return (
 		<DropdownMenu.Root open={isOpen} onOpenChange={setIsOpen}>
 			<DropdownMenu.Trigger asChild>
-				<TopBarButton
+				<CircleButton
 					icon={DotsThree}
 					active={isOpen}
 				/>
@@ -30,7 +30,6 @@ export function OverflowButton({ items }: OverflowButtonProps) {
 				>
 					{items.map((item) => {
 						const isSimpleAction = !!item.onClick;
-						const hasSubmenu = !isSimpleAction;
 
 						if (isSimpleAction) {
 							return (

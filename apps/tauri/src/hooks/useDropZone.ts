@@ -1,11 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import {
   onDragEntered,
   onDragLeft,
   onDragEnded,
   type DragItem,
-  type DragResult,
 } from '../lib/drag';
 
 export interface UseDropZoneOptions {

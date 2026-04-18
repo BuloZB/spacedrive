@@ -1,4 +1,4 @@
-import { useEffect, useRef, createContext, useContext } from "react";
+import { useEffect, createContext, useContext } from "react";
 import { useTopBar, TopBarPriority } from "./Context";
 
 const PositionContext = createContext<"left" | "center" | "right">("left");

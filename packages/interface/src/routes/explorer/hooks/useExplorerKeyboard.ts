@@ -26,7 +26,6 @@ export function useExplorerKeyboard() {
 	} = useExplorer();
 	const {
 		selectedFiles,
-		selectFile,
 		selectAll,
 		clearSelection,
 		focusedIndex,
@@ -213,28 +212,6 @@ export function useExplorerKeyboard() {
 					if (e.key === "ArrowUp")
 						newIndex = Math.max(0, focusedIndex - 1);
 					if (e.key === "ArrowDown")
-						newIndex = Math.min(files.length - 1, focusedIndex + 1);
-				} else if (viewMode === "grid" || viewMode === "media") {
-					// Grid/Media view: 2D navigation
-					const containerWidth =
-						window.innerWidth -
-						(sidebarVisible ? 224 : 0) -
-						(inspectorVisible ? 284 : 0) -
-						48;
-					const itemWidth =
-						viewSettings.gridSize + viewSettings.gapSize;
-					const columns = Math.floor(containerWidth / itemWidth);
-
-					if (e.key === "ArrowUp")
-						newIndex = Math.max(0, focusedIndex - columns);
-					if (e.key === "ArrowDown")
-						newIndex = Math.min(
-							files.length - 1,
-							focusedIndex + columns,
-						);
-					if (e.key === "ArrowLeft")
-						newIndex = Math.max(0, focusedIndex - 1);
-					if (e.key === "ArrowRight")
 						newIndex = Math.min(files.length - 1, focusedIndex + 1);
 				}
 

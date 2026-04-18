@@ -13,7 +13,7 @@ interface UseTypeaheadSearchProps {
  */
 export function useTypeaheadSearch({ files, onMatch, enabled = true }: UseTypeaheadSearchProps) {
 	const searchStringRef = useRef("");
-	const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const handleKey = useCallback((e: KeyboardEvent) => {
 		if (!enabled) return false;

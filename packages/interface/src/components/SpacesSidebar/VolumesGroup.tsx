@@ -1,7 +1,6 @@
-import {EyeSlash, Plugs, WifiSlash} from '@phosphor-icons/react';
+import {EyeSlash} from '@phosphor-icons/react';
 import {getVolumeIcon, useNormalizedQuery} from '@sd/ts-client';
 import type {Device, Volume} from '@sd/ts-client';
-import {useNavigate} from 'react-router-dom';
 import {GroupHeader} from './GroupHeader';
 import {SpaceItem} from './SpaceItem';
 import {useVolumeContextMenu} from './hooks/useVolumeContextMenu';
@@ -55,7 +54,7 @@ function VolumeItem({volume, index, volumesLength, devices}: {volume: Volume; in
 				mount_path: volume.mount_point || '/'
 			} : undefined}
 			rightComponent={getVolumeIndicator(volume)}
-			customIcon={getVolumeIcon(volume)}
+			customIcon={getVolumeIcon(volume as any)}
 			allowInsertion={false}
 			isLastItem={index === volumesLength - 1}
 			onContextMenu={contextMenu.show}
@@ -103,7 +102,7 @@ export function VolumesGroup({
 							No volumes
 						</div>
 					) : (
-						volumes.map((volume, index) => (
+						volumes.map((volume: Volume, index: number) => (
 							<VolumeItem
 								key={volume.id}
 								volume={volume}

@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
-import clsx from "clsx";
-import { GitBranch, Clock } from "@phosphor-icons/react";
+import { GitBranch, Clock, Folder } from "@phosphor-icons/react";
 import FolderIcon from "@sd/assets/icons/Folder.png";
 import CodeIcon from "@sd/assets/icons/Code-20.png";
 import DocumentIcon from "@sd/assets/icons/Document.png";

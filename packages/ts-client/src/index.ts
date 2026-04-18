@@ -43,7 +43,11 @@
 // Core client
 export { SpacedriveClient } from "./client";
 export type { Transport } from "./transport";
-export { UnixSocketTransport, TauriTransport } from "./transport";
+export {
+	UnixSocketTransport,
+	TauriTransport,
+	HttpTransport,
+} from "./transport";
 export { SubscriptionManager } from "./subscriptionManager";
 
 // Event filtering utilities

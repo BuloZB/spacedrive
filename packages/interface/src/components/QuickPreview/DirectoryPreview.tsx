@@ -84,7 +84,7 @@ export function DirectoryPreview({ file }: DirectoryPreviewProps) {
 					gap: `${gapSize}px`,
 				}}
 			>
-				{directories.map((dir) => (
+				{directories.map((dir: File) => (
 					<div
 						key={dir.id}
 						className="flex flex-col items-center gap-2 p-1 rounded-lg hover:bg-app-hover/20"

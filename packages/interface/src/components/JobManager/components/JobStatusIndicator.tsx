@@ -1,12 +1,9 @@
-import type { JobStatus } from "@sd/ts-client";
 import {
   MagnifyingGlass,
   Image,
   Files,
   FolderOpen,
   Database,
-  HardDrive,
-  FolderPlus,
   Sparkle,
   CheckCircle,
 } from "@phosphor-icons/react";

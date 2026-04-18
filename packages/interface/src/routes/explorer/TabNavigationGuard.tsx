@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useExplorer } from "./context";
 import { useTabManager } from "../../components/TabManager";

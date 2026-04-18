@@ -66,7 +66,6 @@ export function useJobs(): UseJobsReturn {
 	// Clear volume jobs on completion/failure/cancellation
 	useEffect(() => {
 		// This effect watches for jobs that are no longer in the list or are no longer running
-		const currentJobIds = new Set(jobs.jobs.map((j) => j.id));
 		const runningIndexerJobs = jobs.jobs.filter(
 			(j) => j.name === 'indexer' && j.status === 'running'
 		);

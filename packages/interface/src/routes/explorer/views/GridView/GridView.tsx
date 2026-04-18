@@ -177,7 +177,6 @@ function VirtualizedGrid({
 
 		// Mimic repeat(auto-fill, minmax(gridSize, 1fr))
 		const minItemWidth = gridSize;
-		const totalGapWidth = gapSize;
 
 		// Calculate how many items fit
 		let cols = 1;

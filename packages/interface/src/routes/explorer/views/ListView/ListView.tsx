@@ -4,8 +4,6 @@ import { flexRender } from "@tanstack/react-table";
 import { CaretDown } from "@phosphor-icons/react";
 import clsx from "clsx";
 
-import type { File } from "@sd/ts-client";
-
 import { useExplorer } from "../../context";
 import { useSelection } from "../../SelectionContext";
 import { TableRow } from "./TableRow";
@@ -16,6 +14,7 @@ import {
 	TABLE_PADDING_Y,
 	TABLE_HEADER_HEIGHT,
 } from "./useTable";
+import type { DirectorySortBy } from "@sd/ts-client";
 import { useExplorerFiles } from "../../hooks/useExplorerFiles";
 import { DragSelect } from "./DragSelect";
 import { useEmptySpaceContextMenu } from "../../hooks/useEmptySpaceContextMenu";
@@ -25,7 +24,6 @@ export const ListView = memo(function ListView() {
 	const {
 		focusedIndex,
 		setFocusedIndex,
-		selectedFiles,
 		selectedFileIds,
 		isSelected,
 		selectFile,

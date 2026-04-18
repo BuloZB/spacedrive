@@ -1,0 +1,78 @@
+@import "tailwindcss";
+@import "@spacedrive/tokens/theme";
+@import "@spacedrive/tokens/css";
+@import "@spacedrive/tokens/css/themes/light";
+@import "@spacedrive/tokens/css/themes/midnight";
+@import "@spacedrive/tokens/css/themes/noir";
+@import "@spacedrive/tokens/css/themes/slate";
+@import "@spacedrive/tokens/css/themes/nord";
+@import "@spacedrive/tokens/css/themes/mocha";
+
+/* Tell Tailwind v4 where to scan for utility classes */
+@source "../../../packages/interface/src";
+@source "../../../../spaceui/packages/primitives/src";
+@source "../../../../spaceui/packages/ai/src";
+@source "../../../../spaceui/packages/explorer/src";
+@source "../../../../spaceui/packages/forms/src";
+
+@plugin "@tailwindcss/forms";
+@plugin "tailwindcss-animate";
+@plugin "@headlessui/tailwindcss";
+@plugin "tailwindcss-radix";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@utility top-bar-blur {
+	@apply border-app-line/50;
+	backdrop-filter: saturate(120%) blur(18px);
+}
+
+@utility frame {
+	&::before {
+		content: "";
+		pointer-events: none;
+		user-select: none;
+		position: absolute;
+		inset: 0px;
+		border-radius: inherit;
+		padding: 1px;
+		background: var(--color-app-frame);
+		mask:
+			linear-gradient(black, black) content-box content-box,
+			linear-gradient(black, black);
+		mask-composite: xor;
+		-webkit-mask-composite: xor;
+		z-index: 9999;
+	}
+}
+
+@utility no-scrollbar {
+	&::-webkit-scrollbar {
+		display: none;
+	}
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
+@utility mask-fade-out {
+	mask-image: linear-gradient(
+		to bottom,
+		black calc(100% - 40px),
+		transparent 100%
+	);
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		black calc(100% - 40px),
+		transparent 100%
+	);
+}
+
+body {
+	margin: 0;
+	font-family:
+		-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
+		"Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}

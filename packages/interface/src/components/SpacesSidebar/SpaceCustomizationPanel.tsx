@@ -7,7 +7,7 @@ import { SpaceItem } from "./SpaceItem";
 import { createPortal } from "react-dom";
 import { useState } from "react";
 import { useLibraryMutation } from "../../contexts/SpacedriveContext";
-import { Input } from "@sd/ui";
+import { Input } from "@spacedrive/primitives";
 
 interface PaletteItem {
 	type: ItemType;
@@ -30,6 +30,10 @@ const PALETTE_ITEMS: PaletteItem[] = [
 	{
 		type: "FileKinds",
 		label: "File Kinds",
+	},
+	{
+		type: "Sources",
+		label: "Sources",
 	},
 ];
 
@@ -66,8 +70,8 @@ function DraggablePaletteItem({ item }: { item: PaletteItem }) {
 				item={mockSpaceItem}
 				allowInsertion={false}
 				onClick={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
+					e?.preventDefault();
+					e?.stopPropagation();
 				}}
 			/>
 		</div>

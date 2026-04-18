@@ -21,8 +21,8 @@ interface FileProps {
 }
 
 function FileComponent({
-	file,
-	selected,
+	file: _file,
+	selected: _selected,
 	onClick,
 	onDoubleClick,
 	onContextMenu,

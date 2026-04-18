@@ -33,8 +33,8 @@ export function CopyJobDetails({ job, speedHistory }: CopyJobDetailsProps) {
   // Refetch when completed count changes OR when current file changes
   useEffect(() => {
     const currentCompleted = generic?.completion?.completed || 0;
-    const currentPath = generic?.current_path?.Physical?.path ||
-                        generic?.current_path?.Local?.path ||
+    const cp = generic?.current_path as any;
+    const currentPath = cp?.Physical?.path ||
                         generic?.message || "";
 
     const completedChanged = currentCompleted !== prevCompletedRef.current;
@@ -52,11 +52,13 @@ export function CopyJobDetails({ job, speedHistory }: CopyJobDetailsProps) {
     const container = scrollContainerRef.current;
     if (!container || !generic?.current_path) return;
 
-    const currentPath = generic.current_path.Physical?.path || generic.current_path.Local?.path;
+    const cp = generic.current_path as any;
+    const currentPath: string | undefined = cp?.Physical?.path;
     if (!currentPath) return;
 
     const currentIndex = files.findIndex(f => {
-      const filePath = f.source_path?.Physical?.path || f.source_path?.Local?.path;
+      const sp = f.source_path as any;
+      const filePath: string | undefined = sp?.Physical?.path;
       return filePath === currentPath;
     });
 
@@ -187,10 +189,6 @@ function extractFileName(path: any): string {
     return p.split("/").pop() || p;
   }
 
-  if (path?.Local?.path) {
-    return path.Local.path.split("/").pop() || path.Local.path;
-  }
-
   return "Unknown";
 }
 
@@ -203,10 +201,6 @@ function formatPath(path: any): string {
   if (path?.Physical?.path) {
     const p = path.Physical.path;
     return p.replace(/^\/Users\/[^/]+/, "~");
-  }
-
-  if (path?.Local?.path) {
-    return path.Local.path.replace(/^\/Users\/[^/]+/, "~");
   }
 
   return JSON.stringify(path);

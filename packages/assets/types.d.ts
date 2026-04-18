@@ -26,6 +26,12 @@ declare module "@sd/assets/svgs/*.svg" {
 	export default content;
 }
 
+declare module "*.svg" {
+	const src: string;
+	export default src;
+	export const ReactComponent: React.FC<React.SVGProps<SVGSVGElement>>;
+}
+
 declare module "@sd/assets/videos/*.mp4" {
 	const value: number;
 	export default value;

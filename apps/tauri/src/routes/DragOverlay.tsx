@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { getDragSession, onDragMoved, type DragSession } from '../lib/drag';
+import { getDragSession, type DragSession } from '../lib/drag';
 
 export function DragOverlay() {
   const [session, setSession] = useState<DragSession | null>(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     // Get the session from query params
@@ -13,14 +12,6 @@ export function DragOverlay() {
     if (sessionId) {
       getDragSession().then((s) => setSession(s));
     }
-
-    const unlisten = onDragMoved((event) => {
-      setPosition({ x: event.x, y: event.y });
-    });
-
-    return () => {
-      unlisten.then((fn) => fn());
-    };
   }, []);
 
   if (!session) {

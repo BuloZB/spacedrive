@@ -55,6 +55,7 @@ export function useAutoUpdater(checkOnMount = false) {
 		try {
 			setStatus((prev) => ({ ...prev, checking: true, error: undefined }));
 
+			// @ts-expect-error Tauri plugin only available on desktop
 			const { check } = await import('@tauri-apps/plugin-updater');
 			const foundUpdate = await check();
 
@@ -155,6 +156,7 @@ export function useAutoUpdater(checkOnMount = false) {
 			await update.install();
 
 			if (!isWindows()) {
+				// @ts-expect-error Tauri plugin only available on desktop
 				const { relaunch } = await import('@tauri-apps/plugin-process');
 				await relaunch();
 			}

@@ -4,13 +4,11 @@ import {
 	Minus,
 	Plus
 } from '@phosphor-icons/react';
-import type {DirectorySortBy, File} from '@sd/ts-client';
-import {TopBarButton, TopBarButtonGroup} from '@sd/ui';
+import type {DirectorySortBy, File, SdPath} from '@sd/ts-client';
+import {CircleButton, CircleButtonGroup} from '@spacedrive/primitives';
 import * as d3 from 'd3';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
-import {useTabManager} from '../../../../components/TabManager/useTabManager';
-import {ServerContext, useServer} from '../../../../contexts/ServerContext';
 import {useNormalizedQuery} from '../../../../contexts/SpacedriveContext';
 import {useExplorer} from '../../context';
 import {Thumb} from '../../File/Thumb';
@@ -134,8 +132,8 @@ interface ThumbOverlayProps {
 	filesRef: React.MutableRefObject<File[]>;
 	contextMenuRef: React.MutableRefObject<any>;
 	setContextMenuFile: (file: File) => void;
-	clickTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
-	svgRef: React.RefObject<SVGSVGElement>;
+	clickTimeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
+	svgRef: React.RefObject<SVGSVGElement | null>;
 	zoomBehaviorRef: React.MutableRefObject<d3.ZoomBehavior<SVGSVGElement, unknown> | null>;
 	gRef: React.MutableRefObject<d3.Selection<SVGGElement, unknown, null, undefined> | null>;
 }
@@ -298,6 +296,16 @@ function ThumbOverlay({
 	);
 }
 
+interface TreeNode {
+	id?: string;
+	name: string;
+	value: number;
+	file?: File;
+	color: string;
+	type: string;
+	children?: TreeNode[];
+}
+
 export function SizeView() {
 	const {
 		currentPath,
@@ -309,19 +317,15 @@ export function SizeView() {
 		activeTabId,
 		sizeViewTransform,
 		setSizeViewTransform,
-		viewMode,
 		setCurrentFiles,
 		mode,
 	} = useExplorer();
 
-	const { tabs } = useTabManager();
-
 	// Get files from centralized hook (handles search mode automatically)
-	const { files: searchFiles, source } = useExplorerFiles();
+	const { files: searchFiles } = useExplorerFiles();
 	const isSearchMode = mode.type === "search";
 
 	const {selectedFiles, selectFile, restoreSelectionFromFiles} = useSelection();
-	const serverContext = useServer();
 
 	// Calculate sidebar and inspector widths
 	const sidebarWidth = sidebarVisible ? 220 : 0;
@@ -353,7 +357,6 @@ export function SizeView() {
 		resourceType: 'file',
 		enabled: !!currentPath && !isSearchMode,
 		pathScope: currentPath ?? undefined,
-		queryKey: ['directory_listing', 'size_view', activeTabId, currentPath]
 	});
 
 	// Update data source when query succeeds
@@ -402,7 +405,7 @@ export function SizeView() {
 		SVGSVGElement,
 		unknown
 	> | null>(null);
-	const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+	const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const lastContextRef = useRef<{tabId: string, path: SdPath | null} | null>(null);
 	const lastAppliedZoomRef = useRef<{tabId: string, zoom: number} | null>(null);
 	// Track which tab we just switched to (allows one path update from TabNavigationSync)
@@ -687,11 +690,11 @@ export function SizeView() {
 		const itemLimit = Math.min(viewSettings.sizeViewItemLimit || 500, files.length);
 
 		// Separate folders and files
-		const folders = files.filter((f) => f.kind === 'Directory');
-		const regularFiles = files.filter((f) => f.kind !== 'Directory' && f.size > 0);
+		const folders = files.filter((f: File) => f.kind === 'Directory');
+		const regularFiles = files.filter((f: File) => f.kind !== 'Directory' && f.size > 0);
 
 		// Always include all folders, then fill with largest files
-		const sortedFiles = regularFiles.sort((a, b) => b.size - a.size);
+		const sortedFiles = regularFiles.sort((a: File, b: File) => b.size - a.size);
 		const topFiles = sortedFiles.slice(0, Math.max(0, itemLimit - folders.length));
 
 		const combined = [...folders, ...topFiles];
@@ -700,7 +703,7 @@ export function SizeView() {
 
 		// Calculate average size of files to give folders a reasonable minimum
 		const averageFileSize = topFiles.length > 0
-			? topFiles.reduce((sum, f) => sum + f.size, 0) / topFiles.length
+			? topFiles.reduce((sum: number, f: File) => sum + f.size, 0) / topFiles.length
 			: 1000000; // 1MB default
 
 		// Give folders a minimum size of 2.5% of average file size (so they're visible)
@@ -735,16 +738,16 @@ export function SizeView() {
 			return;
 		}
 
-		const pack = d3.pack().size([width, height]).padding(3);
+		const pack = d3.pack<TreeNode>().size([width, height]).padding(3);
 
 		const root = pack(
-			d3.hierarchy({children: bubbleData}).sum((d) => d.value)
+			d3.hierarchy<TreeNode>({children: bubbleData} as TreeNode).sum((d: TreeNode) => d.value)
 		);
 
 		// Update nodes with data join (preserves existing nodes when possible)
 		const nodes = g
-			.selectAll<SVGGElement, any>('g.bubble-node')
-			.data(root.leaves(), (d: any) => d.data.id)
+			.selectAll<SVGGElement, d3.HierarchyCircularNode<TreeNode>>('g.bubble-node')
+			.data(root.leaves(), (d: d3.HierarchyCircularNode<TreeNode>) => d.data.id ?? '')
 			.join(
 				(enter) =>
 					enter
@@ -759,7 +762,7 @@ export function SizeView() {
 
 		// Update or create circles (background for Thumb or standalone for small circles)
 		nodes
-			.selectAll<SVGCircleElement, any>('circle')
+			.selectAll<SVGCircleElement, d3.HierarchyCircularNode<TreeNode>>('circle')
 			.data((d) => [d])
 			.join('circle')
 			.attr('r', (d) => d.r)
@@ -767,7 +770,7 @@ export function SizeView() {
 			.attr('fill-opacity', 0.4)
 			.attr('stroke', 'transparent')
 			.attr('stroke-width', 0)
-			.attr('data-file-id', (d) => d.data.id)
+			.attr('data-file-id', (d) => d.data.id ?? '')
 			.on('click', (event, d) => {
 				event.stopPropagation();
 
@@ -778,7 +781,7 @@ export function SizeView() {
 
 				// Select immediately for responsive feedback
 				selectFileRef.current(
-					d.data.file,
+					d.data.file!,
 					filesRef.current,
 					multi,
 					range
@@ -837,8 +840,8 @@ export function SizeView() {
 				}
 
 				// Navigate if directory
-				if (d.data.file.kind === 'Directory') {
-					navigateToPathRef.current(d.data.file.sd_path);
+				if (d.data.file!.kind === 'Directory') {
+					navigateToPathRef.current(d.data.file!.sd_path);
 				}
 			})
 			.on('contextmenu', async (event, d) => {
@@ -847,11 +850,11 @@ export function SizeView() {
 
 				// Select the file if not already selected
 				const isSelected = selectedFiles.some(
-					(f) => f.id === d.data.file.id
+					(f) => f.id === d.data.file!.id
 				);
 				if (!isSelected) {
 					selectFileRef.current(
-						d.data.file,
+						d.data.file!,
 						filesRef.current,
 						false,
 						false
@@ -859,26 +862,26 @@ export function SizeView() {
 				}
 
 				// Set the context menu file and show menu
-				setContextMenuFile(d.data.file);
+				setContextMenuFile(d.data.file!);
 
 				// Show context menu on next tick after state updates
 				setTimeout(async () => {
 					await contextMenuRef.current.show(event);
 				}, 0);
 			})
-			.on('mouseenter', function (event, d) {
+			.on('mouseenter', function () {
 				d3.select(this)
 					.transition()
 					.duration(150)
 					.attr('filter', 'brightness(1.15)');
 			})
-			.on('mouseleave', function (event, d) {
+			.on('mouseleave', function () {
 				d3.select(this).transition().duration(150).attr('filter', null);
 			});
 
 		// Update or create titles
 		nodes
-			.selectAll<SVGTitleElement, any>('title')
+			.selectAll<SVGTitleElement, d3.HierarchyCircularNode<TreeNode>>('title')
 			.data((d) => [d])
 			.join('title')
 			.text((d) => `${d.data.name}\n${formatBytes(d.data.value)}`);
@@ -891,7 +894,7 @@ export function SizeView() {
 
 		// Update or create text elements
 		nodes
-			.selectAll<SVGTextElement, any>('text')
+			.selectAll<SVGTextElement, d3.HierarchyCircularNode<TreeNode>>('text')
 			.data((d) => [d])
 			.join('text')
 			.attr('text-anchor', 'middle')
@@ -992,7 +995,7 @@ export function SizeView() {
 		const baseStrokeWidth = 4;
 
 		// Update both stroke color and width based on selection and current zoom
-		svg.selectAll<SVGCircleElement, any>('circle[data-file-id]')
+		svg.selectAll<SVGCircleElement, d3.HierarchyCircularNode<TreeNode>>('circle[data-file-id]')
 			.attr('stroke', (d) => {
 				const isSelected = selectedFiles.some(
 					(f) => f.id === d.data.id
@@ -1095,26 +1098,26 @@ export function SizeView() {
 					className="bg-app-box/95 border-app-line absolute bottom-4 flex items-center gap-2 rounded-lg border p-1.5 shadow-lg backdrop-blur-lg transition-all duration-300"
 					style={{ right: `${inspectorWidth + 16}px` }}
 				>
-					<TopBarButtonGroup>
-						<TopBarButton
+					<CircleButtonGroup>
+						<CircleButton
 							icon={Minus}
 							onClick={handleZoomOut}
 							title="Zoom Out"
 							disabled={sizeViewTransform.k <= 0.1}
 						/>
-						<TopBarButton
+						<CircleButton
 							icon={Plus}
 							onClick={handleZoomIn}
 							title="Zoom In"
 							disabled={sizeViewTransform.k >= 100}
 						/>
-					</TopBarButtonGroup>
-					<TopBarButton
+					</CircleButtonGroup>
+					<CircleButton
 						icon={ArrowsOut}
 						onClick={handleFitToView}
 						title="Fit to View"
 					/>
-					<TopBarButton
+					<CircleButton
 						icon={ArrowCounterClockwise}
 						onClick={handleResetZoom}
 						title="Reset Zoom"

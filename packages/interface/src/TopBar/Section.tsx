@@ -1,4 +1,4 @@
-import { useRef, useEffect, useLayoutEffect, Fragment } from "react";
+import { useRef, useLayoutEffect } from "react";
 import { useTopBar, TopBarPosition } from "./Context";
 import { OverflowButton } from "./OverflowMenu";
 

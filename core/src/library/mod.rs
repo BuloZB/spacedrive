@@ -65,6 +65,9 @@ pub struct Library {
 	/// File sync service for cross-location file synchronization (initialized after library creation)
 	file_sync_service: OnceCell<Arc<crate::service::file_sync::FileSyncService>>,
 
+	/// Source manager for archive data (emails, notes, etc.) - initialized lazily
+	source_manager: OnceCell<Arc<crate::data::manager::SourceManager>>,
+
 	/// Library-specific device cache (slug → UUID)
 	/// Loaded from this library's devices table for per-library device resolution
 	device_cache: Arc<StdRwLock<HashMap<String, Uuid>>>,
@@ -126,6 +129,34 @@ impl Library {
 	/// Get the file sync service
 	pub fn file_sync_service(&self) -> Option<&Arc<crate::service::file_sync::FileSyncService>> {
 		self.file_sync_service.get()
+	}
+
+	/// Get the source manager (for archive data)
+	pub fn source_manager(&self) -> Option<&Arc<crate::data::manager::SourceManager>> {
+		self.source_manager.get()
+	}
+
+	/// Initialize the source manager (called during library setup)
+	pub async fn init_source_manager(self: &Arc<Self>) -> Result<()> {
+		if self.source_manager.get().is_some() {
+			warn!(
+				"Source manager already initialized for library {}",
+				self.id()
+			);
+			return Ok(());
+		}
+
+		let source_manager = crate::data::manager::SourceManager::new(self.path.clone())
+			.await
+			.map_err(|e| LibraryError::Other(format!("Failed to create source manager: {e}")))?;
+
+		self.source_manager
+			.set(Arc::new(source_manager))
+			.map_err(|_| LibraryError::Other("Source manager already initialized".to_string()))?;
+
+		debug!("Source manager initialized for library {}", self.id());
+
+		Ok(())
 	}
 
 	/// Initialize the file sync service (called during library setup)
@@ -1248,11 +1279,13 @@ impl Library {
 			};
 
 			// Check if this volume's mount point is a subpath of any already-counted volume on the SAME device
+			// Use path-aware comparison to avoid false positives like "/Volumes/Seagate" matching "/Volumes/Seagate 20TB"
+			let mount_path = std::path::Path::new(mount_point);
 			let is_subpath = counted_mount_points
 				.iter()
 				.any(|(parent_device, parent_mount)| {
 					vol.device_id == *parent_device
-						&& mount_point.starts_with(parent_mount)
+						&& mount_path.starts_with(std::path::Path::new(parent_mount))
 						&& mount_point != parent_mount
 				});
 
@@ -1659,11 +1692,13 @@ impl Library {
 			};
 
 			// Check if this volume's mount point is a subpath of any already-counted volume on the SAME device
+			// Use path-aware comparison to avoid false positives like "/Volumes/Seagate" matching "/Volumes/Seagate 20TB"
+			let mount_path = std::path::Path::new(mount_point);
 			let is_subpath = counted_mount_points
 				.iter()
 				.any(|(parent_device, parent_mount)| {
 					vol.device_id == *parent_device
-						&& mount_point.starts_with(parent_mount)
+						&& mount_path.starts_with(std::path::Path::new(parent_mount))
 						&& mount_point != parent_mount
 				});
 

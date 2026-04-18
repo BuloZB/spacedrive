@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { useTopBar, useTopBarInternal, TopBarItem, TopBarPosition } from "./Context";
 
 const GAP = 8;

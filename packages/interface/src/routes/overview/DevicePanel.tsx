@@ -26,7 +26,7 @@ import type {
 	VolumeListOutput,
 	VolumeListQueryInput
 } from '@sd/ts-client';
-import {Tooltip, TopBarButton} from '@sd/ui';
+import {Tooltip, CircleButton} from '@spacedrive/primitives';
 import clsx from 'clsx';
 import {useEffect, useRef, useState} from 'react';
 import Masonry from 'react-masonry-css';
@@ -188,15 +188,6 @@ export function DevicePanel({onLocationSelect}: DevicePanelProps = {}) {
 			return acc;
 		},
 		{} as Record<string, Location[]>
-	);
-
-	// Create device map for quick lookup
-	const deviceMap = devices.reduce(
-		(acc, device) => {
-			acc[device.id] = device;
-			return acc;
-		},
-		{} as Record<string, DeviceWithConnection>
 	);
 
 	// Group jobs by device_id
@@ -373,13 +364,11 @@ function DeviceCard({
 			? 'Apple A16 Bionic'
 			: null);
 	const cpuInfo = cpuModel
-		? `${cpuModel}${device.cpu_cores_physical ? ` � ${device.cpu_cores_physical}C` : ''}`
+		? `${cpuModel}${device?.cpu_cores_physical ? ` \u00b7 ${device.cpu_cores_physical}C` : ''}`
 		: null;
 	const ramInfo = device?.memory_total_bytes
 		? formatBytes(device.memory_total_bytes)
 		: null;
-	const manufacturer = device?.manufacturer;
-
 	// Filter active jobs
 	const activeJobs = jobs.filter(
 		(j) => j.status === 'running' || j.status === 'paused'
@@ -410,9 +399,9 @@ function DeviceCard({
 									{deviceName}
 								</h3>
 								<ConnectionBadge
-										method={device.connection_method}
-										online={device.is_online}
-										current={device.is_current}
+										method={device?.connection_method ?? "LocalNetwork"}
+										online={device?.is_online ?? false}
+										current={device?.is_current ?? false}
 									/>
 							</div>
 							<p className="text-ink-dull text-sm">
@@ -579,7 +568,7 @@ function LocationsScroller({
 					<>
 						<div className="from-app-darkBox pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-12 bg-gradient-to-r to-transparent" />
 						<div className="absolute left-1 top-1/2 z-20 -translate-y-1/2">
-							<TopBarButton
+							<CircleButton
 								icon={CaretLeft}
 								onClick={() => scroll('left')}
 							/>
@@ -644,7 +633,7 @@ function LocationsScroller({
 					<>
 						<div className="from-app-darkBox pointer-events-none absolute bottom-0 right-0 top-0 z-10 w-12 bg-gradient-to-l to-transparent" />
 						<div className="absolute right-1 top-1/2 z-20 -translate-y-1/2">
-							<TopBarButton
+							<CircleButton
 								icon={CaretRight}
 								onClick={() => scroll('right')}
 							/>

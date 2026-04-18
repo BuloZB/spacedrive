@@ -1,11 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { ContextMenu } from "@sd/ui";
+import { ContextMenu } from "@spacedrive/primitives";
+import type { Icon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 
 export interface MenuItem {
 	type?: "separator";
-	icon?: React.ElementType;
+	icon?: Icon;
 	label?: string;
 	onClick?: () => void;
 	keybind?: string;
@@ -22,20 +23,18 @@ export interface ContextMenuData {
 
 export function ContextMenuWindow() {
 	const [items, setItems] = useState<MenuItem[]>([]);
-	const [contextId, setContextId] = useState<string | null>(null);
 	const menuRef = useRef<HTMLDivElement>(null);
-	const window = getCurrentWebviewWindow();
+	const webviewWindow = getCurrentWebviewWindow();
 
 	useEffect(() => {
 		console.log('[ContextMenuWindow] Component mounted');
-		console.log('[ContextMenuWindow] Window location:', window.location.href);
+		console.log('[ContextMenuWindow] Window location:', globalThis.location.href);
 
 		// Extract context ID from URL params
-		const params = new URLSearchParams(window.location.search);
+		const params = new URLSearchParams(globalThis.location.search);
 		const id = params.get("context");
 		console.log('[ContextMenuWindow] Context ID from params:', id);
 		console.log('[ContextMenuWindow] All params:', Array.from(params.entries()));
-		setContextId(id);
 
 		if (!id) {
 			console.error("[ContextMenuWindow] No context ID provided");
@@ -65,7 +64,7 @@ export function ContextMenuWindow() {
 
 							// Position the menu at the cursor
 							invoke("position_context_menu", {
-								label: window.label,
+								label: webviewWindow.label,
 								x: data.x,
 								y: data.y,
 								menuWidth: width,
@@ -84,10 +83,10 @@ export function ContextMenuWindow() {
 
 		// Close on blur (when clicking outside)
 		const handleBlur = async () => {
-			invoke("close_window", { label: window.label }).catch(console.error);
+			invoke("close_window", { label: webviewWindow.label }).catch(console.error);
 		};
 
-		window.listen("tauri://blur", handleBlur);
+		webviewWindow.listen("tauri://blur", handleBlur);
 
 		return () => {
 			// Cleanup handled by Tauri
@@ -99,7 +98,7 @@ export function ContextMenuWindow() {
 			item.onClick();
 		}
 		// Close menu after click
-		invoke("close_window", { label: window.label }).catch(console.error);
+		invoke("close_window", { label: webviewWindow.label }).catch(console.error);
 	};
 
 	const renderItem = (item: MenuItem, index: number) => {

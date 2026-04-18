@@ -26,8 +26,8 @@ import {
 	VideoCamera
 } from '@phosphor-icons/react';
 import {getIcon} from '@sd/assets/util';
-import type {File} from '@sd/ts-client';
-import {toast} from '@sd/ui';
+import type {File, SdPath} from '@sd/ts-client';
+import {toast} from '@spacedrive/primitives';
 import clsx from 'clsx';
 import {LocationMap} from '../LocationMap';
 import {useState} from 'react';
@@ -928,7 +928,9 @@ function OverviewTab({file}: {file: File}) {
 										},
 								tag_ids: [tag.id],
 								source: 'User',
-								confidence: 1.0
+								confidence: 1.0,
+								applied_context: null,
+								instance_attributes: null
 							});
 						}}
 						contextTags={file.tags || []}
@@ -1326,7 +1328,7 @@ function OverviewTab({file}: {file: File}) {
 									</span>
 								</div>
 								<pre className="text-sidebar-inkDull no-scrollbar max-h-40 overflow-y-auto whitespace-pre-wrap text-xs">
-									{file.content_identity.text_content}
+									{file.content_identity?.text_content}
 								</pre>
 							</div>
 						)}
@@ -1556,10 +1558,11 @@ function InstancesTab({file}: {file: File}) {
 	>({
 		query: 'files.alternate_instances',
 		input: {entry_uuid: file?.id || ''},
+		resourceType: 'file',
 		enabled: !!file?.id && !!file?.content_identity
 	});
 
-	const instances = instancesQuery.data?.instances || [];
+	const instances = (instancesQuery.data as {instances: File[]; total_count: number} | undefined)?.instances || [];
 
 	// Query devices to get proper names and icons
 	const devicesQuery = useNormalizedQuery<any, any[]>({
@@ -1634,7 +1637,7 @@ function InstancesTab({file}: {file: File}) {
 			) : (
 				<div className="space-y-4">
 					{Object.entries(instancesByDevice).map(
-						([deviceSlug, deviceInstances]) => {
+						([deviceSlug, deviceInstances]: [string, File[]]) => {
 							const deviceInfo = getDeviceInfo(deviceSlug);
 							const deviceName = getDeviceName(deviceSlug);
 

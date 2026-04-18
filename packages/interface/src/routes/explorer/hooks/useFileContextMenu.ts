@@ -48,7 +48,6 @@ export function useFileContextMenu({
 }: UseFileContextMenuProps) {
 	const { navigateToPath, currentPath } = useExplorer();
 	const platform = usePlatform();
-	const copyFiles = useLibraryMutation("files.copy");
 	const { deleteFiles } = useDeleteFiles();
 	const createFolder = useLibraryMutation("files.createFolder");
 	const { runJob } = useJobDispatch();
@@ -61,7 +60,7 @@ export function useFileContextMenu({
 		const targets =
 			selected && selectedFiles.length > 0 ? selectedFiles : [file];
 		return targets
-			.filter((f) => f && f.sd_path && "Physical" in f.sd_path)
+			.filter((f): f is File => f != null && f.sd_path != null && "Physical" in f.sd_path)
 			.map((f) => (f.sd_path as any).Physical.path);
 	};
 
@@ -75,7 +74,7 @@ export function useFileContextMenu({
 		const targets =
 			selected && selectedFiles.length > 0 ? selectedFiles : [file];
 		// Filter out virtual files - they cannot be copied/moved/deleted
-		return targets.filter((f) => f && !isVirtualFile(f));
+		return targets.filter((f): f is File => f != null && !isVirtualFile(f));
 	};
 
 	// Check if any selected files are virtual (to disable certain operations)
