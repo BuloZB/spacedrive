@@ -18,6 +18,7 @@ import {
 } from './components/TabManager';
 import {usePlatform} from './contexts/PlatformContext';
 import {useNormalizedQuery} from './contexts/SpacedriveContext';
+import {WebContextMenuProvider} from './contexts/WebContextMenuContext';
 import {ExplorerProvider, useExplorer} from './routes/explorer';
 import {KeyboardHandler} from './routes/explorer/KeyboardHandler';
 import {SelectionProvider} from './routes/explorer/SelectionContext';
@@ -133,7 +134,12 @@ function ShellLayoutContent() {
 	const isSizeViewActive = viewMode === 'size';
 
 	return (
-		<div className="text-sidebar-ink bg-app relative flex h-screen select-none flex-col overflow-hidden rounded-[10px] border border-transparent">
+		<div
+			className={clsx(
+				'text-sidebar-ink bg-app relative flex h-screen select-none flex-col overflow-hidden border border-transparent',
+				platform.platform === 'tauri' && 'rounded-[10px]',
+			)}
+		>
 			{/* Preview layer - portal target for fullscreen preview, sits between content and sidebar/inspector */}
 			<div
 				id={PREVIEW_LAYER_ID}
@@ -276,10 +282,12 @@ export function ShellLayout() {
 			<TopBarProvider>
 				<SelectionProvider>
 					<ExplorerProvider>
-						{/* Sync tab navigation and defaults with router */}
-						<TabNavigationSync />
-						<TabDefaultsSync />
-						<ShellLayoutContent />
+						<WebContextMenuProvider>
+							{/* Sync tab navigation and defaults with router */}
+							<TabNavigationSync />
+							<TabDefaultsSync />
+							<ShellLayoutContent />
+						</WebContextMenuProvider>
 					</ExplorerProvider>
 				</SelectionProvider>
 			</TopBarProvider>

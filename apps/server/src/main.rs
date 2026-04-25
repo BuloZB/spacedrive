@@ -301,9 +301,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		}
 		#[cfg(debug_assertions)]
 		{
+			// Default to `~/.spacedrive` in dev — matches the Tauri desktop app,
+			// so `just dev-server` and `just dev-desktop` share libraries and
+			// data persists between runs. Falls back to a tempdir only if the
+			// home directory can't be resolved.
 			std::env::var("DATA_DIR")
 				.map(PathBuf::from)
+				.or_else(|_| {
+					dirs::home_dir()
+						.map(|h| h.join(".spacedrive"))
+						.ok_or(())
+				})
 				.unwrap_or_else(|_| {
+					warn!("Could not resolve home directory; falling back to tempdir");
 					let temp = tempfile::tempdir().expect("Failed to create temp dir");
 					temp.path().to_path_buf()
 				})
@@ -496,7 +506,13 @@ async fn is_daemon_running(socket_addr: &str) -> bool {
 	)
 }
 
-/// Graceful shutdown handler
+/// Graceful shutdown handler.
+///
+/// On first signal: logs, aborts the daemon task (if we started it), and arms
+/// a background force-exit that fires on either a second Ctrl+C or a 5-second
+/// timeout. This returns immediately so axum can begin its graceful shutdown,
+/// but long-held connections (e.g. the `/events` SSE stream held open by a
+/// browser) can't block the process indefinitely.
 async fn shutdown_signal(daemon_handle: Option<Arc<RwLock<tokio::task::JoinHandle<()>>>>) {
 	let ctrl_c = async {
 		signal::ctrl_c()
@@ -517,10 +533,10 @@ async fn shutdown_signal(daemon_handle: Option<Arc<RwLock<tokio::task::JoinHandl
 
 	tokio::select! {
 		() = ctrl_c => {
-			info!("Received Ctrl+C, shutting down gracefully...");
+			info!("Received Ctrl+C, shutting down gracefully (5s timeout)...");
 		}
 		() = terminate => {
-			info!("Received SIGTERM, shutting down gracefully...");
+			info!("Received SIGTERM, shutting down gracefully (5s timeout)...");
 		}
 	}
 
@@ -528,4 +544,18 @@ async fn shutdown_signal(daemon_handle: Option<Arc<RwLock<tokio::task::JoinHandl
 	if let Some(handle) = daemon_handle {
 		handle.write().await.abort();
 	}
+
+	// Force-exit fallback: if graceful shutdown doesn't finish (e.g. a browser
+	// is holding an SSE connection open), exit on the next Ctrl+C or after 5s.
+	tokio::spawn(async {
+		tokio::select! {
+			_ = signal::ctrl_c() => {
+				warn!("Second signal received, forcing exit");
+			}
+			_ = tokio::time::sleep(Duration::from_secs(5)) => {
+				warn!("Graceful shutdown timed out after 5s, forcing exit");
+			}
+		}
+		std::process::exit(0);
+	});
 }

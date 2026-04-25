@@ -41,6 +41,10 @@ pub enum FilterKind {
 	ContentTypes,
 	Tags,      // Persistent only
 	Locations, // Persistent only
-	Hidden,    // Not implemented yet
-	Archived,  // Not implemented yet
+	Hidden,       // Not implemented yet
+	Archived,     // Not implemented yet
+	AtRisk,       // Redundancy: content on exactly one volume
+	OnVolumes,    // Redundancy: content present on specific volumes
+	NotOnVolumes, // Redundancy: content absent from specific volumes
+	VolumeCount,  // Redundancy: min/max volume count
 }

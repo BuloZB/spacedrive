@@ -20,7 +20,7 @@ export function SpaceSwitcher({
 	return (
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger asChild>
-				<SelectPill variant="sidebar" size="lg">
+				<SelectPill variant="sidebar" size="lg" className="shrink-0">
 					<div
 						className="size-2 rounded-full"
 						style={{backgroundColor: currentSpace?.color || '#666'}}

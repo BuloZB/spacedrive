@@ -1,6 +1,9 @@
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { Overview } from "./routes/overview";
 import { ExplorerView } from "./routes/explorer";
+import { RedundancyDashboard } from "./routes/redundancy";
+import { AtRiskFiles } from "./routes/redundancy/at-risk";
+import { CompareVolumes } from "./routes/redundancy/compare";
 import { ShellLayout } from "./ShellLayout";
 import { JobsScreen } from "./components/JobManager";
 import { DaemonManager } from "./routes/daemon";
@@ -77,6 +80,23 @@ export const explorerRoutes = [
 			{
 				path: "sources/:sourceId",
 				element: <SourceDetail />,
+			},
+			{
+				path: "redundancy",
+				children: [
+					{
+						index: true,
+						element: <RedundancyDashboard />,
+					},
+					{
+						path: "at-risk",
+						element: <AtRiskFiles />,
+					},
+					{
+						path: "compare",
+						element: <CompareVolumes />,
+					},
+				],
 			},
 			{
 				path: "search",

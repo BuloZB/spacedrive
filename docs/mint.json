@@ -86,6 +86,7 @@
         "core/locations",
         "core/devices",
         "core/volumes",
+        "core/filesystems",
         "core/file-copy-operations",
         "core/tagging",
         "core/virtual-sidecars"

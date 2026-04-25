@@ -1256,6 +1256,20 @@ impl Library {
 					"Primary" | "UserData" | "External" | "Secondary"
 				)
 			})
+			// Drop volumes the user can't see. Honor the persisted flag *and*
+			// re-check the current platform visibility rules so stale DB rows
+			// (created before the filter logic existed) don't inflate the
+			// library's reported capacity. Without this, every ZFS dataset on
+			// a TrueNAS pool gets counted even though they share storage.
+			.filter(|vol| {
+				vol.is_user_visible.unwrap_or(true)
+					&& !vol
+						.mount_point
+						.as_deref()
+						.map(std::path::Path::new)
+						.map(crate::volume::utils::should_hide_by_mount_path)
+						.unwrap_or(false)
+			})
 			.collect();
 
 		// Deduplicate by fingerprint first (same physical volume tracked multiple times)
@@ -1668,6 +1682,20 @@ impl Library {
 					volume_type,
 					"Primary" | "UserData" | "External" | "Secondary"
 				)
+			})
+			// Drop volumes the user can't see. Honor the persisted flag *and*
+			// re-check the current platform visibility rules so stale DB rows
+			// (created before the filter logic existed) don't inflate the
+			// library's reported capacity. Without this, every ZFS dataset on
+			// a TrueNAS pool gets counted even though they share storage.
+			.filter(|vol| {
+				vol.is_user_visible.unwrap_or(true)
+					&& !vol
+						.mount_point
+						.as_deref()
+						.map(std::path::Path::new)
+						.map(crate::volume::utils::should_hide_by_mount_path)
+						.unwrap_or(false)
 			})
 			.collect();
 

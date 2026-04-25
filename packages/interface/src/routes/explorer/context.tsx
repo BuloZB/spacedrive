@@ -22,6 +22,7 @@ import type {
 	ListLibraryDevicesInput,
 	DirectorySortBy,
 	MediaSortBy,
+	SearchFilters as ApiSearchFilters,
 } from "@sd/ts-client";
 import {
 	useViewPreferencesStore,
@@ -61,7 +62,9 @@ export interface SearchFilters {
 export type ExplorerMode =
 	| { type: "browse" }
 	| { type: "search"; query: string; scope: SearchScope }
-	| { type: "recents" };
+	| { type: "recents" }
+	| { type: "tag"; tagId: string }
+	| { type: "filtered"; filters: ApiSearchFilters; label: string };
 
 export type NavigationTarget =
 	| { type: "path"; path: SdPath }
@@ -193,6 +196,10 @@ type UIAction =
 	| { type: "EXIT_SEARCH_MODE" }
 	| { type: "ENTER_RECENTS_MODE" }
 	| { type: "EXIT_RECENTS_MODE" }
+	| { type: "ENTER_FILTERED_MODE"; filters: ApiSearchFilters; label: string }
+	| { type: "EXIT_FILTERED_MODE" }
+	| { type: "ENTER_TAG_MODE"; tagId: string }
+	| { type: "EXIT_TAG_MODE" }
 	| { type: "SET_SEARCH_FILTERS"; filters: SearchFilters }
 	| {
 			type: "LOAD_PREFERENCES";
@@ -255,6 +262,34 @@ function uiReducer(state: UIState, action: UIAction): UIState {
 			};
 
 		case "EXIT_RECENTS_MODE":
+			return {
+				...state,
+				mode: { type: "browse" },
+			};
+
+		case "ENTER_FILTERED_MODE":
+			return {
+				...state,
+				mode: {
+					type: "filtered",
+					filters: action.filters,
+					label: action.label,
+				},
+			};
+
+		case "EXIT_FILTERED_MODE":
+			return {
+				...state,
+				mode: { type: "browse" },
+			};
+
+		case "ENTER_TAG_MODE":
+			return {
+				...state,
+				mode: { type: "tag", tagId: action.tagId },
+			};
+
+		case "EXIT_TAG_MODE":
 			return {
 				...state,
 				mode: { type: "browse" },
@@ -412,6 +447,10 @@ interface ExplorerContextValue {
 	exitSearchMode: () => void;
 	enterRecentsMode: () => void;
 	exitRecentsMode: () => void;
+	enterFilteredMode: (filters: ApiSearchFilters, label: string) => void;
+	exitFilteredMode: () => void;
+	enterTagMode: (tagId: string) => void;
+	exitTagMode: () => void;
 	searchFilters: SearchFilters;
 	setSearchFilters: (filters: SearchFilters) => void;
 
@@ -582,8 +621,9 @@ export function ExplorerProvider({
 			const target: NavigationTarget = { type: "path", path };
 			navDispatch({ type: "NAVIGATE", target });
 			routerNavigate(targetToUrl(target));
-			// Exit search mode when navigating
+			// Exit special modes when navigating to a path
 			uiDispatch({ type: "EXIT_SEARCH_MODE" });
+			uiDispatch({ type: "EXIT_TAG_MODE" });
 		},
 		[routerNavigate],
 	);
@@ -593,8 +633,9 @@ export function ExplorerProvider({
 			const target: NavigationTarget = { type: "view", view, id, params };
 			navDispatch({ type: "NAVIGATE", target });
 			routerNavigate(targetToUrl(target));
-			// Exit search mode when navigating
+			// Exit special modes when navigating
 			uiDispatch({ type: "EXIT_SEARCH_MODE" });
+			uiDispatch({ type: "EXIT_TAG_MODE" });
 		},
 		[routerNavigate],
 	);
@@ -605,8 +646,9 @@ export function ExplorerProvider({
 		if (targetIndex >= 0) {
 			const target = navState.history[targetIndex];
 			routerNavigate(targetToUrl(target), { replace: true });
-			// Exit search mode when navigating
+			// Exit special modes when navigating
 			uiDispatch({ type: "EXIT_SEARCH_MODE" });
+			uiDispatch({ type: "EXIT_TAG_MODE" });
 		}
 	}, [navState.index, navState.history, routerNavigate]);
 
@@ -616,8 +658,9 @@ export function ExplorerProvider({
 		if (targetIndex < navState.history.length) {
 			const target = navState.history[targetIndex];
 			routerNavigate(targetToUrl(target), { replace: true });
-			// Exit search mode when navigating
+			// Exit special modes when navigating
 			uiDispatch({ type: "EXIT_SEARCH_MODE" });
+			uiDispatch({ type: "EXIT_TAG_MODE" });
 		}
 	}, [navState.index, navState.history, routerNavigate]);
 
@@ -737,6 +780,25 @@ export function ExplorerProvider({
 		uiDispatch({ type: "EXIT_RECENTS_MODE" });
 	}, []);
 
+	const enterFilteredMode = useCallback(
+		(filters: ApiSearchFilters, label: string) => {
+			uiDispatch({ type: "ENTER_FILTERED_MODE", filters, label });
+		},
+		[],
+	);
+
+	const exitFilteredMode = useCallback(() => {
+		uiDispatch({ type: "EXIT_FILTERED_MODE" });
+	}, []);
+
+	const enterTagMode = useCallback((tagId: string) => {
+		uiDispatch({ type: "ENTER_TAG_MODE", tagId });
+	}, []);
+
+	const exitTagMode = useCallback(() => {
+		uiDispatch({ type: "EXIT_TAG_MODE" });
+	}, []);
+
 	const setSearchFilters = useCallback((filters: SearchFilters) => {
 		uiDispatch({ type: "SET_SEARCH_FILTERS", filters });
 	}, []);
@@ -794,6 +856,10 @@ export function ExplorerProvider({
 			exitSearchMode,
 			enterRecentsMode,
 			exitRecentsMode,
+			enterFilteredMode,
+			exitFilteredMode,
+			enterTagMode,
+			exitTagMode,
 			searchFilters: uiState.searchFilters,
 			setSearchFilters,
 			devices,
@@ -837,6 +903,10 @@ export function ExplorerProvider({
 			exitSearchMode,
 			enterRecentsMode,
 			exitRecentsMode,
+			enterFilteredMode,
+			exitFilteredMode,
+			enterTagMode,
+			exitTagMode,
 			uiState.searchFilters,
 			setSearchFilters,
 			devices,

@@ -35,6 +35,10 @@ const PALETTE_ITEMS: PaletteItem[] = [
 		type: "Sources",
 		label: "Sources",
 	},
+	{
+		type: "Redundancy",
+		label: "Redundancy",
+	},
 ];
 
 function DraggablePaletteItem({ item }: { item: PaletteItem }) {

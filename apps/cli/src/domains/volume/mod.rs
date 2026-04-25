@@ -87,8 +87,15 @@ pub async fn run(ctx: &Context, cmd: VolumeCmd) -> Result<()> {
 				println!("   Fingerprint: {}", volume.fingerprint);
 				println!("   Type: {:?}", volume.volume_type);
 				println!("   Mount: {}", volume.mount_point.display());
-				println!("   Mounted: {}", volume.is_mounted);
-				println!("   Tracked: {}", volume.is_tracked);
+				println!(
+					"   Capacity: {} total, {} available",
+					format_bytes(volume.total_capacity),
+					format_bytes(volume.available_space),
+				);
+				println!(
+					"   Visible: {}, Tracked: {}, Mounted: {}",
+					volume.is_user_visible, volume.is_tracked, volume.is_mounted,
+				);
 				println!();
 			}
 		}
@@ -98,4 +105,22 @@ pub async fn run(ctx: &Context, cmd: VolumeCmd) -> Result<()> {
 		}
 	}
 	Ok(())
+}
+
+fn format_bytes(bytes: u64) -> String {
+	const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB", "PB"];
+	if bytes == 0 {
+		return "0 B".to_string();
+	}
+	let mut value = bytes as f64;
+	let mut unit = 0;
+	while value >= 1024.0 && unit < UNITS.len() - 1 {
+		value /= 1024.0;
+		unit += 1;
+	}
+	if unit == 0 {
+		format!("{} {}", bytes, UNITS[unit])
+	} else {
+		format!("{:.2} {}", value, UNITS[unit])
+	}
 }

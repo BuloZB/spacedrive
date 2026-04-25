@@ -12,7 +12,7 @@ import {
 	FunnelSimple,
 	GearSix,
 	ListBullets,
-	Palette
+	Palette,
 } from '@phosphor-icons/react';
 import {useSidebarStore} from '@sd/ts-client';
 import type {

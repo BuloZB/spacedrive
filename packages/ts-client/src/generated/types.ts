@@ -163,15 +163,19 @@ message: string };
 /**
  * Targets for immediately applying a newly created tag
  */
-export type ApplyToTargets = 
+export type ApplyToTargets =
 /**
  * Apply to content identities (all instances)
  */
-{ type: "Content"; ids: string[] } | 
+{ type: "Content"; ids: string[] } |
 /**
- * Apply to specific entries (single instance)
+ * Apply to specific entries by database ID (internal use)
  */
-{ type: "Entry"; ids: number[] };
+{ type: "Entry"; ids: number[] } |
+/**
+ * Apply to specific entries by UUID (from frontend File.id)
+ */
+{ type: "EntryUuid"; ids: string[] };
 
 /**
  * Audio metadata extracted from FFmpeg
@@ -569,6 +573,14 @@ namespace: string | null;
  * Success message
  */
 message: string };
+
+export type DeleteTagInput = { tag_id: string };
+
+export type DeleteTagOutput = { deleted: boolean };
+
+export type UnapplyTagsInput = { entry_ids: string[]; tag_ids: string[] };
+
+export type UnapplyTagsOutput = { entries_affected: number; tags_removed: number; warnings: string[] };
 
 /**
  * Data volume metrics snapshot
@@ -1468,7 +1480,7 @@ export type FileSystem =
 /**
  * Indicates which filters are available for a given search type
  */
-export type FilterKind = "FileTypes" | "DateRange" | "SizeRange" | "ContentTypes" | "Tags" | "Locations" | "Hidden" | "Archived";
+export type FilterKind = "FileTypes" | "DateRange" | "SizeRange" | "ContentTypes" | "Tags" | "Locations" | "Hidden" | "Archived" | "AtRisk" | "OnVolumes" | "NotOnVolumes" | "VolumeCount";
 
 /**
  * Raw filesystem event kinds emitted by the watcher without DB resolution
@@ -2091,7 +2103,11 @@ export type ItemType =
 /**
  * Specific archive data source
  */
-{ Source: { source_id: string } };
+{ Source: { source_id: string } } | 
+/**
+ * Redundancy awareness dashboard
+ */
+"Redundancy";
 
 export type JobCancelInput = { job_id: string };
 
@@ -2419,6 +2435,27 @@ name: string;
  * Path where the library is located
  */
 path: string };
+
+/**
+ * Library-wide redundancy totals
+ */
+export type LibraryRedundancyTotals = { 
+/**
+ * Total unique content bytes across the entire library (deduplicated)
+ */
+total_unique_content_bytes: number; 
+/**
+ * Content bytes that exist on only one volume
+ */
+total_at_risk_bytes: number; 
+/**
+ * Content bytes that exist on two or more volumes
+ */
+total_redundant_bytes: number; 
+/**
+ * Ratio of redundant to total content (0.0 = nothing replicated, 1.0 = everything replicated)
+ */
+replication_score: number };
 
 export type LibraryRenameInput = { library_id: string; new_name: string };
 
@@ -3318,15 +3355,37 @@ enabled: boolean;
  */
 regenerate: boolean };
 
-export type RegenerateThumbnailInput = { 
+/**
+ * Input for the redundancy summary query
+ */
+export type RedundancySummaryInput = {
+/**
+ * Optional: restrict summary to specific volumes. None = all volumes.
+ */
+volume_uuids?: string[] | null };
+
+/**
+ * Complete redundancy summary for the library
+ */
+export type RedundancySummaryOutput = {
+/**
+ * Per-volume redundancy breakdown
+ */
+volumes: VolumeRedundancySummary[];
+/**
+ * Library-wide totals
+ */
+library_totals: LibraryRedundancyTotals };
+
+export type RegenerateThumbnailInput = {
 /**
  * UUID of the entry to regenerate thumbnails for
  */
-entry_uuid: string; 
+entry_uuid: string;
 /**
  * Optional variant names (defaults to grid@1x, grid@2x, detail@1x)
  */
-variants: string[] | null; 
+variants: string[] | null;
 /**
  * Force regeneration even if thumbnails exist
  */
@@ -3560,7 +3619,28 @@ export type SearchFacets = { file_types: { [key in string]: number }; tags: { [k
 /**
  * Container for all structured filters
  */
-export type SearchFilters = { file_types: string[] | null; tags: TagFilter | null; date_range: DateRangeFilter | null; size_range: SizeRangeFilter | null; locations: string[] | null; content_types: ContentKind[] | null; include_hidden: boolean | null; include_archived: boolean | null };
+export type SearchFilters = { file_types: string[] | null; tags: TagFilter | null; date_range: DateRangeFilter | null; size_range: SizeRangeFilter | null; locations: string[] | null; content_types: ContentKind[] | null; include_hidden: boolean | null; include_archived: boolean | null; 
+/**
+ * Only return files that are at risk (true) or redundant (false).
+ * At risk = content exists on exactly one volume.
+ */
+at_risk: boolean | null; 
+/**
+ * Only return files whose content is present on these volumes
+ */
+on_volumes: string[] | null; 
+/**
+ * Only return files whose content is NOT present on these volumes
+ */
+not_on_volumes: string[] | null; 
+/**
+ * Minimum number of distinct volumes the content must exist on
+ */
+min_volume_count: number | null; 
+/**
+ * Maximum number of distinct volumes the content can exist on
+ */
+max_volume_count: number | null };
 
 /**
  * Defines the search mode and performance characteristics
@@ -4142,12 +4222,15 @@ export type TagTargets =
  * Tag by content identity (applies to ALL instances of this content across devices)
  * This is the preferred/default approach
  */
-{ type: "Content"; ids: string[] } | 
+{ type: "Content"; ids: string[] } |
 /**
- * Tag by entry ID (applies to ONLY this specific file instance)
- * Use when you want instance-specific tags
+ * Tag by entry database ID (internal use)
  */
-{ type: "Entry"; ids: number[] };
+{ type: "Entry"; ids: number[] } |
+/**
+ * Tag by entry UUID (from frontend File.id)
+ */
+{ type: "EntryUuid"; ids: string[] };
 
 /**
  * Types of semantic tags with different behaviors
@@ -4746,6 +4829,43 @@ export type VolumeListQueryInput = {
  */
 filter?: VolumeFilter };
 
+/**
+ * Redundancy breakdown for a single volume
+ */
+export type VolumeRedundancySummary = { 
+/**
+ * Volume UUID
+ */
+volume_uuid: string; 
+/**
+ * Display name of the volume
+ */
+display_name: string | null; 
+/**
+ * Total bytes of file content on this volume (deduplicated within volume)
+ */
+total_bytes: number; 
+/**
+ * Bytes of content unique to this volume (at risk if volume is lost)
+ */
+at_risk_bytes: number; 
+/**
+ * Number of files whose content only exists on this volume
+ */
+at_risk_file_count: number; 
+/**
+ * Bytes of content that also exists on at least one other volume
+ */
+redundant_bytes: number; 
+/**
+ * Number of files whose content exists on other volumes too
+ */
+redundant_file_count: number; 
+/**
+ * Total number of files on this volume
+ */
+total_file_count: number };
+
 export type VolumeRefreshInput = { 
 /**
  * Optional: Set to true to force recalculation even if recently calculated
@@ -4949,6 +5069,8 @@ export type LibraryAction =
   |  { type: 'spaces.update_group'; input: UpdateGroupInput; output: UpdateGroupOutput }
   |  { type: 'tags.apply'; input: ApplyTagsInput; output: ApplyTagsOutput }
   |  { type: 'tags.create'; input: CreateTagInput; output: CreateTagOutput }
+  |  { type: 'tags.delete'; input: DeleteTagInput; output: DeleteTagOutput }
+  |  { type: 'tags.unapply'; input: UnapplyTagsInput; output: UnapplyTagsOutput }
   |  { type: 'volumes.add_cloud'; input: VolumeAddCloudInput; output: VolumeAddCloudOutput }
   |  { type: 'volumes.eject'; input: VolumeEjectInput; output: VolumeEjectOutput }
   |  { type: 'volumes.index'; input: IndexVolumeInput; output: IndexVolumeOutput }
@@ -4995,6 +5117,7 @@ export type LibraryQuery =
   |  { type: 'locations.list'; input: LocationsListQueryInput; output: LocationsListOutput }
   |  { type: 'locations.suggested'; input: SuggestedLocationsQueryInput; output: SuggestedLocationsOutput }
   |  { type: 'locations.validate_path'; input: ValidateLocationPathInput; output: ValidateLocationPathOutput }
+  |  { type: 'redundancy.summary'; input: RedundancySummaryInput; output: RedundancySummaryOutput }
   |  { type: 'search.files'; input: FileSearchInput; output: FileSearchOutput }
   |  { type: 'sources.get'; input: GetSourceInput; output: SourceInfo }
   |  { type: 'sources.list'; input: ListSourcesInput; output: [SourceInfo] }
@@ -5080,6 +5203,8 @@ export const WIRE_METHODS = {
     'spaces.update_group': 'action:spaces.update_group.input',
     'tags.apply': 'action:tags.apply.input',
     'tags.create': 'action:tags.create.input',
+    'tags.delete': 'action:tags.delete.input',
+    'tags.unapply': 'action:tags.unapply.input',
     'volumes.add_cloud': 'action:volumes.add_cloud.input',
     'volumes.eject': 'action:volumes.eject.input',
     'volumes.index': 'action:volumes.index.input',
@@ -5126,6 +5251,7 @@ export const WIRE_METHODS = {
     'locations.list': 'query:locations.list',
     'locations.suggested': 'query:locations.suggested',
     'locations.validate_path': 'query:locations.validate_path',
+    'redundancy.summary': 'query:redundancy.summary',
     'search.files': 'query:search.files',
     'sources.get': 'query:sources.get',
     'sources.list': 'query:sources.list',

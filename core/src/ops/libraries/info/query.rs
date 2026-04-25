@@ -63,32 +63,29 @@ impl LibraryQuery for LibraryInfoQuery {
 			&& cached_stats.tag_count == 0;
 
 		let statistics = if is_stale {
-			// First load or completely empty - calculate synchronously
-			tracing::debug!(
+			// First load or completely empty — return zeros immediately and
+			// calculate in the background.  The synchronous path used to
+			// block here, but on large libraries (e.g. NAS with millions of
+			// files being indexed) the closure-table walk in
+			// calculate_file_statistics can take minutes, locking up the RPC
+			// endpoint and making the UI unresponsive.  The background task
+			// emits a ResourceChanged event when done so the UI refreshes.
+			tracing::info!(
 				library_id = %library_id,
 				library_name = %config.name,
-				"Cached statistics are empty, calculating synchronously for first load"
+				"Cached statistics are empty, returning zeros and calculating in background"
 			);
 
-			let stats = library
-				.calculate_statistics_for_query()
-				.await
-				.map_err(|e| {
-					QueryError::Internal(format!("Failed to calculate statistics: {}", e))
-				})?;
-
-			// Also trigger background save and event emission
-			// (non-blocking, happens after we return the stats to the user)
 			if let Err(e) = library.recalculate_statistics().await {
 				tracing::warn!(
 					library_id = %library_id,
 					library_name = %config.name,
 					error = %e,
-					"Failed to trigger background statistics save after sync calculation"
+					"Failed to trigger background statistics calculation"
 				);
 			}
 
-			stats
+			cached_stats
 		} else {
 			// Return cached statistics immediately (non-blocking)
 			tracing::debug!(

@@ -62,6 +62,19 @@ pub struct SearchFilters {
 	pub content_types: Option<Vec<ContentKind>>,
 	pub include_hidden: Option<bool>,
 	pub include_archived: Option<bool>,
+
+	// Redundancy filters
+	/// Only return files that are at risk (true) or redundant (false).
+	/// At risk = content exists on exactly one volume.
+	pub at_risk: Option<bool>,
+	/// Only return files whose content is present on these volumes
+	pub on_volumes: Option<Vec<Uuid>>,
+	/// Only return files whose content is NOT present on these volumes
+	pub not_on_volumes: Option<Vec<Uuid>>,
+	/// Minimum number of distinct volumes the content must exist on
+	pub min_volume_count: Option<u32>,
+	/// Maximum number of distinct volumes the content can exist on
+	pub max_volume_count: Option<u32>,
 }
 
 /// Filter for tags, supporting complex boolean logic
@@ -190,7 +203,14 @@ impl FileSearchInput {
 		let is_recents_query =
 			self.query.trim().is_empty() && matches!(self.sort.field, SortField::IndexedAt);
 
-		if self.query.trim().is_empty() && !is_recents_query {
+		// Allow empty queries when redundancy filters are active (browsing at-risk files)
+		let has_redundancy_filters = self.filters.at_risk.is_some()
+			|| self.filters.on_volumes.is_some()
+			|| self.filters.not_on_volumes.is_some()
+			|| self.filters.min_volume_count.is_some()
+			|| self.filters.max_volume_count.is_some();
+
+		if self.query.trim().is_empty() && !is_recents_query && !has_redundancy_filters {
 			return Err("Query cannot be empty".to_string());
 		}
 

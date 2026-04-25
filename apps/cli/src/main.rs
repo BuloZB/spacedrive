@@ -58,6 +58,7 @@ use crate::domains::{
 	location::{self, LocationCmd},
 	logs::{self, LogsCmd},
 	network::{self, NetworkCmd},
+	redundancy::{self, RedundancyCmd},
 	search::{self, SearchCmd},
 	spaces::{self, SpacesCmd},
 	sync::{self, SyncCmd},
@@ -207,6 +208,9 @@ enum Commands {
 	/// View and follow logs
 	#[command(subcommand)]
 	Logs(LogsCmd),
+	/// Redundancy / cross-volume replication awareness
+	#[command(subcommand)]
+	Redundancy(RedundancyCmd),
 	/// Search operations
 	#[command(subcommand)]
 	Search(SearchCmd),
@@ -707,6 +711,7 @@ async fn run_client_command(
 		Commands::Job(cmd) => job::run(&ctx, cmd).await?,
 		Commands::Sync(cmd) => sync::run(&ctx, cmd).await?,
 		Commands::Logs(cmd) => logs::run(&ctx, cmd).await?,
+		Commands::Redundancy(cmd) => redundancy::run(&ctx, cmd).await?,
 		Commands::Search(cmd) => search::run(&ctx, cmd).await?,
 		Commands::Spaces(cmd) => spaces::exec(cmd, &ctx).await?,
 		Commands::Tag(cmd) => tag::run(&ctx, cmd).await?,

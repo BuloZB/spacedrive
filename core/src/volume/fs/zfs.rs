@@ -412,10 +412,41 @@ pub async fn fetch_zfs_list_output() -> VolumeResult<String> {
 ///   are marked as system-level and hidden.
 /// - Datasets under known app/container parent paths (e.g. `ix-applications`)
 ///   are hidden.
+///
+/// Capacity fix: for pool-root datasets, `df` under-reports Size because it
+/// only counts the root dataset's *own* used bytes plus avail. Descendant
+/// datasets hold the real data but `df` can't see them from the root. ZFS's
+/// `zfs list` exposes the root's `used` property which *does* include
+/// descendants, so we override `total_capacity` with `used + available` to
+/// reflect the pool's true usable capacity (e.g. 62 TB instead of 15 TB on
+/// a 60 TB raidz2 pool that's mostly full of data in child datasets).
 pub fn enhance_volume_with_cached_output(volume: &mut Volume, zfs_list_output: &str) {
 	if let Some(mount_point) = volume.mount_point.to_str() {
 		if let Ok(dataset_info) = find_dataset_for_path(zfs_list_output, Path::new(mount_point)) {
 			debug!("Enhanced ZFS volume with dataset info: {:?}", dataset_info);
+
+			// If this volume IS the pool root (dataset name equals pool name),
+			// overwrite the df-derived capacity with the pool-wide total from
+			// `zfs list`. Only the pool root carries descendant-inclusive
+			// `used`, so this correction only applies there — leaf datasets
+			// would over-report if we did it for them (each would claim the
+			// whole pool's capacity).
+			if dataset_info.name == dataset_info.pool_name {
+				let pool_total = dataset_info
+					.used_bytes
+					.saturating_add(dataset_info.available_bytes);
+				debug!(
+					"ZFS pool root '{}' at {}: overriding total_capacity {} → {} (used={}, avail={})",
+					dataset_info.pool_name,
+					mount_point,
+					volume.total_capacity,
+					pool_total,
+					dataset_info.used_bytes,
+					dataset_info.available_bytes,
+				);
+				volume.total_capacity = pool_total;
+				volume.available_space = dataset_info.available_bytes;
+			}
 
 			if is_system_zfs_pool(&dataset_info.pool_name) {
 				debug!(

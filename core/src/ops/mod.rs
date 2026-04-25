@@ -24,6 +24,7 @@ pub mod media;
 pub mod metadata;
 pub mod models;
 pub mod network;
+pub mod redundancy;
 pub mod search;
 pub mod sidecar;
 pub mod sources;

@@ -43,11 +43,13 @@ COPY apps/server ./apps/server
 # Embedded web UI assets — must be pre-built before `docker build` runs.
 COPY apps/web/dist ./apps/web/dist
 
-# Build server with media processing features
+# Build server with media processing features.
+# SD_SKIP_WEB_BUILD tells build.rs to use the pre-built apps/web/dist instead
+# of trying to run `bun run build` (bun isn't installed in this stage).
 RUN --mount=type=cache,target=/root/.cargo/registry \
 	--mount=type=cache,target=/root/.cargo/git \
 	--mount=type=cache,target=/build/target \
-	cargo build --release -p sd-server --features sd-core/heif,sd-core/ffmpeg && \
+	SD_SKIP_WEB_BUILD=1 cargo build --release -p sd-server --features sd-core/heif,sd-core/ffmpeg && \
 	cp target/release/sd-server /usr/local/bin/sd-server
 
 #--

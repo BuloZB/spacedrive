@@ -220,6 +220,11 @@ impl From<FileSearchArgs> for FileSearchInput {
 			}),
 			include_hidden: Some(args.include_hidden),
 			include_archived: Some(args.include_archived),
+			at_risk: None,
+			on_volumes: None,
+			not_on_volumes: None,
+			min_volume_count: None,
+			max_volume_count: None,
 		};
 
 		let sort = SortOptions {

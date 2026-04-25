@@ -6,6 +6,7 @@ import {
 	Tag as TagIcon,
 	Folders,
 	Database,
+	ShieldCheck,
 } from "@phosphor-icons/react";
 import { Location } from "@sd/assets/icons";
 import type {
@@ -69,6 +70,10 @@ export function isSourcesItem(t: ItemType): t is "Sources" {
 	return t === "Sources";
 }
 
+export function isRedundancyItem(t: ItemType): t is "Redundancy" {
+	return t === "Redundancy";
+}
+
 export function isSourceItem(
 	t: ItemType,
 ): t is { Source: { source_id: string } } {
@@ -89,6 +94,7 @@ function getItemIcon(itemType: ItemType): IconData {
 	if (isFavoritesItem(itemType)) return { type: "component", icon: Heart };
 	if (isFileKindsItem(itemType)) return { type: "component", icon: Folders };
 	if (isSourcesItem(itemType)) return { type: "component", icon: Database };
+	if (isRedundancyItem(itemType)) return { type: "component", icon: ShieldCheck };
 	if (isLocationItem(itemType)) return { type: "image", icon: Location };
 	if (isVolumeItem(itemType)) return { type: "component", icon: HardDrive };
 	if (isTagItem(itemType)) return { type: "component", icon: TagIcon };
@@ -104,6 +110,7 @@ function getItemLabel(itemType: ItemType, resolvedFile?: File | null): string {
 	if (isFavoritesItem(itemType)) return "Favorites";
 	if (isFileKindsItem(itemType)) return "File Kinds";
 	if (isSourcesItem(itemType)) return "Sources";
+	if (isRedundancyItem(itemType)) return "Redundancy";
 	if (isLocationItem(itemType)) return resolvedFile?.name || "Unnamed Location";
 	if (isVolumeItem(itemType)) return resolvedFile?.name || (itemType as { Volume: { volume_id: string; name?: string } }).Volume.name || "Unnamed Volume";
 	if (isTagItem(itemType)) return resolvedFile?.name || "Unnamed Tag";
@@ -134,6 +141,7 @@ function getItemPath(
 	if (isFavoritesItem(itemType)) return "/favorites";
 	if (isFileKindsItem(itemType)) return "/file-kinds";
 	if (isSourcesItem(itemType)) return "/sources";
+	if (isRedundancyItem(itemType)) return "/redundancy";
 
 	if (isLocationItem(itemType)) {
 		// Use explorer route with location's SD path (passed from item.sd_path)

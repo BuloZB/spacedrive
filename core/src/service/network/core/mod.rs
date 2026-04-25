@@ -213,39 +213,77 @@ impl NetworkingService {
 		// - mDNS for local network discovery
 		// - PkarrPublisher to publish our address to dns.iroh.link (enables remote discovery)
 		// - DnsDiscovery to resolve other nodes from dns.iroh.link
-		let endpoint = Endpoint::builder()
-			.secret_key(secret_key)
-			.alpns(vec![
-				PAIRING_ALPN.to_vec(),
-				FILE_TRANSFER_ALPN.to_vec(),
-				MESSAGING_ALPN.to_vec(),
-				SYNC_ALPN.to_vec(),
-				JOB_ACTIVITY_ALPN.to_vec(),
-			])
-			.relay_mode(iroh::RelayMode::Default)
-			.discovery(MdnsDiscovery::builder())
-			.discovery(PkarrPublisher::n0_dns())
-			.discovery(DnsDiscovery::n0_dns())
-			.bind_addr_v4(std::net::SocketAddrV4::new(
-				std::net::Ipv4Addr::UNSPECIFIED,
-				0,
-			))
-			.bind_addr_v6(std::net::SocketAddrV6::new(
-				std::net::Ipv6Addr::UNSPECIFIED,
-				0,
-				0,
-				0,
-			))
-			.bind()
-			.await
-			.map_err(|e| NetworkingError::Transport(format!("Failed to create endpoint: {}", e)))?;
+		//
+		// mDNS is best-effort: on hosts where another service (e.g. avahi-daemon
+		// on most Linux boxes / TrueNAS) already owns UDP :5353, Iroh's own mDNS
+		// service can't bind and endpoint creation fails wholesale. Fall back to
+		// pkarr + DNS-only discovery in that case — remote pairing via node ID
+		// continues to work, we just lose local-network auto-discovery.
+		let build_endpoint = |with_mdns: bool| {
+			let mut builder = Endpoint::builder()
+				.secret_key(secret_key.clone())
+				.alpns(vec![
+					PAIRING_ALPN.to_vec(),
+					FILE_TRANSFER_ALPN.to_vec(),
+					MESSAGING_ALPN.to_vec(),
+					SYNC_ALPN.to_vec(),
+					JOB_ACTIVITY_ALPN.to_vec(),
+				])
+				.relay_mode(iroh::RelayMode::Default)
+				.discovery(PkarrPublisher::n0_dns())
+				.discovery(DnsDiscovery::n0_dns())
+				.bind_addr_v4(std::net::SocketAddrV4::new(
+					std::net::Ipv4Addr::UNSPECIFIED,
+					0,
+				))
+				.bind_addr_v6(std::net::SocketAddrV6::new(
+					std::net::Ipv6Addr::UNSPECIFIED,
+					0,
+					0,
+					0,
+				));
+			if with_mdns {
+				builder = builder.discovery(MdnsDiscovery::builder());
+			}
+			builder.bind()
+		};
+
+		let endpoint = match build_endpoint(true).await {
+			Ok(ep) => {
+				self.logger
+					.info("Endpoint bound successfully with mDNS + pkarr discovery enabled")
+					.await;
+				ep
+			}
+			Err(e) => {
+				let err_str = e.to_string().to_lowercase();
+				if err_str.contains("mdns") {
+					self.logger
+						.warn(&format!(
+							"mDNS discovery unavailable ({}); retrying with pkarr + DNS only. \
+							 Local-network auto-discovery is disabled on this host, but remote \
+							 pairing via node ID will still work.",
+							e
+						))
+						.await;
+					let ep = build_endpoint(false).await.map_err(|e| {
+						NetworkingError::Transport(format!("Failed to create endpoint: {}", e))
+					})?;
+					self.logger
+						.info("Endpoint bound successfully without mDNS (pkarr + DNS only)")
+						.await;
+					ep
+				} else {
+					return Err(NetworkingError::Transport(format!(
+						"Failed to create endpoint: {}",
+						e
+					)));
+				}
+			}
+		};
 
 		// Store endpoint reference for other methods
 		self.endpoint = Some(endpoint.clone());
-
-		self.logger
-			.info("Endpoint bound successfully with mDNS + pkarr discovery enabled")
-			.await;
 
 		// Create and start event loop
 		let event_loop = NetworkingEventLoop::new(
@@ -1455,32 +1493,43 @@ impl NetworkingService {
 				}
 			}
 		} else {
-			// Normal mode with node_id: race mDNS and relay
-			tokio::select! {
-				result = self.try_mdns_discovery(session_id, force_relay) => {
-					match result {
-						Ok(()) => {
-							self.logger.info("Connected via mDNS (local network)").await;
-							Ok(())
-						}
-						Err(e) => {
-							self.logger.warn(&format!("mDNS discovery failed: {}", e)).await;
-							Err(e)
-						}
+			// Normal mode with node_id: race mDNS and relay, but only fail if
+			// BOTH fail. `tokio::select!` resolves on the first completed branch
+			// including errors, which means a host that can't bind mDNS (e.g.
+			// where avahi owns :5353) would have its instant mDNS failure abort
+			// pairing before relay discovery gets a chance. `select_ok` picks
+			// the first Ok and only returns an error when every branch errors.
+			use futures::future::{select_ok, FutureExt};
+
+			let logger_mdns = self.logger.clone();
+			let logger_relay = self.logger.clone();
+			let mdns_fut = self
+				.try_mdns_discovery(session_id, force_relay)
+				.inspect(move |r| {
+					let logger = logger_mdns.clone();
+					if let Err(e) = r {
+						let msg = format!("mDNS discovery failed: {}", e);
+						tokio::spawn(async move { logger.warn(&msg).await });
 					}
-				}
-				result = self.try_relay_discovery(&pairing_code_clone) => {
-					match result {
-						Ok(()) => {
-							self.logger.info("Connected via relay (remote network)").await;
-							Ok(())
-						}
-						Err(e) => {
-							self.logger.warn(&format!("Relay discovery failed: {}", e)).await;
-							Err(e)
-						}
+				})
+				.boxed();
+			let relay_fut = self
+				.try_relay_discovery(&pairing_code_clone)
+				.inspect(move |r| {
+					let logger = logger_relay.clone();
+					if let Err(e) = r {
+						let msg = format!("Relay discovery failed: {}", e);
+						tokio::spawn(async move { logger.warn(&msg).await });
 					}
+				})
+				.boxed();
+
+			match select_ok([mdns_fut, relay_fut]).await {
+				Ok(((), _)) => {
+					self.logger.info("Connected (dual-path discovery)").await;
+					Ok(())
 				}
+				Err(e) => Err(e),
 			}
 		};
 

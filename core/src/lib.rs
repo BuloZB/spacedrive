@@ -520,10 +520,27 @@ impl Core {
 
 		// Register protocols and set up event bridge
 		if let Some(networking_service) = self.services.networking() {
-			// Register default protocol handlers only if networking was just initialized
-			// (if networking was already initialized during Core::new(), protocols are already registered)
-			if !already_initialized {
-				logger.info("Registering protocol handlers...").await;
+			// Core::new() attempts to register default protocols after starting
+			// networking, but swallows errors (only logs them). That means
+			// `already_initialized` does NOT imply protocols are registered —
+			// e.g. if the event loop's command sender wasn't ready when Core::new()
+			// tried to build the pairing handler, registration silently failed.
+			// Check the registry directly and re-register if missing.
+			let pairing_registered = networking_service
+				.protocol_registry()
+				.read()
+				.await
+				.get_handler("pairing")
+				.is_some();
+
+			if !already_initialized || !pairing_registered {
+				if already_initialized && !pairing_registered {
+					logger
+						.warn("Networking was initialized but protocol handlers are missing; re-registering")
+						.await;
+				} else {
+					logger.info("Registering protocol handlers...").await;
+				}
 				self.register_default_protocols(&networking_service).await?;
 			} else {
 				logger

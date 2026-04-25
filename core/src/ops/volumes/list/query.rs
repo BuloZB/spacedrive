@@ -226,7 +226,9 @@ impl LibraryQuery for VolumeListQuery {
 						// Re-apply current platform visibility rules so stale DB
 						// entries from earlier versions (which tracked everything)
 						// inherit newly-added filters without a data migration.
-						if should_hide_by_mount_path(&offline_vol.mount_point) {
+						if crate::volume::utils::should_hide_by_mount_path(
+							&offline_vol.mount_point,
+						) {
 							offline_vol.is_user_visible = false;
 							offline_vol.auto_track_eligible = false;
 						}
@@ -262,20 +264,6 @@ impl LibraryQuery for VolumeListQuery {
 
 		Ok(VolumeListOutput { volumes })
 	}
-}
-
-/// Re-evaluate whether a mount path should be hidden from the user based on
-/// current platform visibility rules. Used to retroactively hide tracked
-/// volumes whose DB entries were created before the filter rules existed.
-#[cfg(target_os = "linux")]
-fn should_hide_by_mount_path(mount_point: &std::path::Path) -> bool {
-	crate::volume::utils::is_system_mount_point(mount_point)
-		|| crate::volume::utils::is_nested_app_mount(mount_point)
-}
-
-#[cfg(not(target_os = "linux"))]
-fn should_hide_by_mount_path(_mount_point: &std::path::Path) -> bool {
-	false
 }
 
 crate::register_library_query!(VolumeListQuery, "volumes.list");

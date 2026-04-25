@@ -445,6 +445,9 @@ pub enum ItemType {
 
 	/// Specific archive data source
 	Source { source_id: String },
+
+	/// Redundancy awareness dashboard
+	Redundancy,
 }
 /// Complete sidebar layout for a space
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

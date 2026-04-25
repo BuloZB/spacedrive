@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { Icon } from '@phosphor-icons/react';
 import { usePlatform } from '../contexts/PlatformContext';
+import { useWebContextMenuController } from '../contexts/WebContextMenuContext';
 import type { KeybindId } from '../util/keybinds/registry';
 import { getKeybind } from '../util/keybinds/registry';
 import { getComboForPlatform, getCurrentPlatform, toDisplayString } from '../util/keybinds/platform';
@@ -48,6 +49,30 @@ function resolveKeybindDisplay(item: ContextMenuItem): string | undefined {
 	}
 
 	return undefined;
+}
+
+/**
+ * Drop leading/trailing separators and merge runs of adjacent separators into
+ * one. Condition-based filtering can leave orphaned separators behind; this
+ * keeps the rendered menu from looking broken. Recurses into submenus.
+ */
+function collapseSeparators(items: ContextMenuItem[]): ContextMenuItem[] {
+	const result: ContextMenuItem[] = [];
+	for (const item of items) {
+		if (item.type === 'separator') {
+			if (result.length === 0) continue;
+			if (result[result.length - 1].type === 'separator') continue;
+			result.push(item);
+		} else if (item.submenu) {
+			result.push({ ...item, submenu: collapseSeparators(item.submenu) });
+		} else {
+			result.push(item);
+		}
+	}
+	while (result.length > 0 && result[result.length - 1].type === 'separator') {
+		result.pop();
+	}
+	return result;
 }
 
 /**
@@ -106,58 +131,43 @@ function processMenuItems(items: ContextMenuItem[]): ContextMenuItem[] {
 export function useContextMenu(config: ContextMenuConfig): ContextMenuResult {
 	const [menuData, setMenuData] = useState<ContextMenuItem[] | null>(null);
 	const platform = usePlatform();
+	const webController = useWebContextMenuController();
 
 	const show = useCallback(
 		async (e: React.MouseEvent) => {
-			console.log('[useContextMenu] show called', { x: e.clientX, y: e.clientY });
 			e.preventDefault();
 			e.stopPropagation();
 
-			// Filter items by condition and process keybindIds
 			const filteredItems = config.items.filter(
 				(item) => !item.condition || item.condition()
 			);
-			const visibleItems = processMenuItems(filteredItems);
+			const visibleItems = collapseSeparators(processMenuItems(filteredItems));
 
-			console.log('[useContextMenu] visible items:', visibleItems.length);
-
-			// Check if running in Tauri
 			const isTauri = platform.platform === 'tauri';
-			console.log('[useContextMenu] isTauri:', isTauri);
+			const nativeShow = (window as any).__SPACEDRIVE__?.showContextMenu;
 
-			if (isTauri) {
-				// Native mode: Use Tauri's native menu API
-				console.log('[useContextMenu] Using Tauri native menu');
-
+			if (isTauri && nativeShow) {
 				try {
-					// Call the platform-specific context menu handler
-					// This will be provided by the Tauri app wrapper
-					if ((window as any).__SPACEDRIVE__?.showContextMenu) {
-						await (window as any).__SPACEDRIVE__.showContextMenu(visibleItems, {
-							x: e.clientX,
-							y: e.clientY,
-						});
-					} else {
-						console.warn('[useContextMenu] Tauri context menu handler not found, falling back to web mode');
-						setMenuData(visibleItems);
-					}
+					await nativeShow(visibleItems, { x: e.clientX, y: e.clientY });
+					return;
 				} catch (err) {
-					console.error('[useContextMenu] Failed to show native context menu:', err);
-					// Fallback to web mode
-					setMenuData(visibleItems);
+					console.error('[useContextMenu] native menu failed, falling back to web', err);
 				}
+			}
+
+			if (webController) {
+				webController.show(visibleItems, e.clientX, e.clientY);
 			} else {
-				// Web mode: Use Radix ContextMenu (trigger via state)
-				console.log('[useContextMenu] Using web mode (Radix)');
 				setMenuData(visibleItems);
 			}
 		},
-		[config.items, platform]
+		[config.items, platform, webController]
 	);
 
 	const closeMenu = useCallback(() => {
 		setMenuData(null);
-	}, []);
+		webController?.close();
+	}, [webController]);
 
 	return { show, menuData, closeMenu };
 }

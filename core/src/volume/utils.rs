@@ -166,6 +166,21 @@ pub fn is_nested_app_mount(mount_point: &Path) -> bool {
 		|| path_str.contains("/.zfs/snapshot/")
 }
 
+/// Re-evaluate whether a mount path should be hidden from the user based on
+/// current platform visibility rules. Shared between the volume list query
+/// and the library statistics calculation so both consistently hide system
+/// mounts and nested app/container volumes even when the tracked DB row
+/// predates these filters (and so has a stale `is_user_visible = true`).
+#[cfg(target_os = "linux")]
+pub fn should_hide_by_mount_path(mount_point: &Path) -> bool {
+	is_system_mount_point(mount_point) || is_nested_app_mount(mount_point)
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn should_hide_by_mount_path(_mount_point: &Path) -> bool {
+	false
+}
+
 /// Parse filesystem type from string to FileSystem enum
 pub fn parse_filesystem_type(fs_type: &str) -> FileSystem {
 	match fs_type.to_lowercase().as_str() {
@@ -344,5 +359,43 @@ mod tests {
 			parse_filesystem_type("unknown"),
 			FileSystem::Other(_)
 		));
+	}
+
+	#[cfg(target_os = "linux")]
+	#[test]
+	fn test_should_hide_by_mount_path_linux() {
+		// System mounts — always hidden
+		assert!(should_hide_by_mount_path(Path::new("/")));
+		assert!(should_hide_by_mount_path(Path::new("/usr")));
+		assert!(should_hide_by_mount_path(Path::new("/var")));
+		assert!(should_hide_by_mount_path(Path::new("/etc")));
+		assert!(should_hide_by_mount_path(Path::new("/home")));
+		assert!(should_hide_by_mount_path(Path::new("/boot/grub")));
+		assert!(should_hide_by_mount_path(Path::new("/var/log/journal")));
+		assert!(should_hide_by_mount_path(Path::new(
+			"/var/db/system/netdata"
+		)));
+		assert!(should_hide_by_mount_path(Path::new("/sys/firmware/efi")));
+
+		// TrueNAS Scale app-managed datasets
+		assert!(should_hide_by_mount_path(Path::new("/mnt/.ix-apps")));
+		assert!(should_hide_by_mount_path(Path::new(
+			"/mnt/.ix-apps/docker"
+		)));
+		assert!(should_hide_by_mount_path(Path::new(
+			"/mnt/pool/ix-applications"
+		)));
+		assert!(should_hide_by_mount_path(Path::new(
+			"/mnt/pool/ix-applications/releases/plex/volumes/ix_volumes/ix-plex_data"
+		)));
+
+		// User data — not hidden
+		assert!(!should_hide_by_mount_path(Path::new("/mnt/pool")));
+		assert!(!should_hide_by_mount_path(Path::new(
+			"/mnt/pool/footage"
+		)));
+		assert!(!should_hide_by_mount_path(Path::new(
+			"/mnt/pool/calvin-nas"
+		)));
 	}
 }

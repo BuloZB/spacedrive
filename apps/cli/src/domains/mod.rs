@@ -10,6 +10,7 @@ pub mod library;
 pub mod location;
 pub mod logs;
 pub mod network;
+pub mod redundancy;
 pub mod search;
 pub mod spaces;
 pub mod sync;
