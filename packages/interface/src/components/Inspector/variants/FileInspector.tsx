@@ -5,6 +5,7 @@ import {
 	ClockCounterClockwise,
 	Cube,
 	DotsThree,
+	Eye,
 	FilmStrip,
 	Fingerprint,
 	HardDrive,
@@ -35,6 +36,7 @@ import {useJobsContext} from '../../../components/JobManager/hooks/JobsContext';
 import {TagSelectorButton} from '../../../components/Tags';
 import {usePlatform} from '../../../contexts/PlatformContext';
 import {useServer} from '../../../contexts/ServerContext';
+import {useOptionalExplorer} from '../../../routes/explorer';
 import { getContentKind } from "@sd/ts-client";
 import {
 	getDeviceIcon,
@@ -155,6 +157,8 @@ export function FileInspector({file}: FileInspectorProps) {
 // Quick Actions Component - Favorite, Share & Jobs buttons
 function FileQuickActions({file}: {file: File}) {
 	const platform = usePlatform();
+	// Null in the pop-out inspector window, which has no explorer to overlay.
+	const explorer = useOptionalExplorer();
 	const [isFavorite, setIsFavorite] = useState(false); // TODO: Get from file metadata
 
 	// AI Processing mutations
@@ -292,6 +296,18 @@ function FileQuickActions({file}: {file: File}) {
 
 	return (
 		<div className="flex items-center gap-1.5">
+			{/* Quick Preview Button — spacebar isn't available on touch devices */}
+			{explorer && (
+				<button
+					type="button"
+					onClick={() => explorer.openQuickPreview(file.id)}
+					className="border-sidebar-line/30 bg-sidebar-box/20 text-sidebar-inkDull hover:bg-sidebar-box/30 hover:text-sidebar-ink flex size-7 items-center justify-center rounded-full border transition-all active:scale-95"
+					title="Quick Preview"
+				>
+					<Eye size={14} weight="bold" />
+				</button>
+			)}
+
 			{/* Favorite Button */}
 			<button
 				type="button"

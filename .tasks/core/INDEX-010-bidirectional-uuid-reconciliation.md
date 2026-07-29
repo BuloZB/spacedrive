@@ -6,7 +6,7 @@ assignee: jamiepine
 parent: INDEX-000
 priority: Critical
 tags: [indexing, ephemeral, persistent, uuid, foundation]
-last_updated: 2026-02-07
+last_updated: 2026-05-10
 related_tasks: [INDEX-001, FSYNC-003, FILE-006]
 ---
 
@@ -15,6 +15,8 @@ related_tasks: [INDEX-001, FSYNC-003, FILE-006]
 The ephemeral and persistent indexes currently share UUIDs in one direction only: ephemeral → persistent (when promoting a browsed folder to a managed location). The reverse doesn't happen. When you volume-index or ephemerally browse a path that already has persistent entries, the ephemeral index generates new v4 UUIDs, orphaning metadata and breaking identity between the two layers.
 
 This task makes the ephemeral index a true superset layer on top of the persistent index by reusing persistent UUIDs when they exist. This is the foundational primitive for file sync, smart copy, and path intersection operations.
+
+The core can have multiple libraries loaded at the same time and does not have a global "active library". Reconciliation must therefore be library-scoped: the filesystem structure can stay shared in the global ephemeral index, but UUID identity must be resolved per library.
 
 ## Problem
 
@@ -35,9 +37,10 @@ Ephemeral Browse → Assign v4 UUIDs → [promote] → Persistent stores same UU
 ### Target Flow (Bidirectional)
 
 ```
-Ephemeral Browse → Assign v4 UUIDs → [reconcile] → Check persistent index
-                                                     ├── Match found → adopt persistent UUID
-                                                     └── No match → keep v4 UUID
+Library-scoped ephemeral browse → Assign temporary UUIDs for that library
+                                → [reconcile] → Check that library's persistent index
+                                               ├── Match found → adopt persistent UUID
+                                               └── No match → keep library-local v4 UUID
 ```
 
 ### Design Constraints
@@ -45,34 +48,80 @@ Ephemeral Browse → Assign v4 UUIDs → [reconcile] → Check persistent index
 1. **Do not slow down ephemeral discovery.** The ephemeral indexer must remain fast (~50K files/sec). No database queries during the filesystem walk.
 2. **Reconciliation is a separate pass.** After ephemeral discovery completes, run a background reconciliation against the persistent index for overlapping paths.
 3. **Lazy resolution as fallback.** If reconciliation hasn't run yet, UUID lookups can check the persistent index on demand.
-4. **Single EphemeralIndex instance.** The global `EphemeralIndexCache` holds one shared index. Reconciliation updates UUIDs in place.
+4. **Single shared filesystem index.** The global `EphemeralIndexCache` should keep one shared path and metadata structure for memory efficiency.
+5. **Library-scoped UUID overlay.** Reconciliation must not overwrite one global UUID per path. UUIDs are scoped by `(library_id, entry_id)` so two loaded libraries can map the same physical path to different persistent entry UUIDs.
+
+### Library Scoping
+
+The ephemeral cache is process-local and shared across all loaded libraries. Persistent databases are per-library. The same absolute path may exist in more than one loaded library, and each library can have different entry UUIDs, tags, metadata, sync state, and permissions.
+
+The correct model is:
+
+```text
+Shared ephemeral structure:
+  path -> EntryId
+  EntryId -> metadata
+  EntryId -> content kind
+
+Library identity overlay:
+  library_id -> EntryId -> UUID
+```
+
+This lets expensive filesystem discovery stay shared while keeping persistent identity correct for each loaded library.
 
 ## Implementation Steps
 
-### 1. Add Persistent UUID Lookup to EphemeralIndex
+### 1. Add Library-Scoped UUID Storage to EphemeralIndex
 
-Add a method that accepts pre-resolved UUIDs from an external source (the persistent DB) and patches them into the ephemeral index's `entry_uuids` map.
+Replace the single global `entry_uuids: HashMap<EntryId, Uuid>` with a library-scoped overlay. Existing call sites should pass the library ID when reading or assigning UUIDs.
 
 ```rust
 // core/src/ops/indexing/ephemeral/index.rs
 
+pub type LibraryId = Uuid;
+
+pub struct EphemeralIndex {
+    // path and metadata fields stay shared
+    entry_uuids_by_library: HashMap<LibraryId, HashMap<EntryId, Uuid>>,
+}
+
 impl EphemeralIndex {
-    /// Reconcile ephemeral UUIDs with persistent entries.
-    /// For each path in the provided map, if a matching ephemeral entry exists,
-    /// replace its UUID with the persistent one.
-    /// Returns count of UUIDs reconciled.
+    pub fn get_entry_uuid(&self, library_id: Uuid, path: &Path) -> Option<Uuid> {
+        let entry_id = self.path_index.get(path)?;
+        self.entry_uuids_by_library
+            .get(&library_id)?
+            .get(entry_id)
+            .copied()
+    }
+
+    pub fn get_or_assign_uuid(&mut self, library_id: Uuid, path: &Path) -> Uuid {
+        let Some(&entry_id) = self.path_index.get(path) else {
+            return Uuid::new_v4();
+        };
+
+        let uuids = self.entry_uuids_by_library.entry(library_id).or_default();
+        *uuids.entry(entry_id).or_insert_with(Uuid::new_v4)
+    }
+
     pub fn reconcile_persistent_uuids(
         &mut self,
+        library_id: Uuid,
         persistent_uuids: &HashMap<PathBuf, Uuid>,
-    ) -> usize {
+    ) -> Vec<(PathBuf, Uuid)> {
+        let uuids = self.entry_uuids_by_library.entry(library_id).or_default();
+        let mut changed = Vec::new();
+
         let mut count = 0;
         for (path, persistent_uuid) in persistent_uuids {
             if let Some(&entry_id) = self.path_index.get(path) {
-                self.entry_uuids.insert(entry_id, *persistent_uuid);
-                count += 1;
+                let existing = uuids.insert(entry_id, *persistent_uuid);
+                if existing != Some(*persistent_uuid) {
+                    changed.push((path.clone(), *persistent_uuid));
+                }
             }
         }
-        count
+
+        changed
     }
 }
 ```
@@ -124,49 +173,28 @@ pub async fn extract_persistent_uuids_for_path(
 
 For large persistent locations this query could return thousands of entries. Batch the path resolution and use the `directory_paths` cache (O(1) per directory) to keep it fast.
 
-### 3. Reconciliation Pass on EphemeralIndexCache
+### 3. Library-Scoped Reconciliation Pass on EphemeralIndexCache
 
-After ephemeral discovery completes for a path, check if any persistent locations overlap with the scanned path and run reconciliation.
+After ephemeral discovery completes for a path, reconcile against the library that requested the operation. Do not scan all loaded libraries and overwrite global UUIDs.
 
 ```rust
 // core/src/ops/indexing/ephemeral/cache.rs
 
 impl EphemeralIndexCache {
-    /// Run after ephemeral indexing completes for a path.
-    /// Checks all libraries for persistent locations that overlap with the
-    /// ephemeral path and reconciles UUIDs.
     pub async fn reconcile_with_persistent(
         &self,
+        library_id: Uuid,
         scanned_path: &Path,
-        libraries: &LibraryManager,
-    ) -> usize {
-        let mut total = 0;
+        db: &DatabaseConnection,
+    ) -> Result<Vec<(PathBuf, Uuid)>> {
+        let persistent_uuids = extract_persistent_uuids_for_path(db, scanned_path).await?;
 
-        for library in libraries.list().await {
-            let db = library.db();
-            match extract_persistent_uuids_for_path(db, scanned_path).await {
-                Ok(persistent_uuids) if !persistent_uuids.is_empty() => {
-                    let mut index = self.index.write().await;
-                    total += index.reconcile_persistent_uuids(&persistent_uuids);
-                }
-                Ok(_) => {} // No overlap with this library
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to reconcile UUIDs for library {}: {}",
-                        library.id(), e
-                    );
-                }
-            }
+        if persistent_uuids.is_empty() {
+            return Ok(Vec::new());
         }
 
-        if total > 0 {
-            tracing::info!(
-                "Reconciled {} ephemeral UUIDs with persistent index for {}",
-                total, scanned_path.display()
-            );
-        }
-
-        total
+        let mut index = self.index.write().await;
+        Ok(index.reconcile_persistent_uuids(library_id, &persistent_uuids))
     }
 }
 ```
@@ -180,18 +208,19 @@ Wire reconciliation into the ephemeral indexing job completion path. The indexer
 
 cache.mark_indexing_complete(&path);
 
-// Reconcile with persistent index in background
+// Reconcile with this library's persistent index in the background.
 let cache_clone = cache.clone();
-let libraries = ctx.library().core_context().libraries().await;
+let library_id = ctx.library().id();
+let db = ctx.library().db().clone();
 let path_clone = path.clone();
 tokio::spawn(async move {
-    cache_clone
-        .reconcile_with_persistent(&path_clone, &libraries)
+    let _ = cache_clone
+        .reconcile_with_persistent(library_id, &path_clone, db.conn())
         .await;
 });
 ```
 
-Spawning as a background task keeps the indexing job fast. The UI shows ephemeral UUIDs immediately, then silently corrects them when reconciliation completes. Since the ephemeral index is the browsing layer, UUID changes propagate to the UI via the existing `ResourceChanged` event system.
+Spawning as a background task keeps the indexing job fast. The UI shows library-local ephemeral UUIDs immediately, then corrects them when reconciliation completes. Since UUIDs are library-scoped, another loaded library viewing the same path is unaffected.
 
 ### 5. Lazy Fallback: On-Demand UUID Resolution
 
@@ -205,11 +234,12 @@ impl EphemeralIndex {
     /// Used when reconciliation hasn't completed yet.
     pub async fn get_or_resolve_uuid(
         &mut self,
+        library_id: Uuid,
         path: &PathBuf,
         persistent_lookup: Option<&dyn PersistentUuidLookup>,
     ) -> Option<Uuid> {
         // Fast path: already have a UUID (either generated or reconciled)
-        if let Some(uuid) = self.get_entry_uuid(path) {
+        if let Some(uuid) = self.get_entry_uuid(library_id, path) {
             return Some(uuid);
         }
 
@@ -218,7 +248,10 @@ impl EphemeralIndex {
             if let Some(persistent_uuid) = lookup.lookup_uuid(path).await {
                 // Cache for future access
                 if let Some(&entry_id) = self.path_index.get(path) {
-                    self.entry_uuids.insert(entry_id, persistent_uuid);
+                    self.entry_uuids_by_library
+                        .entry(library_id)
+                        .or_default()
+                        .insert(entry_id, persistent_uuid);
                 }
                 return Some(persistent_uuid);
             }
@@ -240,7 +273,7 @@ pub trait PersistentUuidLookup: Send + Sync {
 
 ### 6. Emit Events on UUID Reconciliation
 
-When a UUID changes from a temporary v4 to a persistent UUID, emit a `ResourceChanged` event so the frontend updates references.
+When a UUID changes from a temporary library-local v4 to a persistent UUID, emit a `ResourceChanged` event for that library/session so the frontend updates references.
 
 ```rust
 // In reconcile_persistent_uuids(), collect changed entries:
@@ -262,6 +295,7 @@ This is important because the frontend may have cached the temporary UUID in sel
 - `core/src/ops/indexing/ephemeral/cache.rs` - Add `reconcile_with_persistent()`
 - `core/src/ops/indexing/job.rs` - Wire reconciliation after ephemeral completion
 - `core/src/ops/indexing/mod.rs` - Add `reconciliation` module
+- Ephemeral query/search call sites - Pass `library_id` into UUID reads and lazy assignment
 
 ## Acceptance Criteria
 
@@ -271,9 +305,11 @@ This is important because the frontend may have cached the temporary UUID in sel
 - [ ] Lazy fallback resolves persistent UUIDs on demand when reconciliation hasn't completed
 - [ ] ResourceChanged events emitted when ephemeral UUIDs are replaced with persistent ones
 - [ ] Tags and metadata attached to persistent entries are visible in ephemeral views after reconciliation
-- [ ] Multiple libraries with overlapping paths are handled (all checked)
+- [ ] Multiple loaded libraries with overlapping paths are handled via separate UUID overlays
+- [ ] Reconciliation for one library does not overwrite UUIDs returned for another loaded library
 - [ ] Paths with no persistent overlap are unaffected (keep v4 UUIDs)
 - [ ] Integration test: ephemeral index of persistent location produces same UUIDs
+- [ ] Integration test: two loaded libraries can reconcile the same path to different UUIDs
 - [ ] Integration test: volume index reconciles UUIDs for all persistent locations on volume
 - [ ] Performance: reconciliation of 100K entries completes in under 2 seconds
 
@@ -291,9 +327,15 @@ Users expect ephemeral browsing to feel instant. Reconciliation involves databas
 
 A persistent location at `/Users/james/Documents` overlaps with an ephemeral scan of `/Users/james` (the ephemeral path is a parent). The reconciliation needs to check both directions: persistent roots that are children of the scanned path, and persistent roots that are parents of the scanned path.
 
+### Multiple Loaded Libraries
+
+Core does not know an active library. It only knows loaded libraries and library-scoped operations. Directory listing, search, and volume indexing must pass the library ID from their operation context into ephemeral UUID access.
+
+Do not reconcile against all loaded libraries into a single global `path -> uuid` map. That would make whichever library reconciles last win, causing the wrong tags and metadata to appear for other libraries.
+
 ### Memory Impact
 
-The `entry_uuids` HashMap already exists in the ephemeral index. Reconciliation doesn't add new entries — it replaces v4 UUIDs with persistent ones. No additional memory overhead.
+The path tree, metadata, name cache, and content kind storage remain shared. Only UUID mappings become per-library. Memory overhead is proportional to the number of ephemeral entries that have been viewed or reconciled in each loaded library, not to the full filesystem metadata structure.
 
 ## Related Tasks
 

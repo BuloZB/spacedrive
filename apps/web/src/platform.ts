@@ -13,6 +13,18 @@ export const platform: Platform = {
 		window.open(url, "_blank", "noopener,noreferrer");
 	},
 
+	// sd-server serves the UI, RPC, and sidecars from a single origin, so the
+	// sidecar base URL is wherever this page was loaded from. Without this the
+	// ServerContext never gets a serverUrl and thumbnails silently never load.
+	async getDaemonStatus() {
+		return {
+			is_running: true,
+			socket_path: "",
+			server_url: window.location.origin,
+			started_by_us: false,
+		};
+	},
+
 	confirm(message: string, callback: (result: boolean) => void) {
 		callback(window.confirm(message));
 	},
