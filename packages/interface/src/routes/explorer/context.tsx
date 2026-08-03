@@ -930,6 +930,15 @@ export function useExplorer(): ExplorerContextValue {
 	return context;
 }
 
+/**
+ * Null-safe variant for components that also render outside the explorer
+ * (e.g. the pop-out inspector window), where explorer-bound actions should
+ * disappear instead of crashing.
+ */
+export function useOptionalExplorer(): ExplorerContextValue | null {
+	return useContext(ExplorerContext);
+}
+
 export {
 	getSpaceItemKey,
 	getSpaceItemKey as getSpaceItemKeyFromRoute,

@@ -40,6 +40,7 @@ struct WebAssets;
 struct AppState {
 	auth: HashMap<String, SecStr>,
 	socket_addr: String,
+	data_dir: PathBuf,
 }
 
 /// Basic auth middleware
@@ -115,6 +116,103 @@ async fn serve_web(uri: Uri) -> Response {
 			 Run `bun run build` in `apps/web/` and rebuild sd-server.",
 		))
 		.expect("missing-bundle response is well-formed")
+}
+
+/// Locate a library folder by its UUID. Library directory names are
+/// user-chosen, so each library.json is read to match the id.
+async fn find_library_folder(data_dir: &std::path::Path, library_id: &str) -> Option<PathBuf> {
+	let mut entries = tokio::fs::read_dir(data_dir.join("libraries")).await.ok()?;
+	while let Ok(Some(entry)) = entries.next_entry().await {
+		let path = entry.path();
+		if path.extension().and_then(|s| s.to_str()) != Some("sdlibrary") {
+			continue;
+		}
+		let Ok(contents) = tokio::fs::read_to_string(path.join("library.json")).await else {
+			continue;
+		};
+		let Ok(json) = serde_json::from_str::<serde_json::Value>(&contents) else {
+			continue;
+		};
+		if json.get("id").and_then(|v| v.as_str()) == Some(library_id) {
+			return Some(path);
+		}
+	}
+	None
+}
+
+fn plain_status(status: StatusCode, message: &'static str) -> Response {
+	Response::builder()
+		.status(status)
+		.header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
+		.body(Body::from(message))
+		.expect("static status response is well-formed")
+}
+
+/// Serve a sidecar file (thumbnail, thumbstrip, proxy, …) from the library's
+/// sidecars tree — the HTTP twin of the desktop app's local sidecar server,
+/// built on sd-core's canonical path scheme.
+async fn serve_sidecar(
+	State(state): State<AppState>,
+	axum::extract::Path((library_id, content_uuid, kind, variant_and_ext)): axum::extract::Path<(
+		String,
+		String,
+		String,
+		String,
+	)>,
+) -> Response {
+	use sd_core::ops::sidecar::{SidecarFormat, SidecarKind, SidecarPathBuilder, SidecarVariant};
+
+	let Ok(content_uuid) = content_uuid.parse::<uuid::Uuid>() else {
+		return plain_status(StatusCode::BAD_REQUEST, "invalid content uuid");
+	};
+	let Ok(kind) = SidecarKind::try_from(kind.as_str()) else {
+		return plain_status(StatusCode::BAD_REQUEST, "invalid sidecar kind");
+	};
+	let Some((variant, ext)) = variant_and_ext.rsplit_once('.') else {
+		return plain_status(StatusCode::BAD_REQUEST, "variant must carry an extension");
+	};
+	// The variant is the only free-form path segment; keep it a single segment.
+	if variant.contains(['/', '\\']) || variant.contains("..") {
+		return plain_status(StatusCode::BAD_REQUEST, "invalid variant");
+	}
+	let Ok(format) = SidecarFormat::try_from(ext) else {
+		return plain_status(StatusCode::BAD_REQUEST, "invalid sidecar format");
+	};
+	let Some(library_folder) = find_library_folder(&state.data_dir, &library_id).await else {
+		return plain_status(StatusCode::NOT_FOUND, "unknown library");
+	};
+
+	let path = SidecarPathBuilder::new(&library_folder)
+		.build(&content_uuid, &kind, &SidecarVariant::from(variant), &format)
+		.absolute_path;
+
+	let Ok(file) = tokio::fs::File::open(&path).await else {
+		return plain_status(StatusCode::NOT_FOUND, "sidecar not found");
+	};
+	let content_length = file.metadata().await.ok().map(|m| m.len());
+
+	let content_type = match format {
+		SidecarFormat::Webp => "image/webp",
+		SidecarFormat::Mp4 => "video/mp4",
+		SidecarFormat::Json => "application/json",
+		SidecarFormat::Text => "text/plain; charset=utf-8",
+		SidecarFormat::MessagePack | SidecarFormat::Ply => "application/octet-stream",
+	};
+
+	// Sidecar paths are content-addressed (uuid + variant), so clients may
+	// cache indefinitely; regenerated variants land at the same path only
+	// when the content itself is unchanged.
+	let mut builder = Response::builder()
+		.status(StatusCode::OK)
+		.header(header::CONTENT_TYPE, content_type)
+		.header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
+		.header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+	if let Some(len) = content_length {
+		builder = builder.header(header::CONTENT_LENGTH, len);
+	}
+	builder
+		.body(Body::from_stream(tokio_util::io::ReaderStream::new(file)))
+		.expect("sidecar response is well-formed")
 }
 
 /// Bridge the daemon's event stream to a browser SSE connection.
@@ -261,6 +359,12 @@ struct Args {
 	#[arg(long, env = "DATA_DIR")]
 	data_dir: Option<PathBuf>,
 
+	/// Address to bind HTTP server. The wildcard default suits containers;
+	/// bind a specific address (e.g. 127.0.0.1) when a reverse proxy such as
+	/// `tailscale serve` owns the same port on other interfaces.
+	#[arg(long, env = "SD_HOST", default_value = "::")]
+	host: std::net::IpAddr,
+
 	/// Port to bind HTTP server (default: 8080)
 	#[arg(long, env = "PORT", default_value = "8080")]
 	port: u16,
@@ -354,32 +458,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let state = AppState {
 		auth,
 		socket_addr: socket_addr.clone(),
+		data_dir: data_dir.clone(),
 	};
 
 	let app = Router::new()
 		.route("/health", get(health))
 		.route("/rpc", post(daemon_rpc))
 		.route("/events", get(events_sse))
+		.route(
+			"/sidecar/:library_id/:content_uuid/:kind/*variant",
+			get(serve_sidecar),
+		)
 		.fallback(serve_web)
 		.layer(middleware::from_fn_with_state(state.clone(), basic_auth))
 		.with_state(state);
 
 	// Bind server
-	let mut addr = "[::]:8080".parse::<SocketAddr>().unwrap();
-	addr.set_port(args.port);
-
-	info!(
-		"Spacedrive Server listening on http://localhost:{}",
-		args.port
-	);
-	info!("Web UI available at /");
-	info!("RPC endpoint available at /rpc");
+	let addr = SocketAddr::new(args.host, args.port);
 
 	// Setup graceful shutdown
 	let shutdown_signal = shutdown_signal(daemon_handle);
 
 	// Start server
 	let listener = tokio::net::TcpListener::bind(addr).await?;
+	info!("Spacedrive Server listening on http://{}", addr);
+	info!("Web UI available at /");
+	info!("RPC endpoint available at /rpc");
 	axum::serve(listener, app)
 		.with_graceful_shutdown(shutdown_signal)
 		.await?;
